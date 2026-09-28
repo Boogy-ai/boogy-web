@@ -41,11 +41,48 @@ export function runAuthFlow(p: FlowParams): Promise<void> {
 // ─── Popup mode ───────────────────────────────────────────────────────────────
 
 function runPopupFlow({ authorizeUrl, appOrigin }: FlowParams): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const popup = window.open(authorizeUrl, 'boogy_sso', 'popup,width=480,height=640');
+  return awaitPopup<void>({
+    url: authorizeUrl,
+    name: 'boogy_sso',
+    origin: appOrigin,
+    blocked: () => new BoogyError('popup_blocked', 'The sign-in popup was blocked by the browser.'),
+    aborted: () => new BoogyError('sign_in_aborted', 'The sign-in popup was closed before completion.'),
+    decide(data) {
+      const boogy = (data as { boogy?: string } | null)?.boogy;
+      if (boogy === 'sso_done') return { value: undefined };
+      if (boogy === 'sso_cancelled') return { error: new BoogyError('consent_denied', 'The user cancelled the sign-in.') };
+      return null;
+    },
+  });
+}
+
+/** What a popup's message decides: settle with a value, fail, or (null) keep waiting. */
+export type PopupDecision<T> = { value: T } | { error: BoogyError } | null;
+
+export interface PopupParams<T> {
+  url: string;
+  /** The window name, so a second request reuses the same popup. */
+  name: string;
+  /** The only origin whose messages are read. Every other message is ignored. */
+  origin: string;
+  blocked(): BoogyError;
+  /** The popup closed before a deciding message. */
+  aborted(): BoogyError;
+  decide(data: unknown): PopupDecision<T>;
+  /** Stops waiting: rejects with `aborted()` and stops reading messages. */
+  signal?: AbortSignal;
+}
+
+/**
+ * Open a popup and settle on the first message from `origin` that `decide`
+ * accepts, or reject when the popup is blocked or closed first.
+ */
+export function awaitPopup<T>(p: PopupParams<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const popup = window.open(p.url, p.name, 'popup,width=480,height=640');
 
     if (!popup) {
-      reject(new BoogyError('popup_blocked', 'The sign-in popup was blocked by the browser.'));
+      reject(p.blocked());
       return;
     }
 
@@ -54,8 +91,9 @@ function runPopupFlow({ authorizeUrl, appOrigin }: FlowParams): Promise<void> {
     const cleanup = () => {
       window.removeEventListener('message', onMessage);
       clearInterval(closedPoll);
-      // Best-effort: close the popup if it is still open (e.g. user closed it manually
-      // before the callback ran, and we detected it via the poll).
+      // Superseded: the next call has taken over this window, so leave it open.
+      if (p.signal?.aborted) return;
+      // Best-effort: close the popup if it is still open.
       try {
         if (!popup.closed) popup.close();
       } catch {
@@ -71,28 +109,20 @@ function runPopupFlow({ authorizeUrl, appOrigin }: FlowParams): Promise<void> {
     };
 
     const onMessage = (event: MessageEvent) => {
-      // Strictly check the origin — ignore any message not from the expected app origin.
-      if (event.origin !== appOrigin) return;
-
-      const boogy = (event.data as { boogy?: string } | null)?.boogy;
-      if (boogy === 'sso_done') {
-        settle(() => resolve());
-      } else if (boogy === 'sso_cancelled') {
-        settle(() => reject(new BoogyError('consent_denied', 'The user cancelled the sign-in.')));
-      }
-      // Any other `boogy` value (or unrecognised message) is ignored.
+      // Strictly check the origin — ignore any message not from the expected one.
+      if (event.origin !== p.origin) return;
+      const d = p.decide(event.data);
+      if (!d) return;
+      if ('error' in d) settle(() => reject(d.error));
+      else settle(() => resolve(d.value));
     };
 
     window.addEventListener('message', onMessage);
+    p.signal?.addEventListener('abort', () => settle(() => reject(p.aborted())), { once: true });
 
-    // Poll for popup closure. If it closes before we received an SSO message, the user
-    // dismissed the window without completing the flow.
+    // Poll for popup closure: closed before a deciding message means abandoned.
     const closedPoll = setInterval(() => {
-      if (popup.closed) {
-        settle(() =>
-          reject(new BoogyError('sign_in_aborted', 'The sign-in popup was closed before completion.')),
-        );
-      }
+      if (popup.closed) settle(() => reject(p.aborted()));
     }, 300);
   });
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Add one <url><loc>...</loc></url> per page once deployed. Use the exact
+     address boogy deploy prints; do not guess the domain. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+</urlset>

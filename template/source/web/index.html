@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{name}}</title>
+    <meta name="description" content="Describe {{name}} in one sentence, in the words someone would search for." />
+    <!-- canonical, og:url and the sitemap want the real deployed address,
+         which boogy deploy prints. Add them from that output; a relative
+         canonical fails the deploy's dangling-reference check. -->
+    <meta property="og:title" content="{{name}}" />
+    <meta property="og:description" content="Describe {{name}} in one sentence." />
+    <meta property="og:type" content="website" />
+    <script type="application/ld+json">
+      { "@context": "https://schema.org", "@type": "WebApplication", "name": "{{name}}" }
+    </script>
+    <link rel="stylesheet" href="./theme.css" />
+    <link rel="stylesheet" href="./app.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <!-- The platform transpiles app.tsx and serves app.js; this tag must name
+         the emitted file, or the page loads blank. -->
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

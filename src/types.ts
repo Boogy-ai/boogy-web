@@ -1,16 +1,25 @@
 /** Options passed to the `Boogy` constructor. */
 export interface BoogyOptions {
   /**
-   * The platform base URL (e.g. `https://boogy.ai`).
-   * The SDK derives app origins and the auth origin from this value.
-   */
-  host: string;
-
-  /**
    * How the SDK drives the sign-in and consent flows.
    * Defaults to `'popup'`.
    */
   authMode?: 'popup' | 'redirect';
+
+  /**
+   * Extra app audiences to include when `Boogy.fetch` silently re-authorizes
+   * after a `401`, alongside the audience of the app whose request failed.
+   *
+   * Called fresh on every renewal attempt, so a caller whose set of open
+   * apps changes over time (e.g. panes added or removed on a multi-app page)
+   * stays covered without going stale — one consent round-trip renews every
+   * app that's currently in play, instead of prompting once per app as each
+   * one's session happens to expire.
+   *
+   * Omit this for a single-app page: the failing app's own audience is
+   * always included regardless.
+   */
+  renewAudiences?: () => readonly string[];
 }
 
 /** The end-user currently authenticated on the given app. */
@@ -22,6 +31,12 @@ export interface CurrentUser {
    * server omits it when the underlying grant record is unavailable.
    */
   connectedAt?: string;
+  /** The services this origin's session covers, as ids under the app's owner. */
+  services: string[];
+  /** The person's display name, when they chose to share it. */
+  displayName: string | null;
+  /** The person's avatar URL, when they chose to share it. */
+  avatarUrl: string | null;
 }
 
 /** An end-user's consent grant for a specific app. */

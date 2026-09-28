@@ -8,7 +8,11 @@ export class BoogyError extends Error {
     | 'consent_denied'
     | 'popup_blocked'
     | 'app_not_found'
-    | 'network';
+    | 'invalid_audience_batch'
+    | 'config_unavailable'
+    | 'network'
+    | 'install_cancelled'
+    | 'install_aborted';
 
   /** The `owner/service` app identifier, when the error is app-specific. */
   readonly app?: string;

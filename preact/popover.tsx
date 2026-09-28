@@ -1,0 +1,197 @@
+// Popover for Preact apps: a panel anchored to a trigger, above everything on
+// the page. Its placement is the core `place()` (React Aria's rules, the
+// primitive under HeroUI v3); it renders in the browser's top layer (the
+// `popover` attribute), so no ancestor's overflow or stacking can clip or
+// cover it.
+//
+// On a small screen it is a PAGE instead: the whole screen, a head with a back
+// button, and a history entry, so the device's back button or gesture closes
+// it. Closing it any other way steps that entry back off, so none is left
+// behind.
+import { type ComponentChildren, type JSX, type RefObject } from 'preact';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { Button } from './button';
+import { DRAWER_BREAKPOINTS, place, popover, type DrawerBreakpoint, type PopoverMode, type PopoverPlacement } from '@boogy/web';
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+export type PopoverProps = {
+  /** The element it is anchored to; focus returns here when it closes. */
+  triggerRef: RefObject<HTMLElement>;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** "side align", e.g. `bottom start`. Default `bottom`. */
+  placement?: PopoverPlacement;
+  /** Gap from the trigger, px. Default 8. */
+  offset?: number;
+  /** Shift along the trigger, px. Default 0. */
+  crossOffset?: number;
+  /** Flip to the opposite side when that side has more room. Default true. */
+  shouldFlip?: boolean;
+  /** Minimum gap from the viewport's edges, px. Default 12. */
+  containerPadding?: number;
+  maxHeight?: number;
+  /** Below this viewport width it opens as a full-screen page. Default `sm`; `false` never. */
+  fullscreenBelow?: DrawerBreakpoint | false;
+  /** The page head's title, and the dialog's accessible name. */
+  title?: string;
+  children?: ComponentChildren;
+} & Omit<JSX.HTMLAttributes<HTMLDivElement>, 'title'>;
+
+/** `page` while the viewport is narrower than the breakpoint. A popover lives
+ *  in the top layer, outside every container, so the viewport is the one box
+ *  it can be measured against — hence a media query here, not a container one. */
+function useMode(below: DrawerBreakpoint | false): PopoverMode {
+  const query = below ? `(width < ${DRAWER_BREAKPOINTS[below]})` : null;
+  const read = () => (query && typeof window.matchMedia === 'function' && window.matchMedia(query).matches ? 'page' : 'anchored');
+  const [mode, setMode] = useState<PopoverMode>(read);
+  useEffect(() => {
+    if (!query || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(query);
+    const on = () => setMode(mq.matches ? 'page' : 'anchored');
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, [query]);
+  return mode;
+}
+
+export function Popover({
+  triggerRef, isOpen, onOpenChange, placement, offset, crossOffset, shouldFlip, containerPadding, maxHeight,
+  fullscreenBelow = 'sm', title, children, ...rest
+}: PopoverProps) {
+  const mode = useMode(fullscreenBelow);
+  const ref = useRef<HTMLDivElement>(null);
+  const id = useRef(`p${Math.random().toString(36).slice(2)}`);
+  const close = () => onOpenChange(false);
+  // SHOWN FROM THE REF, not an effect: a ref is set during commit, before any
+  // effect, so content that focuses itself in its own layout effect (a menu
+  // focusing its first item) finds the popover already displayed. Shown from
+  // an effect, a child's focus() would land on a display:none element and be lost.
+  const show = useCallback((el: HTMLDivElement | null) => {
+    ref.current = el;
+    const p = el as (HTMLDivElement & { showPopover?: () => void }) | null;
+    if (p?.showPopover && !p.matches(':popover-open')) p.showPopover();
+  }, []);
+  // The latest close, for listeners installed once per opening.
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const trigger = triggerRef.current;
+    if (!isOpen || !el) return;
+
+    // PLACEMENT (anchored only): measure, place, write — no render per frame.
+    const position = () => {
+      if (mode !== 'anchored' || !trigger) return;
+      const t = trigger.getBoundingClientRect();
+      // Measure at the origin: a shrink-to-fit box measured where it last sat
+      // (say near the right edge) is squeezed narrower than it will be once
+      // moved, and would then be placed past the padding. Same frame, no paint.
+      el.style.left = '0px';
+      el.style.top = '0px';
+      // LAYOUT size, never the bounding rect: the entrance animation scales the
+      // box (0.96 -> 1), and a rect measured mid-animation is too small, so the
+      // popover would be placed past the padding. offsetWidth ignores transforms.
+      // Height: the content's scroll height plus the borders, whatever
+      // max-height is applied now.
+      const width = el.offsetWidth;
+      const height = el.scrollHeight + (el.offsetHeight - el.clientHeight);
+      const p = place({
+        trigger: { left: t.left, top: t.top, width: t.width, height: t.height },
+        popup: { width, height },
+        viewport: { width: document.documentElement.clientWidth || window.innerWidth, height: window.innerHeight },
+        placement, offset, crossOffset, shouldFlip, containerPadding, maxHeight,
+      });
+      el.style.left = `${p.x}px`;
+      el.style.top = `${p.y}px`;
+      el.style.maxHeight = `${p.maxHeight}px`;
+      el.dataset.placement = p.placement;
+      el.style.setProperty('--trigger-width', `${t.width}px`);
+    };
+    position();
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(position);
+    ro?.observe(el);
+    if (trigger) ro?.observe(trigger);
+
+    // FOCUS: in, unless the content already took it.
+    if (!el.contains(document.activeElement)) {
+      (el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus();
+    }
+
+    // DISMISSAL: Escape, or a press anywhere but the popover and its trigger.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeRef.current(); return; }
+      // Already handled inside (a menu closes on Tab rather than trapping it).
+      if (e.defaultPrevented) return;
+      if (e.key !== 'Tab' || !el.contains(document.activeElement)) return;
+      // Focus stays inside while it is open.
+      const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    };
+    const onPress = (e: Event) => {
+      const target = e.target as Node;
+      if (el.contains(target) || trigger?.contains(target)) return;
+      closeRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPress, true);
+
+    // HISTORY (page only): back closes it; any other close steps back.
+    let pushed = false;
+    const onPop = () => {
+      if (!pushed || (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) return;
+      pushed = false;
+      closeRef.current();
+    };
+    if (mode === 'page') {
+      history.pushState({ ...(history.state as object | null), boogyPopover: id.current }, '');
+      pushed = true;
+      window.addEventListener('popstate', onPop);
+    }
+
+    return () => {
+      window.removeEventListener('resize', position);
+      window.removeEventListener('scroll', position, true);
+      ro?.disconnect();
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPress, true);
+      window.removeEventListener('popstate', onPop);
+      if (pushed && (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) history.back();
+      if (el.contains(document.activeElement) || document.activeElement === document.body) trigger?.focus();
+    };
+  }, [isOpen, mode]);
+
+  if (!isOpen) return null;
+  const page = mode === 'page';
+  return (
+    <div
+      {...rest}
+      {...popover({ mode })}
+      ref={show}
+      popover="manual"
+      role="dialog"
+      aria-modal={page ? 'true' : undefined}
+      aria-label={title ?? (rest as { 'aria-label'?: string })['aria-label']}
+      tabIndex={-1}
+    >
+      {page && (
+        <div data-slot="page-head">
+          <Button variant="quiet" shape="icon" label="Back" onClick={close}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+          </Button>
+          {title && <span>{title}</span>}
+        </div>
+      )}
+      <div data-slot="body">{children}</div>
+    </div>
+  );
+}

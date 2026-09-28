@@ -1,0 +1,17 @@
+[service]
+id = "{{name}}"
+name = "{{name}}"
+version = "0.1.0"
+description = "Describe what {{name}} does, in the words someone would search for."
+
+[routing]
+path = "/{{name}}"
+methods = ["GET"]
+
+[ingress]
+mode = "public"
+
+[frontend]
+root = "web"
+build = "source"
+jsx_import_source = "preact"

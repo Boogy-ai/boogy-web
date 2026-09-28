@@ -1,7 +1,7 @@
 {
   "name": "@boogy/web",
-  "version": "0.0.0",
-  "description": "Browser SDK for Boogy — sign-in, app connection, and credentialed fetch.",
+  "version": "0.2.8",
+  "description": "Browser SDK for Boogy \u2014 sign-in, app connection, and credentialed fetch.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -10,20 +10,49 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./dev": {
+      "types": "./dist-dev/index.d.ts",
+      "import": "./dist-dev/index.js"
+    },
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./preact": {
+      "types": "./dist-preact/index.d.ts",
+      "import": "./dist-preact/index.js"
     }
   },
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "dist-dev",
+    "tsconfig.base.json",
+    "dist-preact",
+    "fonts"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p dev/tsconfig.json && tsc -p preact/tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:browser": "vitest run -c vitest.browser.config.ts",
+    "prepare": "tsc -p tsconfig.json && tsc -p dev/tsconfig.json && tsc -p preact/tsconfig.json",
+    "contract": "tsc -p dev/tsconfig.json && node dist-dev/contract.js",
+    "typecheck": "tsc -p tsconfig.test.json"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
     "happy-dom": "^20.8.9",
+    "preact": "^10.29.8",
+    "puppeteer-core": "^24.43.1",
     "typescript": "^5.7.0",
+    "vite": "^8.1.0",
     "vitest": "^4.1.11"
+  },
+  "peerDependencies": {
+    "preact": "^10"
+  },
+  "peerDependenciesMeta": {
+    "preact": {
+      "optional": true
+    }
   }
 }

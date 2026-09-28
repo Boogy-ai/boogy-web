@@ -1,0 +1,14 @@
+/* Your styles. Size with var(--u) multiples and the foundation's tokens
+   (--space-*, --fs-*, --radius-*); these rules win over the foundation. */
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+}
+
+.app { block-size: 100dvh; display: flex; flex-direction: column; }
+.header { padding: var(--space-3) var(--space-4); border-bottom: var(--rule); }
+.header h1 { margin: 0; font-size: var(--fs-title); }

@@ -1,0 +1,10 @@
+/* The five knobs. Everything else — grounds, text, edges, accent shades,
+   status colours, type, spacing and radii — is derived from these by
+   @boogy/web's foundation stylesheet. */
+:root {
+  --hue: 250;          /* the tint the greys lean toward */
+  --tint: 0.012;       /* how strongly they lean; 0 = pure grey */
+  --accent: oklch(0.74 0.15 170);
+  --contrast: 1;       /* spacing between lightness steps */
+  --scheme: light dark; /* "light", "dark", or "light dark" to follow the system */
+}

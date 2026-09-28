@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../dist-preact",
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
+  },
+  "include": ["."],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
+}

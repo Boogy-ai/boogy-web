@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "rootDir": ".", "outDir": "../dist-dev", "lib": ["ES2022", "DOM"], "types": ["node"] },
+  "include": ["."],
+  "exclude": ["**/*.test.ts"]
+}

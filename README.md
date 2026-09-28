@@ -173,7 +173,7 @@ await boogy.signOut({ all: true });
 
 **Signature:** `signOut(target: string | { all: true }): Promise<void>`
 
-- `signOut(app)` — POSTs `<app-origin>/boogy/logout` to clear the per-app session. Best-effort: resolves regardless of the response.
+- `signOut(app)` — POSTs `<app-origin>/boogy/logout?service=<service>` to clear THAT app's session and no other. Best-effort: resolves regardless of the response. The `service` parameter is what makes it per-app: the cookie is named per service and one tenant origin serves all of an owner's services, so an unnamed logout clears every sibling app's session too.
 - `signOut({ all: true })` — POSTs the global logout endpoint on the auth origin to clear the bootstrap session.
 
 **v1 note:** `signOut({ all: true })` targets the auth origin (`auth.<base>`), which is cross-origin from any tenant app page. The browser sends the POST but CORS will block the response unless the auth origin allows the calling origin. In practice the global session expires on its own. This method swallows the CORS/network error and resolves — it is explicitly best-effort. For reliable per-app sign-out, `signOut(app)` always works from the app origin.
@@ -226,6 +226,118 @@ Resolves on `2xx` or `404` (idempotent — a missing grant is treated as already
 | `e.code` | Meaning |
 |---|---|
 | `network` | Network error, CORS block, or unexpected non-2xx/non-404 response. |
+
+---
+
+## Panes: when your app is shown inside a board
+
+A board shows several apps side by side, each in its own frame. By default a
+board knows nothing about the app inside a frame: it shows the name the pane was
+given, and opens the app at its home page every time. An app can tell the board
+three things, so the board can do better:
+
+- **its title**, shown in the frame's header instead of the address;
+- **where it is**, so reopening the board brings the app back to that page;
+- **whether someone is signed in to it.**
+
+```ts
+import { connectPane } from '@boogy/web';
+
+const pane = connectPane({ service: 'notes' });
+
+pane.reportTitle('Meeting notes');
+pane.reportLocation('/notes/42');   // a path on your own address
+pane.reportAuthState(true);
+```
+
+**Moving between pages inside your app: use `pane.navigate`.** In a board, a
+page that adds browser history adds it to the *board's* history too, so the
+browser's back button would step through your app instead of leaving the
+board. `pane.navigate(path)` changes the address without adding browser
+history, keeps your app's own history, and lets the board show back and
+forward buttons for your pane. Outside a board it is an ordinary
+`history.pushState`.
+
+```ts
+const pane = connectPane({
+  service: 'notes',
+  // The board moved your pane back or forward: the address already shows
+  // `path`, so render it.
+  onNavigate: (path) => render(path),
+});
+
+pane.navigate('/notes/42');   // instead of history.pushState(…)
+pane.navigate('/', { reset: true });   // after sign-out: back must not lead into the old session
+```
+
+The board offers back and forward only for an app that passes `onNavigate`,
+since only such an app can render a step the board asks for. Any framed app
+calling `navigate` still stays out of the board's browser history.
+
+Call `connectPane` once and report whenever something changes. It does not
+matter when: a board connects when the frame loads, and if your app starts
+listening later, it says hello to the board and the board connects then. Reports
+made before a board connects are sent when it does.
+
+**Your app works exactly as before when it is not in a board**, or when it
+never calls `connectPane`: every report is then a no-op, and a board falls back
+to its defaults.
+
+**Which boards may talk to your app is decided by the platform, not guessed.**
+Your app reads the list from `GET /boogy/config` on its own origin and answers
+only those boards. Nothing is inferred from `document.referrer` or the parent
+window.
+
+**A location must be a path under your app's own address** (for an app at
+`/notes`, something like `/notes/42`). A board ignores anything else, including
+full URLs, so a report can never send the board somewhere else.
+
+**What a board learns, and what it does not.** A report is a request, and a
+board may ignore it. No credential crosses the channel: the session cookie is
+not readable by script on any origin, and `reportAuthState` carries a yes or
+no, never an id or a name.
+
+**One limit to know about.** All of one account's apps are served from the
+same origin, and the browser identifies a message's sender by origin. A board
+therefore knows which *frame* a message came from, but an app could send
+messages that appear to come from another app of the same account. Treat a
+report as coming from the account's apps, not from one app in particular.
+
+### Building a board
+
+```ts
+import { createShell } from '@boogy/web';
+
+const shell = createShell({
+  onReady: (id, service) => { /* the app speaks the protocol */ },
+  onTitle: (id, text) => { /* show text in the frame header */ },
+  onLocation: (id, path) => { /* save path; open the frame there next time */ },
+  onAuthState: (id, signedIn) => { /* show the app's signed-in state */ },
+  onHistoryState: (id, canBack, canForward) => { /* enable the frame's back and forward buttons */ },
+});
+
+// The frame's back and forward buttons:
+shell.back('pane-1');
+shell.forward('pane-1');
+
+shell.registerPane(iframe, {
+  id: 'pane-1',
+  service: 'notes',
+  origin: 'https://alice.boogy.app',
+  mount: '/notes',
+});
+```
+
+Register a frame once; the board reconnects it every time the frame loads.
+Titles are trimmed, stripped of control and text-direction characters, and
+capped at `MAX_TITLE_LENGTH` characters; a location outside the frame's own
+`mount`, or longer than 2048 characters, is never reported.
+
+### Versioning
+
+Every message carries `boogy: 'pane/v1'` (`PANE_PROTOCOL`). New messages may be
+added within `v1`; a change that would break an existing app is `pane/v2`, and
+a board speaks both while apps move over.
 
 ---
 
