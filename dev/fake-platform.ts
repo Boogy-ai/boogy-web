@@ -122,11 +122,12 @@ export function createFakePlatform(opts: FakePlatformOptions): FakePlatform {
           const code = url.searchParams.get('code') ?? '';
           const pending = codes.get(code);
           codes.delete(code); // single use, consumed before any other decision
-          const verifier = cookie(req, '__Host-boogy_pkce');
+          // Plain on http (all a dev page can keep), `__Host-` on https.
+          const verifier = cookie(req, 'boogy_pkce') ?? cookie(req, '__Host-boogy_pkce');
           if (!pending || pending.state !== url.searchParams.get('state') || !verifier || !verifyS256(verifier, pending.challenge)) {
             return htmlRes(400, 'sign-in could not be completed');
           }
-          const setCookie = [sessionCookie(pending.user.id), '__Host-boogy_pkce=; Secure; SameSite=Lax; Path=/; Max-Age=0'];
+          const setCookie = [sessionCookie(pending.user.id), 'boogy_pkce=; SameSite=Lax; Path=/; Max-Age=0', '__Host-boogy_pkce=; Secure; SameSite=Lax; Path=/; Max-Age=0'];
           if (pending.mode === 'popup') {
             return htmlRes(200, `<!doctype html><script>try{if(window.opener){window.opener.postMessage({ boogy: "sso_done" }, ${JSON.stringify(pending.appOrigin)});}}catch(e){}window.close();</script>You can close this window.`, { 'set-cookie': setCookie });
           }

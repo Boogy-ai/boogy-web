@@ -38,7 +38,7 @@ describe('setPkceCookie', () => {
   // and sign the person in as someone else. The browser keeps a `__Host-`
   // cookie only with `Secure`, no `Domain` and `Path=/` exactly.
   it('writes __Host-boogy_pkce=<verifier> with the host-prefix attributes', () => {
-    setPkceCookie('test_verifier_value');
+    setPkceCookie('test_verifier_value', 'https:');
 
     expect(cookieWrites).toHaveLength(1);
     const written = cookieWrites[0];
@@ -53,11 +53,28 @@ describe('setPkceCookie', () => {
   });
 
   it('each call writes exactly one cookie string', () => {
-    setPkceCookie('verifier_a');
-    setPkceCookie('verifier_b');
+    setPkceCookie('verifier_a', 'https:');
+    setPkceCookie('verifier_b', 'https:');
 
     expect(cookieWrites).toHaveLength(2);
     expect(cookieWrites[0]).toContain('__Host-boogy_pkce=verifier_a');
     expect(cookieWrites[1]).toContain('__Host-boogy_pkce=verifier_b');
+  });
+
+  // A plain-http page — the SDK's own dev server — cannot keep a `__Host-`
+  // cookie at all: the browser drops it even on `localhost`, so the verifier
+  // never reached the callback and every dev sign-in failed. Such a page has
+  // no sibling origin to defend against, so it gets a plain name instead.
+  it('on an http page writes a plain boogy_pkce, without Secure', () => {
+    setPkceCookie('dev_verifier', 'http:');
+    expect(cookieWrites).toHaveLength(1);
+    expect(cookieWrites[0].startsWith('boogy_pkce=dev_verifier;')).toBe(true);
+    expect(cookieWrites[0]).not.toContain('Secure');
+    expect(cookieWrites[0]).toContain('Path=/');
+  });
+
+  it('never writes the plain name on https', () => {
+    setPkceCookie('v', 'https:');
+    expect(cookieWrites.every((w) => w.startsWith('__Host-boogy_pkce='))).toBe(true);
   });
 });

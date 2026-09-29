@@ -16,12 +16,16 @@ function pkce() {
   return { verifier, challenge };
 }
 
-async function signIn(p: ReturnType<typeof fake>, user: string, mode: 'redirect' | 'popup' = 'redirect') {
+// The fake platform is served over plain http, where a browser keeps no
+// `__Host-` cookie — so the verifier a real dev page sends is `boogy_pkce`.
+// This helper used to send `__Host-boogy_pkce`, which no dev page can hold,
+// and so passed while every real dev sign-in failed.
+async function signIn(p: ReturnType<typeof fake>, user: string, mode: 'redirect' | 'popup' = 'redirect', pkceCookie = 'boogy_pkce') {
   const { verifier, challenge } = pkce();
   const q = new URLSearchParams({ aud: 'boogy://tester/services/boards', app_origin: ORIGIN, redirect: '/b/x', state: 'st', code_challenge: challenge, mode });
   const pick = await p.handle(req('GET', `${AUTH_PREFIX}/authorize/pick?user=${user}&${q}`));
   const loc = String(pick!.headers.location);
-  const cb = await p.handle(req('GET', loc.replace(ORIGIN, ''), { cookie: `__Host-boogy_pkce=${verifier}` }));
+  const cb = await p.handle(req('GET', loc.replace(ORIGIN, ''), { cookie: `${pkceCookie}=${verifier}` }));
   return cb!;
 }
 
@@ -61,9 +65,14 @@ describe('fake platform', () => {
     expect(cb.headers.location).toBe('/b/x');
     const cookies = ([] as string[]).concat(cb.headers['set-cookie'] as string[]);
     const session = cookies.find((c) => c.startsWith(`${SESSION_COOKIE}=`))!;
-    expect(cookies.some((c) => c.startsWith('__Host-boogy_pkce=;') && c.includes('Max-Age=0'))).toBe(true);
+    expect(cookies.some((c) => c.startsWith('boogy_pkce=;') && c.includes('Max-Age=0'))).toBe(true);
     const me = await p.handle(req('GET', '/boogy/me', { cookie: session.split(';')[0] }));
     expect(json(me!)).toMatchObject({ pairwiseId: 'dev-alice', services: ['boards'], displayName: 'Alice', avatarUrl: null });
+  });
+
+  it('still accepts the __Host- verifier, as served over https', async () => {
+    const cb = await signIn(fake(), 'alice', 'redirect', '__Host-boogy_pkce');
+    expect(cb.status).toBe(302);
   });
 
   it('posts sso_done to the app origin in popup mode', async () => {

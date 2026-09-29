@@ -12,6 +12,14 @@
  * only with `Secure`, no `Domain` and `Path=/` exactly, hence the path.
  * Attributes: Secure; SameSite=Lax; Path=/; Max-Age=300
  */
-export function setPkceCookie(verifier: string): void {
+export function setPkceCookie(verifier: string, protocol: string = location.protocol): void {
+  // A PLAIN-HTTP PAGE CANNOT KEEP A `__Host-` COOKIE: the browser drops it,
+  // on `localhost` too, so the verifier would never reach the callback. Only
+  // a local dev server serves an app over http, and it has no sibling origin
+  // to plant a cookie, so it gets a plain name. An https page never does.
+  if (protocol === 'http:') {
+    document.cookie = `boogy_pkce=${verifier}; SameSite=Lax; Path=/; Max-Age=300`;
+    return;
+  }
   document.cookie = `__Host-boogy_pkce=${verifier}; Secure; SameSite=Lax; Path=/; Max-Age=300`;
 }
