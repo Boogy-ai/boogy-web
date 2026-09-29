@@ -60,4 +60,19 @@ describe('parseFrame', () => {
     expect(parseFrame(f)).toEqual(f);
     expect(parseFrame({ ...f, payload: { canBack: 'yes', canForward: false } })).toBeNull();
   });
+
+  it('connect may carry a history to hand back, bounded and consistent', () => {
+    const c = { ...good, type: 'connect', payload: { shellOrigin: 'https://b.example', history: { entries: ['/a', '/a/1'], index: 1 } } };
+    expect(parseFrame(c)).toEqual(c);
+    expect(parseFrame({ ...c, payload: { shellOrigin: 'https://b.example' } })).not.toBeNull();
+    expect(parseFrame({ ...c, payload: { ...c.payload, history: { entries: ['/a'], index: 1 } } })).toBeNull();
+    expect(parseFrame({ ...c, payload: { ...c.payload, history: { entries: [], index: 0 } } })).toBeNull();
+    expect(parseFrame({ ...c, payload: { ...c.payload, history: { entries: Array(51).fill('/a'), index: 0 } } })).toBeNull();
+  });
+
+  it('history-state may carry the whole history', () => {
+    const h = { ...good, type: 'history-state', payload: { canBack: true, canForward: false, entries: ['/a', '/a/1'], index: 1 } };
+    expect(parseFrame(h)).toEqual(h);
+    expect(parseFrame({ ...h, payload: { ...h.payload, index: 2 } })).toBeNull();
+  });
 });

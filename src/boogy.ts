@@ -95,6 +95,19 @@ function canAttemptRenewal(): boolean {
  * const user = await boogy.currentUser('alice/my-service');
  * ```
  */
+/**
+ * In a frame, sign-in must neither open a popup nor navigate: the frame's board
+ * owns sign-in, and does one top-level round trip for every app it frames. A
+ * frame whose `top` cannot even be compared counts as framed.
+ */
+function isFramed(): boolean {
+  try {
+    return window.top !== window.self;
+  } catch {
+    return true;
+  }
+}
+
 export class Boogy {
   private readonly authMode: 'popup' | 'redirect';
   private readonly renewAudiences?: () => readonly string[];
@@ -179,7 +192,9 @@ export class Boogy {
   /**
    * Re-authorize `app` (with `renewAudiences`) because its session expired,
    * under the same guards as `fetch`'s renewal: only in a tab that has held a
-   * session, at most once per cooldown, never after `signOut`.
+   * session, at most once per cooldown, never after `signOut` — and never in a
+   * frame, where the board owns sign-in. Try `refreshSession` first: it renews
+   * with no page change.
    *
    * For an app whose own requests do not go through `fetch` — call it on a
    * `401` from them, or when `currentUser` answers signed-out in a tab that
@@ -189,7 +204,8 @@ export class Boogy {
    * thrown.
    */
   renew(app: string): boolean {
-    if (!canAttemptRenewal()) return false;
+    // Framed: never — the board signs this app in (see `isFramed`).
+    if (isFramed() || !canAttemptRenewal()) return false;
     let batch: string | readonly string[];
     try {
       batch = this.renewalBatch(app);
@@ -201,6 +217,35 @@ export class Boogy {
       console.warn('[@boogy/web] Boogy.renew: silent renewal failed.', e);
     });
     return true;
+  }
+
+  /**
+   * Swap this site's renewal cookie for a fresh app session, with no page
+   * change: `POST <app-origin>/boogy/renew`.
+   *
+   * Only from the app's own origin — the cookie lives there, and the platform
+   * refuses the request from anywhere else — so for an app on another origin
+   * this resolves `false` without a request. `true` when a fresh session was
+   * set, which also arms the redirect renewal for a later expiry. Never throws.
+   */
+  async refreshSession(app: string): Promise<boolean> {
+    let origin: string;
+    try {
+      origin = appOrigin(parseApp(app).owner);
+    } catch {
+      return false;
+    }
+    if (location.origin !== origin) return false;
+    try {
+      const res = await globalThis.fetch(`${origin}/boogy/renew`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      if (res.ok) noteAuthenticated();
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 
   async connectApp(app: string | readonly string[]): Promise<void> {
@@ -229,10 +274,15 @@ export class Boogy {
   /**
    * Fetch a resource on the given app, forwarding cookies (`credentials:'include'`).
    *
-   * If the host responds with 401 AND this tab has previously seen an
-   * authenticated response (from this method or a completed `connectApp`),
-   * the SDK silently re-authorizes — runs `connectApp` once (popup/redirect
-   * flow) and retries the request exactly once.  The retry result is returned
+   * On a 401 the SDK first renews SILENTLY — `refreshSession`, one same-origin
+   * request swapping this site's renewal cookie for a fresh session, no page
+   * change — and on success retries the request exactly once.
+   *
+   * Only if that could not help, AND this tab has previously seen an
+   * authenticated response (from this method or a completed `connectApp`), AND
+   * the page is not framed (a board owns its frames' sign-in), does it
+   * re-authorize — runs `connectApp` once (popup/redirect flow) and retries the
+   * request exactly once.  The retry result is returned
    * as-is — there is NO second retry even if the retried response is also 401.
    *
    * Silent renewal is guarded, in this order:
@@ -279,7 +329,18 @@ export class Boogy {
       throw new BoogyError('network', e instanceof Error ? e.message : String(e), app);
     }
 
-    if (res.status === 401 && canAttemptRenewal()) {
+    // Silent renewal first: no page change, no cooldown — it is one cheap
+    // same-origin request, and a failure falls through to the 401 below.
+    if (res.status === 401 && (await this.refreshSession(app))) {
+      try {
+        res = await globalThis.fetch(url, { ...init, credentials: 'include' });
+      } catch (e) {
+        throw new BoogyError('network', e instanceof Error ? e.message : String(e), app);
+      }
+    }
+
+    // Then the round trip — never in a frame, where the board owns sign-in.
+    if (res.status === 401 && !isFramed() && canAttemptRenewal()) {
       // `canAttemptRenewal()` above has already written the cooldown mark,
       // BEFORE anything below runs — deliberately. A renewal attempt that
       // fails right here (a broken `renewAudiences`, or a batch this SDK's

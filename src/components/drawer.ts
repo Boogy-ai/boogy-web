@@ -78,10 +78,15 @@ export function drawerMode(drawer: Element): 'docked' | 'overlay' {
   return getComputedStyle(drawer).getPropertyValue('--boogy-drawer-mode').trim() === 'docked' ? 'docked' : 'overlay';
 }
 
+/** A label's words, split on spaces and the joiners an id uses (`-_.`). */
+export function labelWords(label: string): string[] {
+  return label.trim().split(/[\s\-_.]+/).filter(Boolean);
+}
+
 /** One or two letters standing for a label, for a collapsed drawer entry:
  *  the initials of the first two words, or the first two letters of one. */
 export function monogram(label: string): string {
-  const words = label.trim().split(/[\s\-_.]+/).filter(Boolean);
+  const words = labelWords(label);
   if (words.length === 0) return '';
   const first = (w: string) => Array.from(w)[0] ?? '';
   if (words.length >= 2) return (first(words[0]) + first(words[1])).toUpperCase();

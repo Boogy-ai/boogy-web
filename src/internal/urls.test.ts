@@ -7,6 +7,8 @@ import {
   authOrigin,
   authorizeUrl,
   MAX_AUDIENCES,
+  siteSignInUrl,
+  siteSignOutUrl,
 } from './urls';
 import { loadPlatformConfig } from './platform-config';
 import type { BoogyError } from '../errors';
@@ -330,5 +332,35 @@ describe('parseApps', () => {
     expect(MAX_AUDIENCES).toBe(32);
     expect(MAX_AUDIENCES * 136).toBeLessThan(8 * 1024);
     expect(MAX_AUDIENCES * 2 * 136).toBeGreaterThan(8 * 1024);
+  });
+});
+
+describe('siteSignInUrl / siteSignOutUrl — a board signing the apps\' site in and out', () => {
+  it('goes through the apps\' site with every app and the way back', () => {
+    const u = new URL(
+      siteSignInUrl({
+        site: 'https://alice.boogy.ai',
+        owner: 'alice',
+        services: ['squad', 'notes'],
+        returnTo: 'https://boards.boogy.ai/boards/b/1',
+      }),
+    );
+    expect(u.origin).toBe('https://alice.boogy.ai');
+    expect(u.pathname).toBe('/boogy/signin');
+    expect(u.searchParams.getAll('aud')).toEqual(['boogy://alice/services/squad', 'boogy://alice/services/notes']);
+    expect(u.searchParams.get('redirect')).toBe('https://boards.boogy.ai/boards/b/1');
+  });
+
+  it('takes only the origin of the site it is given', () => {
+    const u = new URL(
+      siteSignInUrl({ site: 'https://alice.boogy.ai/squad/x', owner: 'alice', services: ['squad'], returnTo: '/' }),
+    );
+    expect(u.origin + u.pathname).toBe('https://alice.boogy.ai/boogy/signin');
+  });
+
+  it('signs the apps\' site out with the way back', () => {
+    const u = new URL(siteSignOutUrl({ site: 'https://alice.boogy.ai', returnTo: 'https://boards.boogy.ai/boards/' }));
+    expect(u.origin + u.pathname).toBe('https://alice.boogy.ai/boogy/logout');
+    expect(u.searchParams.get('redirect')).toBe('https://boards.boogy.ai/boards/');
   });
 });

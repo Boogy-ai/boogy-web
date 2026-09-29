@@ -124,6 +124,40 @@ export function authorizeUrl(p: {
 }
 
 /**
+ * Where a board sends the page to sign in the apps' SITE for `services`, then
+ * come back to `returnTo`.
+ *
+ * `site` is the apps' origin (`https://<handle>.<base>`), as the board already
+ * knows it from its panes' addresses — not [`appOrigin`], which on the board is
+ * the board's own origin. The site makes the PKCE verifier itself, on the server
+ * (it has to be a cookie on that site), which is why a page on another site can
+ * start this at all. Only `site`'s origin is used.
+ */
+export function siteSignInUrl(p: {
+  site: string;
+  owner: string;
+  services: readonly string[];
+  returnTo: string;
+}): string {
+  const url = new URL('/boogy/signin', new URL(p.site).origin);
+  for (const service of p.services) {
+    url.searchParams.append('aud', `boogy://${p.owner}/services/${service}`);
+  }
+  url.searchParams.set('redirect', p.returnTo);
+  return url.toString();
+}
+
+/**
+ * Where a board POSTs a top-level form to sign the apps' site out too, then come
+ * back to `returnTo` (which the platform accepts only on the boards origin).
+ */
+export function siteSignOutUrl(p: { site: string; returnTo: string }): string {
+  const url = new URL('/boogy/logout', new URL(p.site).origin);
+  url.searchParams.set('redirect', p.returnTo);
+  return url.toString();
+}
+
+/**
  * How many audiences the platform accepts on a single authorization request.
  *
  * Mirrors the host's `sso::MAX_AUDS`, whose own doc comment carries the

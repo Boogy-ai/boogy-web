@@ -7,6 +7,15 @@
 
 export const PANE_PROTOCOL = 'pane/v1' as const;
 
+/** The most history entries a pane keeps and a board hands back. */
+export const MAX_HISTORY = 50;
+
+/** A pane's own history: its pages, oldest first, and where it is in them. */
+export interface PaneHistory {
+  entries: string[];
+  index: number;
+}
+
 export type PaneMessageType =
   | 'hello'
   | 'connect'
@@ -28,6 +37,9 @@ export interface Envelope<T extends PaneMessageType, P> {
 export interface ConnectPayload {
   /** The origin the shell claims to be. The pane verifies it; it never trusts it. */
   shellOrigin: string;
+  /** The pane's history, handed back after its content moved to this frame.
+   *  The pane adopts it only if it is on the history's current page. */
+  history?: PaneHistory;
 }
 /** `hello` (pane → board: "I am listening now") and `ready` both name the service. */
 export interface ReadyPayload {
@@ -50,6 +62,9 @@ export interface HistoryPayload {
 export interface HistoryStatePayload {
   canBack: boolean;
   canForward: boolean;
+  /** The whole history, so a board can hand it back if the pane moves. */
+  entries?: string[];
+  index?: number;
 }
 
 export type Frame =
@@ -66,11 +81,25 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
 
+function historyOk(entries: unknown, index: unknown): boolean {
+  return (
+    Array.isArray(entries) &&
+    entries.length > 0 &&
+    entries.length <= MAX_HISTORY &&
+    entries.every((e) => typeof e === 'string') &&
+    Number.isInteger(index) &&
+    (index as number) >= 0 &&
+    (index as number) < entries.length
+  );
+}
+
 function payloadOk(type: PaneMessageType, p: unknown): boolean {
   if (!isRecord(p)) return false;
   switch (type) {
     case 'connect':
-      return typeof p.shellOrigin === 'string';
+      if (typeof p.shellOrigin !== 'string') return false;
+      if (p.history === undefined) return true;
+      return isRecord(p.history) && historyOk(p.history.entries, p.history.index);
     case 'hello':
     case 'ready':
       return typeof p.service === 'string';
@@ -83,7 +112,9 @@ function payloadOk(type: PaneMessageType, p: unknown): boolean {
     case 'history':
       return p.delta === -1 || p.delta === 1;
     case 'history-state':
-      return typeof p.canBack === 'boolean' && typeof p.canForward === 'boolean';
+      if (typeof p.canBack !== 'boolean' || typeof p.canForward !== 'boolean') return false;
+      if (p.entries === undefined && p.index === undefined) return true;
+      return historyOk(p.entries, p.index);
   }
 }
 

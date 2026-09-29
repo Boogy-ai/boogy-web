@@ -120,6 +120,10 @@ export const FOUNDATION_CSS = `
     --icon-md: calc(var(--u) * 1.25);
     --mark-md: calc(var(--u) * 1.75);
     --mark-lg: calc(var(--u) * 2.25);
+    --thumb-sm: calc(var(--u) * 2.5);
+    --thumb-md: calc(var(--u) * 3.5);
+    --thumb-lg: calc(var(--u) * 6);
+    --tile-min: calc(var(--u) * 6.5);
     --ring: calc(var(--u) * 0.125);
     --radius-1: calc(var(--u) * 0.25);
     --radius-2: calc(var(--u) * 0.5);

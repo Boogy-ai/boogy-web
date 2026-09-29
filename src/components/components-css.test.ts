@@ -153,8 +153,8 @@ describe('popover styles', () => {
     expect(page).toMatch(/width:\s*100%/);
     expect(page).toMatch(/height:\s*100%/);
     expect(page).toMatch(/border-radius:\s*0/);
-    expect(ruleFor('[data-boogy="popover"][data-mode="page"] > [data-slot="body"]')).toMatch(/overflow:\s*auto/);
-    expect(ruleFor('[data-boogy="popover"][data-mode="page"] > [data-slot="page-head"]')).toMatch(/display:\s*flex/);
+    expect(ruleFor('[data-boogy="popover"] > [data-slot="body"]')).toMatch(/overflow:\s*auto/);
+    expect(ruleFor('[data-boogy="popover"] > [data-slot="head"]')).toMatch(/display:\s*flex/);
   });
 });
 

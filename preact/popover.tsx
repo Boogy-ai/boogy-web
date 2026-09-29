@@ -33,8 +33,21 @@ export type PopoverProps = {
   maxHeight?: number;
   /** Below this viewport width it opens as a full-screen page. Default `sm`; `false` never. */
   fullscreenBelow?: DrawerBreakpoint | false;
-  /** The page head's title, and the dialog's accessible name. */
+  /** The dialog's accessible name, and its head's title where it has a head
+   *  (the full-screen page, a centred popover, or one with `onBack`). */
   title?: string;
+  /** In the middle of the viewport instead of against its trigger (which it
+   *  still returns focus to). `placement`, `offset`, `crossOffset` and
+   *  `shouldFlip` do not apply. Default false. */
+  centered?: boolean;
+  /** Shown behind the popover and above the page while it is open — e.g. a
+   *  dimming layer. Fills the viewport; a press on it closes the popover, like
+   *  any press outside. Not drawn in the full-screen page, which covers the
+   *  page already. */
+  overlay?: ComponentChildren;
+  /** A Back button in the head, before the title — for moving back between
+   *  views inside the popover. In the full-screen page it replaces closing. */
+  onBack?: () => void;
   children?: ComponentChildren;
 } & Omit<JSX.HTMLAttributes<HTMLDivElement>, 'title'>;
 
@@ -58,7 +71,7 @@ function useMode(below: DrawerBreakpoint | false): PopoverMode {
 
 export function Popover({
   triggerRef, isOpen, onOpenChange, placement, offset, crossOffset, shouldFlip, containerPadding, maxHeight,
-  fullscreenBelow = 'sm', title, children, ...rest
+  fullscreenBelow = 'sm', title, centered = false, overlay, onBack, children, ...rest
 }: PopoverProps) {
   const mode = useMode(fullscreenBelow);
   const ref = useRef<HTMLDivElement>(null);
@@ -73,6 +86,13 @@ export function Popover({
     const p = el as (HTMLDivElement & { showPopover?: () => void }) | null;
     if (p?.showPopover && !p.matches(':popover-open')) p.showPopover();
   }, []);
+  // The overlay goes into the top layer FIRST, and the top layer stacks in the
+  // order things were shown, so it lands behind the popover. Its ref runs
+  // before the popover's because it comes first in the tree.
+  const showOverlay = useCallback((el: HTMLDivElement | null) => {
+    const p = el as (HTMLDivElement & { showPopover?: () => void }) | null;
+    if (p?.showPopover && !p.matches(':popover-open')) p.showPopover();
+  }, []);
   // The latest close, for listeners installed once per opening.
   const closeRef = useRef(close);
   closeRef.current = close;
@@ -84,7 +104,24 @@ export function Popover({
 
     // PLACEMENT (anchored only): measure, place, write — no render per frame.
     const position = () => {
-      if (mode !== 'anchored' || !trigger) return;
+      if (mode !== 'anchored') return;
+      if (centered) {
+        // The middle of the viewport, and no taller than it less the padding.
+        el.style.left = '0px';
+        el.style.top = '0px';
+        const pad = containerPadding ?? 12;
+        const vw = document.documentElement.clientWidth || window.innerWidth;
+        const vh = window.innerHeight;
+        const width = el.offsetWidth;
+        const fit = Math.max(0, Math.min(maxHeight ?? Infinity, vh - 2 * pad));
+        const height = Math.min(el.scrollHeight + (el.offsetHeight - el.clientHeight), fit);
+        el.style.left = `${Math.max(pad, (vw - width) / 2)}px`;
+        el.style.top = `${Math.max(pad, (vh - height) / 2)}px`;
+        el.style.maxHeight = `${fit}px`;
+        delete el.dataset.placement;
+        return;
+      }
+      if (!trigger) return;
       const t = trigger.getBoundingClientRect();
       // Measure at the origin: a shrink-to-fit box measured where it last sat
       // (say near the right edge) is squeezed narrower than it will be once
@@ -119,7 +156,10 @@ export function Popover({
 
     // FOCUS: in, unless the content already took it.
     if (!el.contains(document.activeElement)) {
-      (el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus();
+      // The CONTENT first: the head's Back/Close come before it in the tree,
+      // and opening a popover should not land on its Close button.
+      const body = el.querySelector<HTMLElement>('[data-slot="body"]');
+      (body?.querySelector<HTMLElement>(FOCUSABLE) ?? el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus();
     }
 
     // DISMISSAL: Escape, or a press anywhere but the popover and its trigger.
@@ -167,11 +207,27 @@ export function Popover({
       if (pushed && (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) history.back();
       if (el.contains(document.activeElement) || document.activeElement === document.body) trigger?.focus();
     };
-  }, [isOpen, mode]);
+  }, [isOpen, mode, centered]);
 
   if (!isOpen) return null;
   const page = mode === 'page';
   return (
+    <>
+    {overlay && !page && (
+      <div
+        data-boogy="popover-overlay"
+        ref={showOverlay}
+        popover="manual"
+        aria-hidden="true"
+        // Neutralise the browser's own [popover] box — margin, border, padding,
+        // canvas background — so what fills the viewport is the caller's
+        // element and nothing of ours.
+        style={{ inset: 0, width: '100%', height: '100%', maxWidth: 'none', maxHeight: 'none',
+          margin: 0, padding: 0, border: 0, background: 'transparent', overflow: 'hidden' }}
+      >
+        {overlay}
+      </div>
+    )}
     <div
       {...rest}
       {...popover({ mode })}
@@ -182,16 +238,29 @@ export function Popover({
       aria-label={title ?? (rest as { 'aria-label'?: string })['aria-label']}
       tabIndex={-1}
     >
-      {page && (
-        <div data-slot="page-head">
-          <Button variant="quiet" shape="icon" label="Back" onClick={close}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-          </Button>
-          {title && <span>{title}</span>}
+      {(page || centered || onBack) && (
+        // THE HEAD — an optional Back, the title, and Close — where the popover
+        // is a DIALOG: the full-screen page (Back stands in for Close), a
+        // centred one, or one with a view to step back from. Anchored, it is a
+        // menu off its trigger, and the title only names it.
+        <div data-slot="head">
+          {(page || onBack) && (
+            <Button variant="quiet" shape="icon" label="Back" onClick={onBack ?? close}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </Button>
+          )}
+          {title && <span data-slot="title">{title}</span>}
+          {!page && (
+            <Button variant="quiet" shape="icon" label="Close" onClick={close}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+            </Button>
+          )}
         </div>
       )}
       <div data-slot="body">{children}</div>
     </div>
+    </>
   );
 }

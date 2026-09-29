@@ -40,6 +40,12 @@ beforeEach(() => {
 });
 
 describe('Boogy.fetch', () => {
+  // These exercise the ROUND TRIP, which runs only when silent renewal could
+  // not help (no renewal cookie on this site). Stated once, here, rather than
+  // by threading an extra `/boogy/renew` response through every call count.
+  beforeEach(() => {
+    vi.spyOn(Boogy.prototype, 'refreshSession').mockResolvedValue(false);
+  });
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -128,6 +134,12 @@ describe('Boogy.fetch', () => {
 // a cooldown after an attempt, and never fires again after a deliberate
 // sign-out.
 describe('Boogy.fetch — silent renewal is guarded', () => {
+  // These exercise the ROUND TRIP, which runs only when silent renewal could
+  // not help (no renewal cookie on this site). Stated once, here, rather than
+  // by threading an extra `/boogy/renew` response through every call count.
+  beforeEach(() => {
+    vi.spyOn(Boogy.prototype, 'refreshSession').mockResolvedValue(false);
+  });
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -229,6 +241,12 @@ describe('Boogy.fetch — silent renewal is guarded', () => {
 // signing into a board means signing into the board, not a subset — so an
 // over-cap combined batch is refused exactly like one spanning owners.
 describe('Boogy.fetch — a broken or over-cap renewAudiences degrades gracefully', () => {
+  // These exercise the ROUND TRIP, which runs only when silent renewal could
+  // not help (no renewal cookie on this site). Stated once, here, rather than
+  // by threading an extra `/boogy/renew` response through every call count.
+  beforeEach(() => {
+    vi.spyOn(Boogy.prototype, 'refreshSession').mockResolvedValue(false);
+  });
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -239,6 +257,8 @@ describe('Boogy.fetch — a broken or over-cap renewAudiences degrades gracefull
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('ok', { status: 200 }));
     await boogy.fetch('alice/notes', '/api/arm');
     vi.restoreAllMocks();
+    // `restoreAllMocks` also undid the block's silent-renewal stub; restate it.
+    vi.spyOn(Boogy.prototype, 'refreshSession').mockResolvedValue(false);
   }
 
   it('does not reject when renewAudiences throws — resolves with the original 401', async () => {
@@ -575,5 +595,48 @@ describe('Boogy.connectApp', () => {
 
     await expect(boogy.connectApp(apps)).rejects.toThrow(new RegExp(String(MAX_AUDIENCES + 1)));
     expect(openSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('Boogy.fetch — silent renewal first', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('location', { origin: 'https://alice.boogy.ai', pathname: '/', search: '' });
+  });
+
+  it('a 401 renews silently and retries once, with no round trip', async () => {
+    const calls: string[] = [];
+    let apiCalls = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((u) => {
+      const url = String(u);
+      calls.push(url);
+      if (url.endsWith('/boogy/renew')) return Promise.resolve(new Response('{}', { status: 200 }));
+      apiCalls += 1;
+      return Promise.resolve(new Response('', { status: apiCalls === 1 ? 401 : 200 }));
+    });
+    const boogy = new Boogy();
+    const connect = vi.spyOn(boogy, 'connectApp').mockResolvedValue(undefined);
+    const res = await boogy.fetch('alice/notes', '/api/x');
+    expect(res.status).toBe(200);
+    expect(connect).not.toHaveBeenCalled();
+    expect(calls).toEqual([
+      'https://alice.boogy.ai/notes/api/x',
+      'https://alice.boogy.ai/boogy/renew',
+      'https://alice.boogy.ai/notes/api/x',
+    ]);
+  });
+
+  it('framed, a 401 silent renewal cannot fix is returned — no round trip', async () => {
+    vi.stubGlobal('top', {});
+    let n = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(new Response('', { status: n++ === 0 ? 200 : 401 })),
+    );
+    const boogy = new Boogy();
+    const connect = vi.spyOn(boogy, 'connectApp').mockResolvedValue(undefined);
+    await boogy.fetch('alice/notes', '/api/x'); // arms the session
+    expect((await boogy.fetch('alice/notes', '/api/x')).status).toBe(401);
+    expect(connect).not.toHaveBeenCalled();
   });
 });

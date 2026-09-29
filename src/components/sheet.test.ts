@@ -53,7 +53,10 @@ describe('section', () => {
     expect(section()).toEqual({ 'data-boogy': 'section' });
   });
   it('its header is the small uppercase caption used above groups', () => {
-    const r = ruleFor('[data-boogy="section"] > [data-slot="header"]') ?? '';
+    // Two markups share the rule: the header as the section's own child, and
+    // inside a head row beside an action.
+    const r = ruleFor('[data-boogy="section"] > [data-slot="head"] > [data-slot="header"]') ?? '';
+    expect(COMPONENTS_CSS).toContain('[data-boogy="section"] > [data-slot="header"],');
     expect(r).toMatch(/text-transform:\s*uppercase/);
     expect(r).toMatch(/font-size:\s*var\(--fs-caption\)/);
   });

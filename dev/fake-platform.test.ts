@@ -21,7 +21,7 @@ async function signIn(p: ReturnType<typeof fake>, user: string, mode: 'redirect'
   const q = new URLSearchParams({ aud: 'boogy://tester/services/boards', app_origin: ORIGIN, redirect: '/b/x', state: 'st', code_challenge: challenge, mode });
   const pick = await p.handle(req('GET', `${AUTH_PREFIX}/authorize/pick?user=${user}&${q}`));
   const loc = String(pick!.headers.location);
-  const cb = await p.handle(req('GET', loc.replace(ORIGIN, ''), { cookie: `boogy_pkce=${verifier}` }));
+  const cb = await p.handle(req('GET', loc.replace(ORIGIN, ''), { cookie: `__Host-boogy_pkce=${verifier}` }));
   return cb!;
 }
 
@@ -61,7 +61,7 @@ describe('fake platform', () => {
     expect(cb.headers.location).toBe('/b/x');
     const cookies = ([] as string[]).concat(cb.headers['set-cookie'] as string[]);
     const session = cookies.find((c) => c.startsWith(`${SESSION_COOKIE}=`))!;
-    expect(cookies.some((c) => c.startsWith('boogy_pkce=;') && c.includes('Max-Age=0'))).toBe(true);
+    expect(cookies.some((c) => c.startsWith('__Host-boogy_pkce=;') && c.includes('Max-Age=0'))).toBe(true);
     const me = await p.handle(req('GET', '/boogy/me', { cookie: session.split(';')[0] }));
     expect(json(me!)).toMatchObject({ pairwiseId: 'dev-alice', services: ['boards'], displayName: 'Alice', avatarUrl: null });
   });
@@ -78,7 +78,7 @@ describe('fake platform', () => {
     const { challenge } = pkce();
     const q = new URLSearchParams({ app_origin: ORIGIN, redirect: '/', state: 'st', code_challenge: challenge, mode: 'redirect' });
     const pick = await p.handle(req('GET', `${AUTH_PREFIX}/authorize/pick?user=alice&${q}`));
-    const cb = await p.handle(req('GET', String(pick!.headers.location).replace(ORIGIN, ''), { cookie: 'boogy_pkce=wrong' }));
+    const cb = await p.handle(req('GET', String(pick!.headers.location).replace(ORIGIN, ''), { cookie: '__Host-boogy_pkce=wrong' }));
     expect(cb!.status).toBe(400);
   });
 
@@ -88,8 +88,8 @@ describe('fake platform', () => {
     const q = new URLSearchParams({ app_origin: ORIGIN, redirect: '/', state: 'st', code_challenge: challenge, mode: 'redirect' });
     const pick = await p.handle(req('GET', `${AUTH_PREFIX}/authorize/pick?user=alice&${q}`));
     const url = String(pick!.headers.location).replace(ORIGIN, '');
-    await p.handle(req('GET', url, { cookie: `boogy_pkce=${verifier}` }));
-    const again = await p.handle(req('GET', url, { cookie: `boogy_pkce=${verifier}` }));
+    await p.handle(req('GET', url, { cookie: `__Host-boogy_pkce=${verifier}` }));
+    const again = await p.handle(req('GET', url, { cookie: `__Host-boogy_pkce=${verifier}` }));
     expect(again!.status).toBe(400);
   });
 

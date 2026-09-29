@@ -421,7 +421,9 @@ const POPOVER_CSS = `
     box-shadow: none;
     background: var(--popover-ground, var(--ground));
   }
-  [data-boogy="popover"][data-mode="page"] > [data-slot="page-head"] {
+  /* The head, in every mode that has one; the body scrolls beneath it. */
+  [data-boogy="popover"]:has(> [data-slot="head"]) { display: flex; flex-direction: column; overflow: hidden; }
+  [data-boogy="popover"] > [data-slot="head"] {
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -431,11 +433,8 @@ const POPOVER_CSS = `
     font-size: var(--fs-title);
     font-weight: 600;
   }
-  [data-boogy="popover"][data-mode="page"] > [data-slot="body"] {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-  }
+  [data-boogy="popover"] > [data-slot="head"] > [data-slot="title"] { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-boogy="popover"] > [data-slot="body"] { flex: 1 1 auto; min-height: 0; overflow: auto; }
 `;
 
 // Menu: the ARIA menu pattern (React Aria's, under HeroUI v3's Dropdown). An
@@ -574,6 +573,8 @@ const FIELD_CSS = `
     outline-offset: 1px;
   }
   [data-boogy="field"] > [data-slot="control"]:disabled { opacity: 0.45; }
+  /* One clear button: the field's own, never the browser's beside it. */
+  [data-boogy="field"] [data-slot="control"]::-webkit-search-cancel-button { display: none; }
   /* A fixed prefix inside the control's frame (a site address before an
      editable path, say): the group carries the edge, the input inside it
      does not. */
@@ -601,6 +602,7 @@ const FIELD_CSS = `
     min-width: 0;
     flex: 0 1 auto;
   }
+  [data-boogy="field"] > [data-slot="group"] > [data-slot="suffix"] { display: flex; flex: none; }
   [data-boogy="field"] > [data-slot="group"] > [data-slot="control"] {
     flex: 1 1 auto;
     min-width: 0;
@@ -624,7 +626,9 @@ const FIELD_CSS = `
 
 const SECTION_CSS = `
   [data-boogy="section"] { display: flex; flex-direction: column; gap: var(--space-1); }
-  [data-boogy="section"] > [data-slot="header"] {
+  [data-boogy="section"] > [data-slot="head"] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+  [data-boogy="section"] > [data-slot="header"],
+  [data-boogy="section"] > [data-slot="head"] > [data-slot="header"] {
     margin: 0;
     color: var(--text-3);
     font-size: var(--fs-caption);
@@ -634,7 +638,201 @@ const SECTION_CSS = `
   }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, SECTION_CSS };
+// Thumbnail: a rounded-square slot. An image fills it; without one, the
+// initials sit on one of eight tones (hue varies, lightness and chroma fixed,
+// so every tone reads at the same weight in either scheme).
+const THUMBNAIL_CSS = `
+  [data-boogy="thumbnail"] {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: var(--radius-2);
+    background: oklch(0.62 0.11 var(--thumb-hue, 250));
+    color: oklch(0.98 0 0);
+    font-weight: 600;
+    line-height: 1;
+    user-select: none;
+  }
+  [data-boogy="thumbnail"][data-size="sm"] { width: var(--thumb-sm); height: var(--thumb-sm); font-size: var(--fs-detail); }
+  [data-boogy="thumbnail"][data-size="md"] { width: var(--thumb-md); height: var(--thumb-md); font-size: var(--fs-body); border-radius: var(--radius-3); }
+  [data-boogy="thumbnail"][data-size="lg"] { width: var(--thumb-lg); height: var(--thumb-lg); font-size: var(--fs-display); border-radius: var(--radius-3); }
+  [data-boogy="thumbnail"][data-image="true"] { background: var(--fill-hover); }
+  [data-boogy="thumbnail"] > img { width: 100%; height: 100%; object-fit: cover; }
+  [data-boogy="thumbnail"][data-tone="0"] { --thumb-hue: 25; }
+  [data-boogy="thumbnail"][data-tone="1"] { --thumb-hue: 70; }
+  [data-boogy="thumbnail"][data-tone="2"] { --thumb-hue: 130; }
+  [data-boogy="thumbnail"][data-tone="3"] { --thumb-hue: 170; }
+  [data-boogy="thumbnail"][data-tone="4"] { --thumb-hue: 215; }
+  [data-boogy="thumbnail"][data-tone="5"] { --thumb-hue: 260; }
+  [data-boogy="thumbnail"][data-tone="6"] { --thumb-hue: 300; }
+  [data-boogy="thumbnail"][data-tone="7"] { --thumb-hue: 340; }
+`;
+
+// Tile and TileGrid: cards in as many columns as fit. A tile's title clamps to
+// two lines so a long name never makes one tile taller than its row.
+const TILE_CSS = `
+  [data-boogy="tile-grid"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr));
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  [data-boogy="tile"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    width: 100%;
+    padding: var(--space-2) var(--space-1);
+    border: none;
+    border-radius: var(--radius-2);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: center;
+    text-decoration: none;
+  }
+  :is(button, a)[data-boogy="tile"] { cursor: pointer; }
+  :is(button, a)[data-boogy="tile"]:hover { background: var(--fill-hover); }
+  [data-boogy="tile"]:focus-visible { outline: var(--ring) solid var(--accent); outline-offset: 0; }
+  [data-boogy="tile"] > [data-slot="title"] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-size: var(--fs-detail);
+    font-weight: 500;
+    line-height: 1.25;
+  }
+  [data-boogy="tile"] > [data-slot="subtitle"] {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-3);
+    font-size: var(--fs-caption);
+  }
+`;
+
+// List and ListItem: rows of media, text and at most one action. Every text
+// line ends in an ellipsis and the action never shrinks, so a long name or
+// description can never push the action out of the row.
+const LIST_CSS = `
+  [data-boogy="list"] { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+  [data-boogy="list-item"] {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2);
+    border: none;
+    border-radius: var(--radius-2);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    text-decoration: none;
+  }
+  :is(button, a)[data-boogy="list-item"] { cursor: pointer; }
+  :is(button, a)[data-boogy="list-item"]:hover { background: var(--fill-hover); }
+  [data-boogy="list-item"]:focus-visible { outline: var(--ring) solid var(--accent); outline-offset: 0; }
+  [data-boogy="list-item"] > [data-slot="text"] { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+  [data-boogy="list-item"] [data-slot="title"] {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 500;
+  }
+  [data-boogy="list-item"] [data-slot="subtitle"] {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-2); font-size: var(--fs-caption);
+  }
+  [data-boogy="list-item"] [data-slot="description"] {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-3); font-size: var(--fs-caption);
+  }
+  [data-boogy="list-item"] > [data-slot="end"] { flex: none; position: relative; }
+  /* A control in the title is the row's own: it reads as the title and its
+     press area covers the whole row, while the end action stays above it and
+     keeps its own. Two controls side by side, never one inside the other. */
+  [data-boogy="list-item"]:has([data-slot="title"] > :is(button, a)) { position: relative; }
+  [data-boogy="list-item"]:has([data-slot="title"] > :is(button, a)):hover { background: var(--fill-hover); }
+  [data-boogy="list-item"]:has([data-slot="title"] > :focus-visible) { outline: var(--ring) solid var(--accent); outline-offset: 0; }
+  [data-boogy="list-item"] [data-slot="title"] > :is(button, a) {
+    all: unset;
+    display: block;
+    max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: pointer;
+  }
+  [data-boogy="list-item"] [data-slot="title"] > :is(button, a)::after { content: ""; position: absolute; inset: 0; }
+`;
+
+// Notice: a quiet one-line explanation; the warning tone is for something the
+// person should know went wrong.
+const NOTICE_CSS = `
+  [data-boogy="notice"] { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
+  [data-boogy="notice"][data-tone="warning"] { color: var(--warn); }
+`;
+
+// Info list: labels in one column, values in the other; a long value ends in
+// an ellipsis rather than widening the list.
+const INFO_LIST_CSS = `
+  [data-boogy="info-list"] {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-1) var(--space-3);
+    margin: 0;
+    font-size: var(--fs-detail);
+  }
+  [data-boogy="info-list"] > dt { color: var(--text-3); }
+  [data-boogy="info-list"] > dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-boogy="info-list"] > dd > a { color: var(--accent); text-decoration: none; }
+  [data-boogy="info-list"] > dd > a:hover { text-decoration: underline; }
+`;
+
+// Detail header: media beside the text; on a narrow container the two stack.
+// Stack: a column, or a row that wraps, its children a space token apart and
+// bringing no margins of their own.
+const STACK_CSS = `
+  [data-boogy="stack"] { display: flex; flex-direction: column; min-width: 0; }
+  [data-boogy="stack"][data-direction="row"] { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  [data-boogy="stack"] > * { margin: 0; }
+  [data-boogy="stack"][data-gap="1"] { gap: var(--space-1); }
+  [data-boogy="stack"][data-gap="2"] { gap: var(--space-2); }
+  [data-boogy="stack"][data-gap="3"] { gap: var(--space-3); }
+  [data-boogy="stack"][data-gap="4"] { gap: var(--space-4); }
+`;
+
+const DETAIL_HEADER_CSS = `
+  [data-boogy="detail-header"] {
+    container-type: inline-size;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  [data-boogy="detail-header"] > [data-slot="text"] { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+  [data-boogy="detail-header"] [data-slot="title"] { margin: 0; font-size: var(--fs-title); font-weight: 600; overflow-wrap: anywhere; }
+  [data-boogy="detail-header"] [data-slot="meta"] {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-2); font-size: var(--fs-detail);
+  }
+  [data-boogy="detail-header"] [data-slot="actions"] { display: flex; gap: var(--space-2); margin-top: var(--space-1); }
+  /* A container query styles the container's DESCENDANTS, never the
+     container itself — so a narrow header stacks by its text taking a whole
+     row under the media, not by the header changing direction. */
+  @container (width < 20rem) {
+    [data-boogy="detail-header"] > [data-slot="text"] { flex-basis: 100%; }
+  }
+`;
+
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS };
 
 export const COMPONENTS_CSS = `
 @layer boogy.components {
@@ -646,5 +844,12 @@ ${MENU_CSS}
 ${SHEET_CSS}
 ${FIELD_CSS}
 ${SECTION_CSS}
+${THUMBNAIL_CSS}
+${TILE_CSS}
+${LIST_CSS}
+${NOTICE_CSS}
+${INFO_LIST_CSS}
+${DETAIL_HEADER_CSS}
+${STACK_CSS}
 }
 `;

@@ -74,7 +74,9 @@ describe('<Popover> anchored', () => {
     expect(p.style.left).toBe('350px');
     expect(p.style.top).toBe('148px');
     expect(p.style.getPropertyValue('--trigger-width')).toBe('100px');
-    expect(q('[data-slot="page-head"]')).toBeNull();
+    // Anchored, it is a menu off its trigger: the title names it, and no head
+    // is drawn (a context menu with a title bar and a Close button is not one).
+    expect(q('[data-slot="head"]')).toBeNull();
   });
 
   it('measures its natural width, not the width squeezed by where it last sat', () => {
@@ -148,13 +150,13 @@ describe('<Popover> page mode (small screens)', () => {
     expect(p.dataset.mode).toBe('page');
     expect(p.getAttribute('aria-modal')).toBe('true');
     expect(p.style.left).toBe('');
-    expect(q('[data-slot="page-head"]')!.textContent).toContain('Set content');
-    expect(q('[data-slot="page-head"] [aria-label="Back"]')).not.toBeNull();
+    expect(q('[data-slot="head"]')!.textContent).toContain('Set content');
+    expect(q('[data-slot="head"] [aria-label="Back"]')).not.toBeNull();
   });
 
   it('the back button closes it', () => {
     const { q, onOpenChange } = mount();
-    act(() => q('[data-slot="page-head"] [aria-label="Back"]')!.click());
+    act(() => q('[data-slot="head"] [aria-label="Back"]')!.click());
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -190,5 +192,83 @@ describe('<Popover> page mode (small screens)', () => {
   it('is anchored when fullscreenBelow is false, whatever the width', () => {
     const { q } = mount({ fullscreenBelow: false });
     expect(q('[data-boogy="popover"]')!.dataset.mode).toBe('anchored');
+  });
+});
+
+describe('<Popover centered>', () => {
+  it('sits in the middle of the viewport, not against its trigger', () => {
+    const { q } = mount({ centered: true });
+    const p = q('[data-boogy="popover"]')!;
+    // 1024 x 768 viewport, 200 x 300 popup.
+    expect(p.style.left).toBe('412px');
+    expect(p.style.top).toBe('234px');
+    expect(p.dataset.placement).toBeUndefined();
+  });
+
+  it('keeps clear of the viewport edges when taller than it', () => {
+    vi.mocked(Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight')!.get!).mockImplementation(function (this: HTMLElement) {
+      return this.dataset.boogy === 'popover' ? 2000 : 0;
+    });
+    const { q } = mount({ centered: true });
+    const p = q('[data-boogy="popover"]')!;
+    expect(p.style.top).toBe('12px');
+    expect(p.style.maxHeight).toBe('744px');
+  });
+});
+
+describe('<Popover overlay>', () => {
+  it('shows the given element behind the popover, over the page', () => {
+    const { q } = mount({ overlay: <div id="scrim" /> });
+    const layer = q('[data-boogy="popover-overlay"]')!;
+    expect(layer).not.toBeNull();
+    expect(layer.getAttribute('popover')).toBe('manual');
+    expect(layer.querySelector('#scrim')).not.toBeNull();
+    // Behind: it comes BEFORE the popover, and the top layer stacks in the
+    // order things were shown.
+    expect(layer.compareDocumentPosition(q('[data-boogy="popover"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('a press on the overlay closes the popover', () => {
+    const { q, onOpenChange } = mount({ overlay: <div id="scrim" /> });
+    act(() => { q('#scrim')!.dispatchEvent(new Event('pointerdown', { bubbles: true })); });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('is not drawn while closed, nor in the full-screen page', () => {
+    const { q, setOpen } = mount({ overlay: <div id="scrim" /> });
+    setOpen(false);
+    expect(q('[data-boogy="popover-overlay"]')).toBeNull();
+    narrow = true;
+    const second = mount({ overlay: <div id="scrim2" /> });
+    expect(second.q('[data-boogy="popover"]')!.dataset.mode).toBe('page');
+    expect(second.q('#scrim2')).toBeNull();
+  });
+});
+
+describe('<Popover> head', () => {
+  it('a centred popover is a dialog, with its title and Close in a head', () => {
+    const { q } = mount({ centered: true });
+    const head = q('[data-slot="head"]')!;
+    expect(head.textContent).toContain('Set content');
+    expect(head.querySelector('button[aria-label="Close"]')).not.toBeNull();
+    expect(head.querySelector('button[aria-label="Back"]')).toBeNull();
+  });
+  it('Close closes it', () => {
+    const { q, onOpenChange } = mount({ centered: true });
+    act(() => { (q('[data-slot="head"] button[aria-label="Close"]') as HTMLButtonElement).click(); });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+  it('with onBack, a Back button comes first and calls it, not close', () => {
+    const onBack = vi.fn();
+    const { q, onOpenChange } = mount({ onBack });
+    const buttons = [...q('[data-slot="head"]')!.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
+    expect(buttons).toEqual(['Back', 'Close']);
+    act(() => { (q('[data-slot="head"] button[aria-label="Back"]') as HTMLButtonElement).click(); });
+    expect(onBack).toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+  it('no title and anchored: no head at all', () => {
+    const { q } = mount({ title: undefined });
+    expect(q('[data-slot="head"]')).toBeNull();
   });
 });

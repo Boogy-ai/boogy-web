@@ -58,7 +58,7 @@ describe('in-pane history', () => {
     expect(location.pathname).toBe('/notes/1');
     expect(history.length).toBe(before);
     expect(sent(parent, 'location').at(-1)).toEqual({ path: '/notes/1' });
-    expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: true, canForward: false });
+    expect(sent(parent, 'history-state').at(-1)).toMatchObject({ canBack: true, canForward: false });
     pane.disconnect();
   });
 
@@ -73,10 +73,10 @@ describe('in-pane history', () => {
     expect(location.pathname).toBe('/notes/1');
     expect(history.length).toBe(beforeStep); // a board-driven step adds no browser history either
     expect(onNavigate).toHaveBeenLastCalledWith('/notes/1');
-    expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: true, canForward: true });
+    expect(sent(parent, 'history-state').at(-1)).toMatchObject({ canBack: true, canForward: true });
     fromBoard(parent, 1);
     expect(onNavigate).toHaveBeenLastCalledWith('/notes/2');
-    expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: true, canForward: false });
+    expect(sent(parent, 'history-state').at(-1)).toMatchObject({ canBack: true, canForward: false });
     pane.disconnect();
   });
 
@@ -88,7 +88,7 @@ describe('in-pane history', () => {
     pane.navigate('/notes/2');
     fromBoard(parent, -1);
     pane.navigate('/notes/3');
-    expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: true, canForward: false });
+    expect(sent(parent, 'history-state').at(-1)).toMatchObject({ canBack: true, canForward: false });
     pane.disconnect();
   });
 
@@ -112,7 +112,7 @@ describe('in-pane history', () => {
       origin: SHELL, source: parent as unknown as MessageEventSource,
       data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n9', payload: { shellOrigin: SHELL } },
     }));
-    await vi.waitFor(() => expect(sent(parent, 'history-state')).toEqual([{ canBack: true, canForward: false }]));
+    await vi.waitFor(() => expect(sent(parent, 'history-state')).toMatchObject([{ canBack: true, canForward: false }]));
     pane.disconnect();
   });
 
@@ -178,7 +178,57 @@ describe('in-pane history', () => {
     const { pane } = await connected(parent);
     pane.navigate('/notes/1');
     pane.navigate('/notes', { reset: true });
-    expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: false, canForward: false });
+    expect(sent(parent, 'history-state').at(-1)).toMatchObject({ canBack: false, canForward: false });
+    pane.disconnect();
+  });
+
+  it('reports its whole history, so a board can keep it', async () => {
+    history.replaceState(null, '', '/notes');
+    const parent = framed();
+    const { pane } = await connected(parent);
+    pane.navigate('/notes/1');
+    expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: true, canForward: false, entries: ['/notes', '/notes/1'], index: 1 });
+    pane.disconnect();
+  });
+
+  // The board hands a pane its history back when the pane's content moves to
+  // another frame (a new page load): back and forward keep working.
+  it('adopts a history the board hands back when it is on that history current page', async () => {
+    history.replaceState(null, '', '/notes/2');
+    const parent = framed();
+    const onNavigate = vi.fn();
+    const pane = connectPane({ service: 'notes', onNavigate });
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: SHELL, source: parent as unknown as MessageEventSource,
+      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL, history: { entries: ['/notes', '/notes/1', '/notes/2'], index: 2 } } },
+    }));
+    await vi.waitFor(() => expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: true, canForward: false, entries: ['/notes', '/notes/1', '/notes/2'], index: 2 }));
+    fromBoard(parent, -1);
+    expect(onNavigate).toHaveBeenLastCalledWith('/notes/1');
+    pane.disconnect();
+  });
+
+  it('ignores a handed-back history whose current page is not where the pane is', async () => {
+    history.replaceState(null, '', '/notes');
+    const parent = framed();
+    const pane = connectPane({ service: 'notes', onNavigate: () => {} });
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: SHELL, source: parent as unknown as MessageEventSource,
+      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL, history: { entries: ['/notes', '/notes/9'], index: 1 } } },
+    }));
+    await vi.waitFor(() => expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: false, canForward: false, entries: ['/notes'], index: 0 }));
+    pane.disconnect();
+  });
+
+  it('keeps at most 50 entries, dropping the oldest', async () => {
+    history.replaceState(null, '', '/notes');
+    const parent = framed();
+    const { pane } = await connected(parent);
+    for (let i = 1; i <= 60; i++) pane.navigate(`/notes/${i}`);
+    const last = sent(parent, 'history-state').at(-1) as { entries: string[]; index: number };
+    expect(last.entries).toHaveLength(50);
+    expect(last.entries[0]).toBe('/notes/11');
+    expect(last.index).toBe(49);
     pane.disconnect();
   });
 

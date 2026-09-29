@@ -228,13 +228,39 @@ describe('createShell', () => {
     shell.destroy();
   });
 
+  // A pane's content moved to another frame: the board hands its history to
+  // the new frame on connect, and keeps the latest one for when a frame reloads.
+  it('hands a registered pane its history on connect, and keeps the latest reported one', () => {
+    const onHistoryState = vi.fn();
+    const shell = createShell({ onHistoryState });
+    const a = fakeFrame();
+    shell.registerPane(a.el, { ...reg('p1', 'squad'), history: { entries: ['/squad', '/squad/c/maya'], index: 1 } });
+    expect(a.connects().at(-1)!.frame.payload.history).toEqual({ entries: ['/squad', '/squad/c/maya'], index: 1 });
+    deliver(a.win, frame('history-state', a.nonce(), { canBack: true, canForward: true, entries: ['/squad', '/squad/c/maya', '/squad/c/bo'], index: 1 }));
+    expect(onHistoryState).toHaveBeenLastCalledWith('p1', true, true, { entries: ['/squad', '/squad/c/maya', '/squad/c/bo'], index: 1 });
+    a.load();
+    expect(a.connects().at(-1)!.frame.payload.history).toEqual({ entries: ['/squad', '/squad/c/maya', '/squad/c/bo'], index: 1 });
+    shell.destroy();
+  });
+
+  it('never keeps or hands back a history with an entry outside the pane address', () => {
+    const onHistoryState = vi.fn();
+    const shell = createShell({ onHistoryState });
+    const a = fakeFrame();
+    shell.registerPane(a.el, { ...reg('p1', 'squad'), history: { entries: ['/squad', '//evil.example'], index: 1 } });
+    expect(a.connects().at(-1)!.frame.payload.history).toBeUndefined();
+    deliver(a.win, frame('history-state', a.nonce(), { canBack: true, canForward: false, entries: ['/squad', '/other/x'], index: 1 }));
+    expect(onHistoryState).toHaveBeenLastCalledWith('p1', true, false, undefined);
+    shell.destroy();
+  });
+
   it('passes what a pane says is possible', () => {
     const onHistoryState = vi.fn();
     const shell = createShell({ onHistoryState });
     const a = fakeFrame();
     shell.registerPane(a.el, reg('p1', 'squad'));
     deliver(a.win, frame('history-state', a.nonce(), { canBack: true, canForward: false }));
-    expect(onHistoryState).toHaveBeenCalledExactlyOnceWith('p1', true, false);
+    expect(onHistoryState).toHaveBeenCalledExactlyOnceWith('p1', true, false, undefined);
     shell.destroy();
   });
 

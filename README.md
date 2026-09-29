@@ -270,6 +270,11 @@ pane.navigate('/notes/42');   // instead of history.pushState(…)
 pane.navigate('/', { reset: true });   // after sign-out: back must not lead into the old session
 ```
 
+A pane reports its whole history (at most 50 pages) to the board, so when the
+board moves your app to another frame it can hand the history back; your app
+takes it only if it is on that history's current page. You do nothing for
+this: it is part of `connectPane`.
+
 The board offers back and forward only for an app that passes `onNavigate`,
 since only such an app can render a step the board asks for. Any framed app
 calling `navigate` still stays out of the board's browser history.
@@ -313,7 +318,11 @@ const shell = createShell({
   onTitle: (id, text) => { /* show text in the frame header */ },
   onLocation: (id, path) => { /* save path; open the frame there next time */ },
   onAuthState: (id, signedIn) => { /* show the app's signed-in state */ },
-  onHistoryState: (id, canBack, canForward) => { /* enable the frame's back and forward buttons */ },
+  onHistoryState: (id, canBack, canForward, history) => {
+    /* enable the frame's back and forward buttons; keep `history` with the
+       pane's content and pass it as `history` when registering the frame the
+       content moves to */
+  },
 });
 
 // The frame's back and forward buttons:

@@ -11,7 +11,7 @@
 // Everything a pane reports is a request: a location outside the pane's own
 // address is dropped, and a title is trimmed and capped before it is shown.
 
-import { PANE_PROTOCOL, parseFrame, type Frame } from './internal/pane-protocol';
+import { PANE_PROTOCOL, parseFrame, type Frame, type PaneHistory } from './internal/pane-protocol';
 import { exactOrigin, sendFrame, receiveFrames, type ExactOrigin } from './internal/pane-messaging';
 import { isRestorablePath } from './internal/pane-paths';
 
@@ -27,6 +27,9 @@ export interface PaneRegistration {
   origin: string;
   /** The pane's address on that origin, e.g. `/notes`; bounds a reported location. */
   mount: string;
+  /** The app's own history, when its content was in another frame before
+   *  (the board kept it from `onHistoryState`): handed to the app on connect. */
+  history?: PaneHistory;
 }
 
 export interface ShellEvents {
@@ -36,8 +39,10 @@ export interface ShellEvents {
   onTitle(id: string, text: string): void;
   /** A path under the pane's own address, safe to reopen the pane at. */
   onLocation(id: string, path: string): void;
-  /** Whether the pane can go back or forward in its own history now. */
-  onHistoryState(id: string, canBack: boolean, canForward: boolean): void;
+  /** Whether the pane can go back or forward in its own history now, and the
+   *  history itself (every entry under the pane's address), for the board to
+   *  keep with the pane's content and pass back as `history` if it moves. */
+  onHistoryState(id: string, canBack: boolean, canForward: boolean, history?: PaneHistory): void;
 }
 
 export interface Shell {
@@ -59,6 +64,8 @@ interface Entry {
   offHello(): void;
   /** The nonce of the page connected now; empty before any connect. */
   nonce: string;
+  /** The latest history this pane reported (or was registered with). */
+  history?: PaneHistory;
 }
 
 // Direction and isolation marks (which can reorder what the header shows) and
@@ -69,6 +76,13 @@ function cleanTitle(text: string): string {
   return [...text.replace(UNSHOWABLE, '').trim()].slice(0, MAX_TITLE_LENGTH).join('');
 }
 
+/** A history the board may keep or hand back: every entry must be a page the
+ *  pane could legitimately be reopened at. */
+function usableHistory(h: PaneHistory | undefined, mount: string): PaneHistory | undefined {
+  if (!h || !h.entries.every((e) => isRestorablePath(e, mount))) return undefined;
+  return { entries: [...h.entries], index: h.index };
+}
+
 function newNonce(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -77,7 +91,8 @@ function newNonce(): string {
 export function createShell(events: Partial<ShellEvents>): Shell {
   const panes = new Map<string, Entry>();
 
-  const handle = (pane: PaneRegistration, frame: Frame) => {
+  const handle = (entry: Entry, frame: Frame) => {
+    const pane = entry.pane;
     switch (frame.type) {
       case 'ready':
         events.onReady?.(pane.id, frame.payload.service);
@@ -93,9 +108,13 @@ export function createShell(events: Partial<ShellEvents>): Shell {
       case 'location':
         if (isRestorablePath(frame.payload.path, pane.mount)) events.onLocation?.(pane.id, frame.payload.path);
         return;
-      case 'history-state':
-        events.onHistoryState?.(pane.id, frame.payload.canBack, frame.payload.canForward);
+      case 'history-state': {
+        const { canBack, canForward, entries, index } = frame.payload;
+        const history = entries && index !== undefined ? usableHistory({ entries, index }, pane.mount) : undefined;
+        if (history) entry.history = history;
+        events.onHistoryState?.(pane.id, canBack, canForward, history);
         return;
+      }
       default:
         return; // hello is handled per pane; connect and history are board → pane
     }
@@ -123,7 +142,10 @@ export function createShell(events: Partial<ShellEvents>): Shell {
     registerPane(iframe, pane) {
       remove(pane.id);
       const exact = exactOrigin(pane.origin);
-      const entry: Entry = { pane, iframe, exact, onLoad: () => {}, off: () => {}, offHello: () => {}, nonce: '' };
+      const entry: Entry = {
+        pane, iframe, exact, onLoad: () => {}, off: () => {}, offHello: () => {}, nonce: '',
+        history: usableHistory(pane.history, pane.mount),
+      };
 
       // Each page the frame loads gets its own nonce; a frame from the page
       // before is stale and dropped.
@@ -138,14 +160,16 @@ export function createShell(events: Partial<ShellEvents>): Shell {
           isAllowedSource: (s) => s === target,
           onFrame: (frame, event) => {
             if (event.origin !== pane.origin) return;
-            handle(pane, frame);
+            handle(entry, frame);
           },
         });
         sendFrame(target as Window, exact, {
           boogy: PANE_PROTOCOL,
           type: 'connect',
           nonce,
-          payload: { shellOrigin: window.location.origin },
+          payload: entry.history
+            ? { shellOrigin: window.location.origin, history: entry.history }
+            : { shellOrigin: window.location.origin },
         });
       };
 

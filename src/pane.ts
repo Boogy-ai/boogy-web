@@ -7,7 +7,7 @@
 // connects: every report is then a no-op, so the module works exactly as it
 // does on its own.
 
-import { PANE_PROTOCOL, parseFrame, type Frame } from './internal/pane-protocol';
+import { MAX_HISTORY, PANE_PROTOCOL, parseFrame, type Frame } from './internal/pane-protocol';
 import { exactOrigin, sendFrame, type ExactOrigin } from './internal/pane-messaging';
 import { loadPlatformConfig } from './internal/platform-config';
 
@@ -73,7 +73,12 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
   const stack = [here()];
   let index = 0;
   const reportHistory = () =>
-    report('history-state', { canBack: index > 0, canForward: index < stack.length - 1 });
+    report('history-state', {
+      canBack: index > 0,
+      canForward: index < stack.length - 1,
+      entries: [...stack],
+      index,
+    });
   if (keepsHistory) reportHistory();
 
   const step = (delta: -1 | 1) => {
@@ -110,6 +115,15 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
     if (!live || !allowed.includes(offered)) return;
 
     shell = { origin: exactOrigin(offered), nonce: data.nonce };
+    // A history the board hands back (this pane's content moved to this
+    // frame): adopted only if this page is its current page, so it can never
+    // describe somewhere the pane is not.
+    const handed = parseFrame(data)?.type === 'connect' ? (data.payload as { history?: { entries: string[]; index: number } }).history : undefined;
+    if (keepsHistory && handed && handed.entries[handed.index] === here()) {
+      stack.splice(0, stack.length, ...handed.entries);
+      index = handed.index;
+      reportHistory();
+    }
     sendFrame(window.parent, shell.origin, {
       boogy: PANE_PROTOCOL, type: 'ready', nonce: shell.nonce, payload: { service: opts.service },
     });
@@ -157,6 +171,8 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
         index = 0;
       } else if (stack[index] !== now) {
         stack.splice(index + 1, stack.length, now);
+        // Bounded: the oldest page goes first.
+        if (stack.length > MAX_HISTORY) stack.splice(0, stack.length - MAX_HISTORY);
         index = stack.length - 1;
       }
       report('location', { path: now });

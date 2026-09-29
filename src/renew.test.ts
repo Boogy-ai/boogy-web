@@ -82,3 +82,53 @@ describe('Boogy.signOut result', () => {
     expect(boogy.renew('alice/boards')).toBe(false);
   });
 });
+
+describe('Boogy.refreshSession', () => {
+  it('POSTs /boogy/renew on its own origin and reports success', async () => {
+    const f = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"services":["boards"]}', { status: 200 }));
+    await expect(new Boogy().refreshSession('alice/boards')).resolves.toBe(true);
+    expect(f).toHaveBeenCalledWith(
+      'https://alice.boogy.ai/boogy/renew',
+      expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+    );
+  });
+
+  it('is false on a 401, and a network failure is false rather than thrown', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('', { status: 401 }));
+    await expect(new Boogy().refreshSession('alice/boards')).resolves.toBe(false);
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new TypeError('offline'));
+    await expect(new Boogy().refreshSession('alice/boards')).resolves.toBe(false);
+  });
+
+  it('another owner\'s app is not this origin\'s to renew — false, no request, no throw', async () => {
+    const f = vi.spyOn(globalThis, 'fetch');
+    await expect(new Boogy().refreshSession('bob/notes')).resolves.toBe(false);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('a successful refresh arms renewal, like any other seen session', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    const boogy = new Boogy();
+    const connect = vi.spyOn(boogy, 'connectApp').mockResolvedValue(undefined);
+    await boogy.refreshSession('alice/boards');
+    expect(boogy.renew('alice/boards')).toBe(true);
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Boogy.renew — framed', () => {
+  // happy-dom's `window.top` is the window itself; a different object is what
+  // a frame sees.
+  beforeEach(() => vi.stubGlobal('top', {}));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('never navigates or opens a popup — the board signs a framed app in', async () => {
+    vi.stubGlobal('location', { origin: 'https://alice.boogy.ai', pathname: '/', search: '' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(me), { status: 200 }));
+    const boogy = new Boogy();
+    const connect = vi.spyOn(boogy, 'connectApp').mockResolvedValue(undefined);
+    await boogy.currentUser('alice/boards');
+    expect(boogy.renew('alice/boards')).toBe(false);
+    expect(connect).not.toHaveBeenCalled();
+  });
+});
