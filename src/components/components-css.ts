@@ -723,6 +723,28 @@ const TILE_CSS = `
 // List and ListItem: rows of media, text and at most one action. Every text
 // line ends in an ellipsis and the action never shrinks, so a long name or
 // description can never push the action out of the row.
+/**
+ * A control in an item's title is the item's own: it reads as the title, and
+ * its press area covers the whole item, while the item's action (end, foot)
+ * stays above it and keeps its own — two controls side by side, never one
+ * inside the other. ONE definition for every item that offers it (list rows,
+ * cards); each host puts its action above with `position: relative`.
+ */
+function titleControlCovers(host: string): string {
+  return `
+  ${host}:has([data-slot="title"] > :is(button, a)) { position: relative; }
+  ${host}:has([data-slot="title"] > :is(button, a)):hover { background: var(--fill-hover); }
+  ${host}:has([data-slot="title"] > :focus-visible) { outline: var(--ring) solid var(--accent); outline-offset: 0; }
+  ${host} [data-slot="title"] > :is(button, a) {
+    all: unset;
+    display: block;
+    max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: pointer;
+  }
+  ${host} [data-slot="title"] > :is(button, a)::after { content: ""; position: absolute; inset: 0; }`;
+}
+
 const LIST_CSS = `
   [data-boogy="list"] { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
   [data-boogy="list-item"] {
@@ -757,20 +779,7 @@ const LIST_CSS = `
     color: var(--text-3); font-size: var(--fs-caption);
   }
   [data-boogy="list-item"] > [data-slot="end"] { flex: none; position: relative; }
-  /* A control in the title is the row's own: it reads as the title and its
-     press area covers the whole row, while the end action stays above it and
-     keeps its own. Two controls side by side, never one inside the other. */
-  [data-boogy="list-item"]:has([data-slot="title"] > :is(button, a)) { position: relative; }
-  [data-boogy="list-item"]:has([data-slot="title"] > :is(button, a)):hover { background: var(--fill-hover); }
-  [data-boogy="list-item"]:has([data-slot="title"] > :focus-visible) { outline: var(--ring) solid var(--accent); outline-offset: 0; }
-  [data-boogy="list-item"] [data-slot="title"] > :is(button, a) {
-    all: unset;
-    display: block;
-    max-width: 100%;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    cursor: pointer;
-  }
-  [data-boogy="list-item"] [data-slot="title"] > :is(button, a)::after { content: ""; position: absolute; inset: 0; }
+${titleControlCovers('[data-boogy="list-item"]')}
 `;
 
 // Notice: a quiet one-line explanation; the warning tone is for something the
@@ -797,6 +806,68 @@ const INFO_LIST_CSS = `
 `;
 
 // Detail header: media beside the text; on a narrow container the two stack.
+// Card: head (media, title, subtitle), a body (summary, caption lines), and a
+// foot for actions that sits at the bottom so a row of cards lines up.
+// CardGrid: columns no narrower than --card-min and never more than three —
+// the floor is the larger of --card-min and a third of the width — so it is
+// three, two or one column as its container allows.
+const CARD_CSS = `
+  [data-boogy="card-grid"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(max(var(--card-min), (100% - 2 * var(--space-2)) / 3), 1fr));
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  [data-boogy="card-grid"] > li { display: flex; min-width: 0; }
+  [data-boogy="card"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    min-width: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-3);
+    background: var(--ground-raised);
+    color: inherit;
+  }
+  [data-boogy="card"] > [data-slot="head"] { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+  [data-boogy="card"] > [data-slot="head"] > [data-slot="media"] { flex: none; display: flex; }
+  [data-boogy="card"] > [data-slot="head"] > [data-slot="heading"] { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+  [data-boogy="card"] [data-slot="title"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  [data-boogy="card"] [data-slot="subtitle"] {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-2); font-size: var(--fs-caption);
+  }
+  [data-boogy="card"] > [data-slot="body"] { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+  [data-boogy="card"] [data-slot="summary"] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-detail);
+  }
+  [data-boogy="card"] [data-slot="meta"] {
+    margin: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-3); font-size: var(--fs-caption);
+  }
+  [data-boogy="card"] > [data-slot="foot"] {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: auto;
+  }
+${titleControlCovers('[data-boogy="card"]')}
+`;
+
 // Stack: a column, or a row that wraps, its children a space token apart and
 // bringing no margins of their own.
 const STACK_CSS = `
@@ -832,7 +903,7 @@ const DETAIL_HEADER_CSS = `
   }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS };
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS };
 
 export const COMPONENTS_CSS = `
 @layer boogy.components {
@@ -851,5 +922,6 @@ ${NOTICE_CSS}
 ${INFO_LIST_CSS}
 ${DETAIL_HEADER_CSS}
 ${STACK_CSS}
+${CARD_CSS}
 }
 `;

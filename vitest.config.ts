@@ -6,7 +6,6 @@ export default defineConfig({
   resolve: {
     // The Preact entry imports the core by the package's own name, as a consumer does.
     alias: [
-      { find: /^@boogy\/web\/catalog$/, replacement: fileURLToPath(new URL('./src/patterns/catalog/index.ts', import.meta.url)) },
       { find: /^@boogy\/web$/, replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)) },
     ],
   },

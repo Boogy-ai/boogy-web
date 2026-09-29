@@ -1,6 +1,6 @@
 {
   "name": "@boogy/web",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Browser SDK for Boogy \u2014 sign-in, app connection, and credentialed fetch.",
   "license": "MIT",
   "type": "module",
@@ -11,10 +11,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./catalog": {
-      "types": "./dist/patterns/catalog/index.d.ts",
-      "import": "./dist/patterns/catalog/index.js"
-    },
     "./dev": {
       "types": "./dist-dev/index.d.ts",
       "import": "./dist-dev/index.js"
@@ -23,10 +19,6 @@
     "./preact": {
       "types": "./dist-preact/index.d.ts",
       "import": "./dist-preact/index.js"
-    },
-    "./preact/catalog": {
-      "types": "./dist-preact/catalog/index.d.ts",
-      "import": "./dist-preact/catalog/index.js"
     }
   },
   "sideEffects": false,

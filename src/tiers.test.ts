@@ -1,5 +1,6 @@
-// The SDK's tiers, enforced: generic primitives never import the catalog
-// pattern, and never carry a domain word in an identifier.
+// The SDK holds only building blocks any Boogy Preact app would reuse, so no
+// SDK component carries a domain word (app, pane, module, install) in an
+// identifier. App-specific components live in the app that uses them.
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,10 +17,6 @@ const primitives = [
 ].filter((f) => !/\.test\.tsx?$/.test(f));
 
 describe('tiers', () => {
-  it('no primitive imports the catalog pattern', () => {
-    const bad = primitives.filter((f) => /from ['"][^'"]*(patterns|catalog)/.test(readFileSync(join(root, f), 'utf8')));
-    expect(bad).toEqual([]);
-  });
   it('no primitive names a domain in an identifier', () => {
     // Every identifier, split into its words (camelCase, PascalCase,
     // snake_case): `pane`, `paneId`, `AppRow`, `installFlow` all count.

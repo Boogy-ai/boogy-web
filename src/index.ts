@@ -45,6 +45,9 @@ export type { ModuleRef, InstallModuleOptions, Installed } from './internal/inst
 export { sheet, field, section } from './components/sheet';
 export { initialsOf, thumbnail, toneOf, THUMBNAIL_SIZES, THUMBNAIL_TONES } from './components/thumbnail';
 export { stack, STACK_GAPS } from './components/stack';
+export { card, cardGrid } from './components/card';
+export type { CardAttrs, CardGridAttrs } from './components/card';
+export { metaLine } from './components/meta';
 export type { StackAttrs, StackDirection, StackGap } from './components/stack';
 export type { ThumbnailSize, ThumbnailAttrs } from './components/thumbnail';
 export { tile, tileGrid } from './components/tile';
