@@ -43,6 +43,15 @@ describe('field', () => {
     expect(ruleFor('[data-boogy="field"] > [data-slot="group"] > [data-slot="prefix"]')).toMatch(/color:\s*var\(--text-3\)/);
     expect(ruleFor('[data-boogy="field"][data-invalid="true"] > [data-slot="group"]')).toMatch(/var\(--danger\)/);
   });
+  it('can be fully rounded, a pill whether it is a bare control or a group', () => {
+    expect(field({ rounded: true })).toEqual({ 'data-boogy': 'field', 'data-rounded': 'true' });
+    expect(ruleFor('[data-boogy="field"][data-rounded="true"] > :is([data-slot="control"], [data-slot="group"])')).toMatch(/border-radius:\s*var\(--radius-full\)/);
+  });
+  it('a leading icon is centred on the frame by flex, with room before the text', () => {
+    const icon = ruleFor('[data-boogy="field"] > [data-slot="group"] > [data-slot="icon"]') ?? '';
+    expect(icon).toMatch(/display:\s*flex/);
+    expect(icon).toMatch(/padding-inline:\s*var\(--space-\d\) var\(--space-\d\)/);
+  });
   it('an empty message takes no room', () => {
     expect(ruleFor('[data-boogy="field"] > [data-slot="message"]:empty')).toMatch(/display:\s*none/);
   });

@@ -602,6 +602,14 @@ const FIELD_CSS = `
     min-width: 0;
     flex: 0 1 auto;
   }
+  /* A leading icon (a search glass, say): centred on the frame by flex rather
+     than sitting on the text's baseline, with room before the text. */
+  [data-boogy="field"] > [data-slot="group"] > [data-slot="icon"] {
+    display: flex;
+    flex: none;
+    padding-inline: var(--space-2) var(--space-2);
+    color: var(--text-3);
+  }
   [data-boogy="field"] > [data-slot="group"] > [data-slot="suffix"] { display: flex; flex: none; }
   [data-boogy="field"] > [data-slot="group"] > [data-slot="control"] {
     flex: 1 1 auto;
@@ -615,6 +623,13 @@ const FIELD_CSS = `
     outline: none;
   }
   [data-boogy="field"][data-invalid="true"] > [data-slot="group"] { border-color: var(--danger); }
+  /* A pill. Its ends are half circles, so what sits at either end steps in
+     further from them. */
+  [data-boogy="field"][data-rounded="true"] > :is([data-slot="control"], [data-slot="group"]) { border-radius: var(--radius-full); }
+  [data-boogy="field"][data-rounded="true"] > [data-slot="control"] { padding-inline: var(--space-3); }
+  [data-boogy="field"][data-rounded="true"] > [data-slot="group"] > :is([data-slot="icon"], [data-slot="prefix"]) { padding-inline-start: var(--space-3); }
+  [data-boogy="field"][data-rounded="true"] > [data-slot="group"] > [data-slot="control"] { padding-inline-end: var(--space-3); }
+  [data-boogy="field"][data-rounded="true"] > [data-slot="group"] > [data-slot="suffix"] { padding-inline-end: var(--space-1); }
   [data-boogy="field"] > [data-slot="message"] {
     color: var(--text-3);
     font-size: var(--fs-caption);
@@ -625,11 +640,29 @@ const FIELD_CSS = `
 `;
 
 const SECTION_CSS = `
-  [data-boogy="section"] { display: flex; flex-direction: column; gap: var(--space-1); }
-  [data-boogy="section"] > [data-slot="head"] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+  /* The caption lines are trimmed to their letters (cap height down to the
+     baseline), so every space around them is a token rather than the font's
+     leading: without the trim a heading and the line under it sat a whole
+     line's height apart. */
+  [data-boogy="section"] { display: flex; flex-direction: column; gap: var(--space-2); }
+  /* The heading, its action beside it, and a description under both. */
+  [data-boogy="section"] > [data-slot="head"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  [data-boogy="section"] > [data-slot="head"] > [data-slot="description"] {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--text-3);
+    font-size: var(--fs-caption);
+    text-box: trim-both cap alphabetic;
+  }
   [data-boogy="section"] > [data-slot="header"],
   [data-boogy="section"] > [data-slot="head"] > [data-slot="header"] {
     margin: 0;
+    text-box: trim-both cap alphabetic;
     color: var(--text-3);
     font-size: var(--fs-caption);
     font-weight: 600;

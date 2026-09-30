@@ -11,6 +11,8 @@ export type SearchFieldProps = {
   value: string;
   onValueChange: (value: string) => void;
   placeholder?: string;
+  /** Fully rounded: the field is a pill, and so is its clear button. */
+  rounded?: boolean;
   autoFocus?: boolean;
   onKeyDown?: (e: KeyboardEvent) => void;
   /** Sees a paste first; `preventDefault()` takes it over — e.g. to keep a
@@ -18,7 +20,7 @@ export type SearchFieldProps = {
   onPaste?: (e: ClipboardEvent) => void;
 };
 
-export function SearchField({ label, value, onValueChange, placeholder, autoFocus, onKeyDown, onPaste }: SearchFieldProps) {
+export function SearchField({ label, value, onValueChange, placeholder, rounded, autoFocus, onKeyDown, onPaste }: SearchFieldProps) {
   const input = useRef<HTMLInputElement>(null);
   const clear = () => { onValueChange(''); input.current?.focus(); };
   // Focused ON MOUNT, by an effect: the `autofocus` attribute is honoured once
@@ -26,9 +28,9 @@ export function SearchField({ label, value, onValueChange, placeholder, autoFocu
   // would otherwise leave focus on nothing.
   useEffect(() => { if (autoFocus) input.current?.focus(); }, []);
   return (
-    <div {...field()}>
+    <div {...field({ rounded })}>
       <div data-slot="group">
-        <span data-slot="prefix" aria-hidden="true">
+        <span data-slot="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
           </svg>
@@ -51,7 +53,7 @@ export function SearchField({ label, value, onValueChange, placeholder, autoFocu
         />
         {value !== '' && (
           <span data-slot="suffix">
-            <Button variant="quiet" shape="icon" size="sm" label="Clear" onClick={clear}>
+            <Button variant="quiet" shape="icon" size="sm" rounded={rounded} label="Clear" onClick={clear}>
               <svg aria-hidden="true" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 6 6 18" /><path d="m6 6 12 12" />
               </svg>

@@ -8,6 +8,31 @@ afterEach(() => { document.body.innerHTML = ''; });
 const mount = (el: JSX.Element) => { const r = document.createElement('div'); document.body.append(r); act(() => render(el, r)); return r; };
 
 describe('<Section>', () => {
+  it('can say what the group is, in a line under its heading', () => {
+    const r = mount(<Section title="Your apps" description="Apps you have published."><p /></Section>);
+    expect(r.querySelector('[data-slot="description"]')!.textContent).toBe('Apps you have published.');
+    // In the head, under the heading: the two read as one caption, spaced by
+    // the head's own gap rather than the section's.
+    const description = r.querySelector('[data-boogy="section"] > [data-slot="head"] > [data-slot="description"]');
+    expect(description).not.toBeNull();
+    expect(description!.previousElementSibling!.getAttribute('data-slot')).toBe('header');
+    expect(COMPONENTS_CSS_PARTS.SECTION_CSS).toMatch(/\[data-slot="head"\] > \[data-slot="description"\] \{[^}]*color:\s*var\(--text-3\)/);
+  });
+  it('spans the head under both the heading and its action', () => {
+    const r = mount(<Section title="Yours" description="Apps you have published." action={<button id="all">All</button>}><p /></Section>);
+    const kids = [...r.querySelector('[data-slot="head"]')!.children].map((c) => c.getAttribute('data-slot') ?? c.id);
+    expect(kids).toEqual(['header', 'all', 'description']);
+    expect(COMPONENTS_CSS_PARTS.SECTION_CSS).toMatch(/\[data-slot="head"\] > \[data-slot="description"\] \{[^}]*grid-column:\s*1 \/ -1/);
+  });
+  it('trims the caption lines to their letters, so the space between them is a token and not leading', () => {
+    const css = COMPONENTS_CSS_PARTS.SECTION_CSS;
+    expect(css).toMatch(/\[data-slot="header"\] \{[^}]*text-box:\s*trim-both cap alphabetic/);
+    expect(css).toMatch(/\[data-slot="head"\] > \[data-slot="description"\] \{[^}]*text-box:\s*trim-both cap alphabetic/);
+  });
+  it('has no description line when given none', () => {
+    const r = mount(<Section title="Yours"><p /></Section>);
+    expect(r.querySelector('[data-slot="description"]')).toBeNull();
+  });
   it('captions a group, with an optional action', () => {
     const r = mount(<Section title="Yours" action={<button id="all">See all</button>}><p id="kid" /></Section>);
     expect(r.querySelector('[data-boogy="section"] [data-slot="header"]')!.textContent).toBe('Yours');
@@ -74,6 +99,20 @@ describe('<SearchField>', () => {
     act(() => { r2.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
     expect(outer).toHaveBeenCalledTimes(1);
     document.removeEventListener('keydown', outer);
+  });
+  it('its glass sits in an icon slot, not the text prefix, and is hidden from assistive tech', () => {
+    const r = mount(<SearchField label="Search" value="" onValueChange={vi.fn()} />);
+    const icon = r.querySelector('[data-slot="group"] > [data-slot="icon"]');
+    expect(icon).not.toBeNull();
+    expect(icon!.getAttribute('aria-hidden')).toBe('true');
+    expect(r.querySelector('[data-slot="prefix"]')).toBeNull();
+  });
+  it('can be fully rounded, and its clear button rounds with it', () => {
+    const r = mount(<SearchField label="Search" value="chat" rounded onValueChange={vi.fn()} />);
+    expect(r.querySelector('[data-boogy="field"]')!.getAttribute('data-rounded')).toBe('true');
+    expect(r.querySelector('[data-slot="suffix"] button')!.getAttribute('data-rounded')).toBe('true');
+    const square = mount(<SearchField label="Search" value="chat" onValueChange={vi.fn()} />);
+    expect(square.querySelector('[data-boogy="field"]')!.hasAttribute('data-rounded')).toBe(false);
   });
   it('hands a paste to its container, which may take it over', () => {
     const onPaste = vi.fn((e: ClipboardEvent) => e.preventDefault());
