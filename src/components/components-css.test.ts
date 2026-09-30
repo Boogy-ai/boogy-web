@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { COMPONENTS_CSS } from './components-css';
+import { FOUNDATION_CSS } from '../layout/foundation-css';
 
 // Code only: comments are prose and may name sizes. Newlines kept for line numbers.
 const CODE = COMPONENTS_CSS.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
@@ -178,5 +179,19 @@ describe('menu styles', () => {
   it('has section headers and separators', () => {
     expect(ruleFor('[data-boogy="menu-section"] > [data-slot="header"]')).toMatch(/color:\s*var\(--text-3\)/);
     expect(ruleFor('[data-boogy="menu-separator"]')).toMatch(/background:\s*var\(--edge\)/);
+  });
+});
+
+describe('focus rings', () => {
+  it('every focus ring is drawn in the ring colour, never the raw accent', () => {
+    const colours = [...CODE.matchAll(/outline:\s*var\(--ring\)\s+solid\s+([^;}]+?)\s*[;}]/g)].map((m) => m[1]);
+    expect(colours.length).toBeGreaterThanOrEqual(8);
+    expect(colours.filter((c) => c !== 'var(--ring-color)')).toEqual([]);
+  });
+  it('the ring colour is the accent, quietened only on a dark ground', () => {
+    // Light grounds keep the full accent: fading it there would drop the ring
+    // below the contrast a focus indicator needs against a pale surface.
+    const ring = FOUNDATION_CSS.match(/--ring-color:\s*([^;]+);/)?.[1];
+    expect(ring).toMatch(/^light-dark\(var\(--accent\),\s*oklch\(from var\(--accent\) l c h \/ 0\.\d+\)\)$/);
   });
 });

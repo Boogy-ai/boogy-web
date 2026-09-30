@@ -56,6 +56,11 @@ export const FOUNDATION_CSS = `
     /* accent, derived */
     --accent-hover: oklch(from var(--accent) calc(l + 0.06) c h);
     --accent-soft: oklch(from var(--accent) l c h / 0.16);
+    /* The focus ring. On a dark ground the full accent outshone the control it
+       rings; at 0.6 it still stands over 3:1 against the dark grounds, the
+       contrast a focus indicator needs. A light ground keeps the full accent,
+       which is already nearer that floor. */
+    --ring-color: light-dark(var(--accent), oklch(from var(--accent) l c h / 0.6));
 
     /* status: one lightness and chroma per scheme, hue varies */
     --ok: light-dark(oklch(0.55 0.14 150), oklch(0.74 0.14 150));

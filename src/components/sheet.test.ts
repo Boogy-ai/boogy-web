@@ -69,4 +69,14 @@ describe('section', () => {
     expect(r).toMatch(/text-transform:\s*uppercase/);
     expect(r).toMatch(/font-size:\s*var\(--fs-caption\)/);
   });
+  it('its heading is a step brighter than the description under it', () => {
+    const header = ruleFor('[data-boogy="section"] > [data-slot="head"] > [data-slot="header"]') ?? '';
+    const description = ruleFor('[data-boogy="section"] > [data-slot="head"] > [data-slot="description"]') ?? '';
+    expect(header).toMatch(/color:\s*var\(--text-2\)/);
+    expect(description).toMatch(/color:\s*var\(--text-3\)/);
+  });
+  it('its caption stands a step further from the content than the two caption lines stand apart', () => {
+    expect(ruleFor('[data-boogy="section"]')).toMatch(/gap:\s*var\(--space-3\)/);
+    expect(ruleFor('[data-boogy="section"] > [data-slot="head"]')).toMatch(/gap:\s*var\(--space-2\)/);
+  });
 });

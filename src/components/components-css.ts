@@ -19,7 +19,7 @@ const PILL_CSS = `
   }
   :is(button, a)[data-boogy="pill"]:not(:disabled, [aria-disabled="true"]) { cursor: pointer; }
   [data-boogy="pill"]:focus-visible {
-    outline: var(--ring) solid var(--accent);
+    outline: var(--ring) solid var(--ring-color);
     outline-offset: var(--ring);
   }
   [data-boogy="pill"]:is(:disabled, [aria-disabled="true"]) { opacity: 0.45; }
@@ -66,7 +66,7 @@ const BUTTON_CSS = `
   [data-boogy="button"][data-shape="icon"] { width: var(--_h); padding: 0; }
   [data-boogy="button"][data-rounded="true"] { border-radius: var(--radius-full); }
   [data-boogy="button"]:focus-visible {
-    outline: var(--ring) solid var(--accent);
+    outline: var(--ring) solid var(--ring-color);
     outline-offset: var(--ring);
   }
   [data-boogy="button"]:is(:disabled, [aria-disabled="true"]) { opacity: 0.45; cursor: default; }
@@ -271,7 +271,7 @@ const DRAWER_CSS = `
   }
   [data-boogy="drawer-item"]:hover { background: var(--fill-hover); color: var(--text-1); }
   [data-boogy="drawer-item"]:focus-visible {
-    outline: var(--ring) solid var(--accent);
+    outline: var(--ring) solid var(--ring-color);
     outline-offset: calc(var(--ring) * -1);
   }
   [data-boogy="drawer-item"][aria-current="page"] {
@@ -569,7 +569,7 @@ const FIELD_CSS = `
   }
   [data-boogy="field"] > [data-slot="control"]:hover { border-color: var(--edge-strong); }
   [data-boogy="field"] > [data-slot="control"]:focus-visible {
-    outline: var(--ring) solid var(--accent);
+    outline: var(--ring) solid var(--ring-color);
     outline-offset: 1px;
   }
   [data-boogy="field"] > [data-slot="control"]:disabled { opacity: 0.45; }
@@ -590,7 +590,7 @@ const FIELD_CSS = `
   }
   [data-boogy="field"] > [data-slot="group"]:hover { border-color: var(--edge-strong); }
   [data-boogy="field"] > [data-slot="group"]:focus-within {
-    outline: var(--ring) solid var(--accent);
+    outline: var(--ring) solid var(--ring-color);
     outline-offset: 1px;
   }
   [data-boogy="field"] > [data-slot="group"] > [data-slot="prefix"] {
@@ -644,7 +644,7 @@ const SECTION_CSS = `
      baseline), so every space around them is a token rather than the font's
      leading: without the trim a heading and the line under it sat a whole
      line's height apart. */
-  [data-boogy="section"] { display: flex; flex-direction: column; gap: var(--space-2); }
+  [data-boogy="section"] { display: flex; flex-direction: column; gap: var(--space-3); }
   /* The heading, its action beside it, and a description under both. */
   [data-boogy="section"] > [data-slot="head"] {
     display: grid;
@@ -663,7 +663,7 @@ const SECTION_CSS = `
   [data-boogy="section"] > [data-slot="head"] > [data-slot="header"] {
     margin: 0;
     text-box: trim-both cap alphabetic;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-caption);
     font-weight: 600;
     text-transform: uppercase;
@@ -732,7 +732,7 @@ const TILE_CSS = `
   }
   :is(button, a)[data-boogy="tile"] { cursor: pointer; }
   :is(button, a)[data-boogy="tile"]:hover { background: var(--fill-hover); }
-  [data-boogy="tile"]:focus-visible { outline: var(--ring) solid var(--accent); outline-offset: 0; }
+  [data-boogy="tile"]:focus-visible { outline: var(--ring) solid var(--ring-color); outline-offset: 0; }
   [data-boogy="tile"] > [data-slot="title"] {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -768,7 +768,7 @@ function titleControlCovers(host: string): string {
   return `
   ${host}:has([data-slot="title"] > :is(button, a)) { position: relative; }
   ${host}:has([data-slot="title"] > :is(button, a)):hover { background: var(--fill-hover); }
-  ${host}:has([data-slot="title"] > :focus-visible) { outline: var(--ring) solid var(--accent); outline-offset: 0; }
+  ${host}:has([data-slot="title"] > :focus-visible) { outline: var(--ring) solid var(--ring-color); outline-offset: 0; }
   ${host} [data-slot="title"] > :is(button, a) {
     all: unset;
     display: block;
@@ -798,7 +798,7 @@ const LIST_CSS = `
   }
   :is(button, a)[data-boogy="list-item"] { cursor: pointer; }
   :is(button, a)[data-boogy="list-item"]:hover { background: var(--fill-hover); }
-  [data-boogy="list-item"]:focus-visible { outline: var(--ring) solid var(--accent); outline-offset: 0; }
+  [data-boogy="list-item"]:focus-visible { outline: var(--ring) solid var(--ring-color); outline-offset: 0; }
   [data-boogy="list-item"] > [data-slot="text"] { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
   [data-boogy="list-item"] [data-slot="title"] {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
