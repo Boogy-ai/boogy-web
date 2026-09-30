@@ -40,6 +40,11 @@ export type PopoverProps = {
    *  still returns focus to). `placement`, `offset`, `crossOffset` and
    *  `shouldFlip` do not apply. Default false. */
   centered?: boolean;
+  /** When `centered`: where the box sits vertically, as the share of the free
+   *  space above it — 0.5 (the default) is the middle, 1/3 leaves a third
+   *  above and two thirds below, the usual place for a dialog. Clamped to
+   *  0..1, and never closer to an edge than `containerPadding`. */
+  centerY?: number;
   /** Shown behind the popover and above the page while it is open — e.g. a
    *  dimming layer. Fills the viewport; a press on it closes the popover, like
    *  any press outside. Not drawn in the full-screen page, which covers the
@@ -71,7 +76,7 @@ function useMode(below: DrawerBreakpoint | false): PopoverMode {
 
 export function Popover({
   triggerRef, isOpen, onOpenChange, placement, offset, crossOffset, shouldFlip, containerPadding, maxHeight,
-  fullscreenBelow = 'sm', title, centered = false, overlay, onBack, children, ...rest
+  fullscreenBelow = 'sm', title, centered = false, centerY = 0.5, overlay, onBack, children, ...rest
 }: PopoverProps) {
   const mode = useMode(fullscreenBelow);
   const ref = useRef<HTMLDivElement>(null);
@@ -116,7 +121,8 @@ export function Popover({
         const fit = Math.max(0, Math.min(maxHeight ?? Infinity, vh - 2 * pad));
         const height = Math.min(el.scrollHeight + (el.offsetHeight - el.clientHeight), fit);
         el.style.left = `${Math.max(pad, (vw - width) / 2)}px`;
-        el.style.top = `${Math.max(pad, (vh - height) / 2)}px`;
+        const share = Math.min(1, Math.max(0, centerY));
+        el.style.top = `${Math.max(pad, Math.min(vh - pad - height, (vh - height) * share))}px`;
         el.style.maxHeight = `${fit}px`;
         delete el.dataset.placement;
         return;
@@ -207,7 +213,7 @@ export function Popover({
       if (pushed && (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) history.back();
       if (el.contains(document.activeElement) || document.activeElement === document.body) trigger?.focus();
     };
-  }, [isOpen, mode, centered]);
+  }, [isOpen, mode, centered, centerY]);
 
   if (!isOpen) return null;
   const page = mode === 'page';

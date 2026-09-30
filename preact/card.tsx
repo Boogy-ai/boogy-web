@@ -1,10 +1,10 @@
 // <CardGrid> and <Card>: a grid of summaries — three, two or one column as
 // the container allows (see the stylesheet).
 import type { ComponentChildren, JSX } from 'preact';
-import { card, cardGrid } from '@boogy/web';
+import { card, cardGrid, type CardGridVariant } from '@boogy/web';
 
-export function CardGrid({ children, ...rest }: JSX.HTMLAttributes<HTMLUListElement>) {
-  return <ul {...rest} {...cardGrid()}>{children}</ul>;
+export function CardGrid({ variant, children, ...rest }: { variant?: CardGridVariant } & JSX.HTMLAttributes<HTMLUListElement>) {
+  return <ul {...rest} {...cardGrid({ variant })}>{children}</ul>;
 }
 
 export type CardProps = {

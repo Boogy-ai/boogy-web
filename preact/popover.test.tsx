@@ -205,6 +205,19 @@ describe('<Popover centered>', () => {
     expect(p.dataset.placement).toBeUndefined();
   });
 
+  it('can sit higher than the middle: centerY is the share of the free space above it', () => {
+    // 768 - 300 = 468 free; a third above it, two thirds below.
+    const { q } = mount({ centered: true, centerY: 1 / 3 });
+    const p = q('[data-boogy="popover"]')!;
+    expect(p.style.top).toBe('156px');
+    expect(p.style.left).toBe('412px');
+  });
+
+  it('a centerY off the 0..1 range is clamped, never placing it off screen', () => {
+    const { q } = mount({ centered: true, centerY: -2 });
+    expect(q('[data-boogy="popover"]')!.style.top).toBe('12px');
+  });
+
   it('keeps clear of the viewport edges when taller than it', () => {
     vi.mocked(Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight')!.get!).mockImplementation(function (this: HTMLElement) {
       return this.dataset.boogy === 'popover' ? 2000 : 0;

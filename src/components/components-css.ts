@@ -51,7 +51,7 @@ const BUTTON_CSS = `
     height: var(--_h);
     padding: 0 var(--space-3);
     border: none;
-    border-radius: var(--radius-2);
+    border-radius: var(--radius-1);
     background: transparent;
     color: inherit;
     font: inherit;
@@ -647,7 +647,8 @@ const THUMBNAIL_CSS = `
     display: inline-grid;
     place-items: center;
     overflow: hidden;
-    border-radius: var(--radius-2);
+    /* Softened, not rounded: an app mark reads as a square. */
+    border-radius: var(--radius-1);
     background: oklch(0.62 0.11 var(--thumb-hue, 250));
     color: oklch(0.98 0 0);
     font-weight: 600;
@@ -655,8 +656,8 @@ const THUMBNAIL_CSS = `
     user-select: none;
   }
   [data-boogy="thumbnail"][data-size="sm"] { width: var(--thumb-sm); height: var(--thumb-sm); font-size: var(--fs-detail); }
-  [data-boogy="thumbnail"][data-size="md"] { width: var(--thumb-md); height: var(--thumb-md); font-size: var(--fs-body); border-radius: var(--radius-3); }
-  [data-boogy="thumbnail"][data-size="lg"] { width: var(--thumb-lg); height: var(--thumb-lg); font-size: var(--fs-display); border-radius: var(--radius-3); }
+  [data-boogy="thumbnail"][data-size="md"] { width: var(--thumb-md); height: var(--thumb-md); font-size: var(--fs-body); }
+  [data-boogy="thumbnail"][data-size="lg"] { width: var(--thumb-lg); height: var(--thumb-lg); font-size: var(--fs-display); border-radius: var(--radius-2); }
   [data-boogy="thumbnail"][data-image="true"] { background: var(--fill-hover); }
   [data-boogy="thumbnail"] > img { width: 100%; height: 100%; object-fit: cover; }
   [data-boogy="thumbnail"][data-tone="0"] { --thumb-hue: 25; }
@@ -810,11 +811,12 @@ const INFO_LIST_CSS = `
 // foot for actions that sits at the bottom so a row of cards lines up.
 // CardGrid: columns no narrower than --card-min and never more than three —
 // the floor is the larger of --card-min and a third of the width — so it is
-// three, two or one column as its container allows.
+// three, two or one column as its container allows. auto-FIT, so a row of
+// fewer cards than columns stretches them across rather than leaving holes.
 const CARD_CSS = `
   [data-boogy="card-grid"] {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(max(var(--card-min), (100% - 2 * var(--space-2)) / 3), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(max(var(--card-min), (100% - 2 * var(--space-2)) / 3), 1fr));
     gap: var(--space-2);
     margin: 0;
     padding: 0;
@@ -866,6 +868,32 @@ const CARD_CSS = `
     margin-top: auto;
   }
 ${titleControlCovers('[data-boogy="card"]')}
+  /* FLUSH: the cards tile like panes. Each card draws a hairline border on its
+     right and bottom, one hairline past its cell (the negative margin), and the
+     grid clips the ones along its own edge — so only the lines BETWEEN cards
+     show. A line runs above the first row and below the last; the sides are
+     whatever the grid sits in. The card is sized by its cell (flex), not by
+     width: 100%, which would swallow the negative margin. The card itself is
+     transparent until hovered, and its focus ring is drawn inside it, where
+     the clipping cannot reach. */
+  [data-boogy="card-grid"][data-variant="flush"] {
+    gap: 0;
+    overflow: hidden;
+    border-block: 1px solid var(--card-divider);
+  }
+  [data-boogy="card-grid"][data-variant="flush"] [data-boogy="card"] {
+    border: none;
+    border-right: 1px solid var(--card-divider);
+    border-bottom: 1px solid var(--card-divider);
+    margin: 0 -1px -1px 0;
+    width: auto;
+    flex: 1 1 auto;
+    border-radius: 0;
+    background: transparent;
+  }
+  [data-boogy="card-grid"][data-variant="flush"] [data-boogy="card"]:has([data-slot="title"] > :focus-visible) {
+    outline-offset: calc(var(--ring) * -1);
+  }
 `;
 
 // Stack: a column, or a row that wraps, its children a space token apart and

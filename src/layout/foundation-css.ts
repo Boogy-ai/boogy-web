@@ -125,6 +125,7 @@ export const FOUNDATION_CSS = `
     --thumb-lg: calc(var(--u) * 6);
     --tile-min: calc(var(--u) * 6.5);
     --card-min: calc(var(--u) * 15);
+    --card-divider: var(--edge);
     --ring: calc(var(--u) * 0.125);
     --radius-1: calc(var(--u) * 0.25);
     --radius-2: calc(var(--u) * 0.5);
