@@ -102,9 +102,19 @@ describe('drawer resize handle', () => {
   });
   it('is a hairline in --drawer-edge that brightens to --drawer-edge-hover, with a col-resize cursor', () => {
     const body = ruleFor('  [data-boogy="drawer-resizer"]')!;
-    expect(body).toMatch(/background:\s*var\(--drawer-edge\)/);
+    expect(body).toMatch(/border-inline-start:\s*1px var\(--drawer-edge-style, solid\) var\(--drawer-edge\)/);
+    expect(body).toMatch(/width:\s*0/);
     expect(body).toMatch(/cursor:\s*col-resize/);
-    expect(ruleFor('[data-boogy="drawer-resizer"]:is(:hover, :focus-visible, [data-active="true"])')).toMatch(/background:\s*var\(--drawer-edge-hover\)/);
+    expect(ruleFor('[data-boogy="drawer-resizer"]:is(:hover, :focus-visible, [data-active="true"])')).toMatch(/border-inline-start-color:\s*var\(--drawer-edge-hover\)/);
+  });
+  it('the drawer edge is ONE thing, resizable or not: --drawer-edge in --drawer-edge-style (solid unless set)', () => {
+    expect(CODE).toMatch(/border-inline-end:\s*1px var\(--drawer-edge-style, solid\) var\(--drawer-edge\)/);
+    expect(CODE).toMatch(/border-inline-start:\s*1px var\(--drawer-edge-style, solid\) var\(--drawer-edge\)/);
+    // The handle draws the same token, so the two states can never differ.
+    expect(ruleFor('  [data-boogy="drawer-resizer"]')).toMatch(/var\(--drawer-edge\)/);
+  });
+  it('with the defaults, that edge is exactly --rule: the drawer edge is --edge and --rule is 1px solid --edge', () => {
+    expect(CODE).toMatch(/--drawer-edge:\s*var\(--edge\)/);
   });
   it('widens the hit area beyond the hairline', () => {
     expect(ruleFor('[data-boogy="drawer-resizer"]::before')).toMatch(/inset-inline:\s*calc\(var\(--space-1\) \* -1\)/);
@@ -193,5 +203,30 @@ describe('focus rings', () => {
     // below the contrast a focus indicator needs against a pale surface.
     const ring = FOUNDATION_CSS.match(/--ring-color:\s*([^;]+);/)?.[1];
     expect(ring).toMatch(/^light-dark\(var\(--accent\),\s*oklch\(from var\(--accent\) l c h \/ 0\.\d+\)\)$/);
+  });
+});
+
+describe('covers', () => {
+  it('a carousel is a 16:10 frame, capped in height so a stretched card crops wider rather than growing taller', () => {
+    const rule = ruleFor('[data-boogy="carousel"]')!;
+    expect(rule).toContain('aspect-ratio: var(--cover-aspect, 16 / 10)');
+    expect(rule).toContain('max-height: var(--cover-max-height, var(--_cover-max))');
+    expect(rule).toContain('--_cover-max: calc(var(--u) * 12)');
+  });
+  it("an empty carousel's fallback fills that same frame", () => {
+    expect(ruleFor('[data-boogy="carousel"] > [data-slot="fallback"]')).toContain('inset: 0');
+  });
+  it('carousel images fill the frame (cover), whatever their own shape', () => {
+    expect(ruleFor('[data-boogy="carousel"] > img')).toContain('object-fit: cover');
+  });
+  it("the pager's controls sit above a card's covering title control", () => {
+    expect(ruleFor('[data-boogy="carousel"] > :is([data-slot="prev"], [data-slot="next"])')).toContain('z-index: 1');
+    expect(ruleFor('[data-boogy="carousel"] > [data-slot="dots"]')).toContain('z-index: 1');
+  });
+});
+
+describe('drawer mark initials', () => {
+  it('are trimmed to cap height, so the mark centres the letters rather than their line box', () => {
+    expect(ruleFor('[data-boogy="drawer-item"] > [data-slot="mark"] > [data-slot="initials"]')).toMatch(/text-box:\s*trim-both cap alphabetic/);
   });
 });

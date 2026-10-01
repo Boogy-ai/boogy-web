@@ -46,6 +46,8 @@ export { sheet, field, section } from './components/sheet';
 export { initialsOf, thumbnail, toneOf, THUMBNAIL_SIZES, THUMBNAIL_TONES } from './components/thumbnail';
 export { stack, STACK_GAPS } from './components/stack';
 export { card, cardGrid, CARD_GRID_VARIANTS } from './components/card';
+export { carousel, stepIndex } from './components/carousel';
+export type { CarouselAttrs } from './components/carousel';
 export type { CardAttrs, CardGridAttrs, CardGridVariant } from './components/card';
 export { metaLine } from './components/meta';
 export type { StackAttrs, StackDirection, StackGap } from './components/stack';

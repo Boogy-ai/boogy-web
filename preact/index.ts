@@ -30,6 +30,8 @@ export type { DropdownProps, DropdownPopoverProps, DropdownMenuProps, DropdownIt
 export { Stack } from './stack';
 export { Card, CardGrid } from './card';
 export type { CardProps } from './card';
+export { Carousel } from './carousel';
+export type { CarouselProps, CarouselImage } from './carousel';
 export { TagList } from './tag-list';
 export type { StackProps } from './stack';
 export { Thumbnail } from './thumbnail';

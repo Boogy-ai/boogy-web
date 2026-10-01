@@ -120,6 +120,7 @@ const BUTTON_CSS = `
   [data-boogy="button"][data-variant="danger"]:not(:disabled, [aria-disabled="true"]):active {
     background: color-mix(in oklch, var(--danger) 26%, transparent);
   }
+  [data-boogy="button"][data-fill="true"] { flex: 1 1 auto; width: 100%; }
 `;
 
 // Drawer breakpoints: the container width at which the drawer docks. Fixed
@@ -137,12 +138,17 @@ const DRAWER_DOCKED = (at: string) => `
       translate: none;
       visibility: visible;
       box-shadow: none;
-      border-inline-end: var(--rule);
+      /* The drawer's edge is --drawer-edge whether or not it is resizable:
+         the resize handle draws it while docked and expanded, this border
+         every other docked moment (collapsed to the strip, or not resizable).
+         With the defaults it is exactly --rule (1px solid --edge); an app that
+         sets --drawer-edge gets ONE edge colour in both states, not two. */
+      border-inline-end: 1px var(--drawer-edge-style, solid) var(--drawer-edge);
       transition: width var(--dur-base) ease-out;
     }
     [data-collapse-at="${at}"][data-side="end"] > [data-boogy="drawer"] {
       border-inline-end: none;
-      border-inline-start: var(--rule);
+      border-inline-start: 1px var(--drawer-edge-style, solid) var(--drawer-edge);
     }
     [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] { width: var(--drawer-strip-width); }
     /* On the strip the ENTRY is the tile — filled at rest, the size of its
@@ -295,6 +301,11 @@ const DRAWER_CSS = `
     font-weight: 600;
     letter-spacing: 0.02em;
   }
+  /* The default mark's initials are capitals with nothing below the baseline,
+     so centring their LINE box leaves the letters high (the line reserves room
+     for descenders). Trimmed to cap height, the box the mark centres is the
+     letters themselves. */
+  [data-boogy="drawer-item"] > [data-slot="mark"] > [data-slot="initials"] { text-box: trim-both cap alphabetic; }
   /* framed: the mark is a small panel (ground + edge, themeable) and is the
      entry's ONLY box — the row draws no hover or current surface around it.
      Hover brightens the letters (the base :hover colour) and the edge;
@@ -345,15 +356,17 @@ const DRAWER_CSS = `
   }
   /* The resize handle: a 1px hairline in the drawer's place of a border, with
      a hit area widened past it on both sides, brightening under the pointer,
-     on focus and while dragged. Shown only docked and expanded (above). */
+     on focus and while dragged. Shown only docked and expanded (above). Drawn
+     as a border, not a fill, so --drawer-edge-style (solid by default, or
+     dotted / dashed) shapes it like the drawer's own edge. */
   [data-boogy="drawer-resizer"] {
     display: none;
     position: relative;
     z-index: 1;
     flex: none;
     order: 1;
-    width: 1px;
-    background: var(--drawer-edge);
+    width: 0;
+    border-inline-start: 1px var(--drawer-edge-style, solid) var(--drawer-edge);
     cursor: col-resize;
     touch-action: none;
   }
@@ -364,7 +377,7 @@ const DRAWER_CSS = `
     inset-inline: calc(var(--space-1) * -1);
   }
   [data-boogy="drawer-resizer"]:is(:hover, :focus-visible, [data-active="true"]) {
-    background: var(--drawer-edge-hover);
+    border-inline-start-color: var(--drawer-edge-hover);
   }
   [data-boogy="drawer-resizer"]:focus-visible { outline: none; }
   [data-boogy="drawer-layout"][data-resizable="true"] > [data-boogy="drawer-main"] { order: 2; }
@@ -433,6 +446,7 @@ const POPOVER_CSS = `
     font-size: var(--fs-title);
     font-weight: 600;
   }
+  [data-boogy="popover"] > [data-slot="head"] > [data-slot="title-icon"] { display: flex; flex: none; color: var(--text-2); }
   [data-boogy="popover"] > [data-slot="head"] > [data-slot="title"] { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   [data-boogy="popover"] > [data-slot="body"] { flex: 1 1 auto; min-height: 0; overflow: auto; }
 `;
@@ -611,6 +625,12 @@ const FIELD_CSS = `
     color: var(--text-3);
   }
   [data-boogy="field"] > [data-slot="group"] > [data-slot="suffix"] { display: flex; flex: none; }
+  /* LG: the field that is the main thing on its surface — taller, with larger
+     medium-weight text and more room around its icon. */
+  [data-boogy="field"][data-size="lg"] > [data-slot="group"],
+  [data-boogy="field"][data-size="lg"] > [data-slot="group"] > [data-slot="control"] { min-height: var(--control-lg); }
+  [data-boogy="field"][data-size="lg"] > [data-slot="group"] { font-size: var(--fs-title); font-weight: 500; }
+  [data-boogy="field"][data-size="lg"] > [data-slot="group"] > [data-slot="icon"] { padding-inline: var(--space-3) var(--space-2); }
   [data-boogy="field"] > [data-slot="group"] > [data-slot="control"] {
     flex: 1 1 auto;
     min-width: 0;
@@ -927,6 +947,19 @@ ${titleControlCovers('[data-boogy="card"]')}
   [data-boogy="card-grid"][data-variant="flush"] [data-boogy="card"]:has([data-slot="title"] > :focus-visible) {
     outline-offset: calc(var(--ring) * -1);
   }
+  /* COVER: full-bleed media across the top of the card, above the head — the
+     card's padding is taken back with a negative margin, and its corners follow
+     the card's. */
+  [data-boogy="card"] > [data-slot="cover"] {
+    display: block;
+    margin: calc(var(--space-3) * -1) calc(var(--space-3) * -1) 0;
+    border-bottom: 1px solid var(--edge);
+    border-radius: calc(var(--radius-3) - 1px) calc(var(--radius-3) - 1px) 0 0;
+    overflow: hidden;
+  }
+  /* SPACED-SQUARE: the spaced grid's gaps, with square corners. */
+  [data-boogy="card-grid"][data-variant="spaced-square"] [data-boogy="card"] { border-radius: 0; }
+  [data-boogy="card-grid"]:is([data-variant="flush"], [data-variant="spaced-square"]) [data-boogy="card"] > [data-slot="cover"] { border-radius: 0; }
 `;
 
 // Stack: a column, or a row that wraps, its children a space token apart and
@@ -964,7 +997,101 @@ const DETAIL_HEADER_CSS = `
   }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS };
+// Carousel: images filling a fixed frame (--cover-aspect, 16:10 by default),
+// never taller than --cover-max-height (12 units by default): a card stretched
+// across a wide row gets a wider crop of its image, not a taller cover.
+// The pager — previous/next and a dot per image — sits OVER an arbitrary image,
+// so it wears a fixed dark translucent ground whatever the theme. Its controls
+// sit above a card's covering title control (z-index), like the card's foot.
+const CAROUSEL_CSS = `
+  [data-boogy="carousel"] {
+    --_cover-max: calc(var(--u) * 12);
+    position: relative;
+    display: block;
+    aspect-ratio: var(--cover-aspect, 16 / 10);
+    max-height: var(--cover-max-height, var(--_cover-max));
+    width: 100%;
+    overflow: hidden;
+    background: var(--ground-sunken);
+  }
+  [data-boogy="carousel"] > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* EMPTY: no image to show — the caller's fallback fills the same frame, so
+     a row mixing covers with and without images lines up. */
+  [data-boogy="carousel"] > [data-slot="fallback"] { position: absolute; inset: 0; display: flex; }
+  [data-boogy="carousel"] > [data-slot="fallback"] > * { flex: 1 1 auto; min-width: 0; }
+  [data-boogy="carousel"] > :is([data-slot="prev"], [data-slot="next"]) {
+    position: absolute;
+    top: 50%;
+    z-index: 1;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--touch-min);
+    height: var(--touch-min);
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: oklch(0.98 0 0);
+    cursor: pointer;
+  }
+  [data-boogy="carousel"] > [data-slot="prev"] { left: 0; }
+  [data-boogy="carousel"] > [data-slot="next"] { right: 0; }
+  [data-boogy="carousel"] > :is([data-slot="prev"], [data-slot="next"]) > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--control-sm);
+    height: var(--control-sm);
+    border-radius: var(--radius-full);
+    background: oklch(0.12 0 0 / 0.62);
+    transition: background var(--dur-fast);
+  }
+  [data-boogy="carousel"] > :is([data-slot="prev"], [data-slot="next"]):hover > span { background: oklch(0.12 0 0 / 0.8); }
+  [data-boogy="carousel"] > :is([data-slot="prev"], [data-slot="next"]):focus-visible { outline: none; }
+  [data-boogy="carousel"] > :is([data-slot="prev"], [data-slot="next"]):focus-visible > span { outline: var(--ring) solid var(--ring-color); }
+  [data-boogy="carousel"] > :is([data-slot="prev"], [data-slot="next"]) svg { width: var(--icon-sm); height: var(--icon-sm); }
+  [data-boogy="carousel"] > [data-slot="dots"] {
+    position: absolute;
+    left: 50%;
+    bottom: var(--space-1);
+    z-index: 1;
+    transform: translateX(-50%);
+    display: flex;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-full);
+    background: oklch(0.12 0 0 / 0.62);
+  }
+  [data-boogy="carousel"] > [data-slot="dots"] > button {
+    --_dot: calc(var(--u) * 0.375);
+    --_dot-on: calc(var(--u) * 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--icon-md);
+    height: var(--icon-md);
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  [data-boogy="carousel"] > [data-slot="dots"] > button::before {
+    content: "";
+    width: var(--_dot);
+    height: var(--_dot);
+    border-radius: var(--radius-full);
+    background: oklch(0.98 0 0 / 0.5);
+  }
+  [data-boogy="carousel"] > [data-slot="dots"] > button[aria-current="true"]::before {
+    width: var(--_dot-on);
+    height: var(--_dot-on);
+    background: oklch(0.98 0 0);
+  }
+  [data-boogy="carousel"] > [data-slot="dots"] > button:focus-visible { outline: var(--ring) solid var(--ring-color); border-radius: var(--radius-full); }
+`;
+
+
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS };
 
 export const COMPONENTS_CSS = `
 @layer boogy.components {
@@ -984,5 +1111,6 @@ ${INFO_LIST_CSS}
 ${DETAIL_HEADER_CSS}
 ${STACK_CSS}
 ${CARD_CSS}
+${CAROUSEL_CSS}
 }
 `;

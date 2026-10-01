@@ -10,6 +10,8 @@ type Common = {
   size?: ButtonSize;
   /** Fully rounded, whatever the variant. */
   rounded?: boolean;
+  /** Take the whole width of its container. */
+  fill?: boolean;
   children?: ComponentChildren;
 };
 
@@ -23,12 +25,12 @@ export type ButtonProps<T extends ButtonElement = 'button'> = { as?: T } & Commo
   Omit<JSX.IntrinsicElements[T], 'as' | 'label' | 'size' | 'ref'>;
 
 function ButtonImpl(props: ButtonProps<ButtonElement>, ref: Ref<HTMLElement>) {
-  const { as, variant, size, rounded, shape, label, children, ...rest } = props as ButtonProps<'button'>;
+  const { as, variant, size, rounded, fill, shape, label, children, ...rest } = props as ButtonProps<'button'>;
   const Tag = (as ?? 'button') as 'button';
   const named = label ? { 'aria-label': label, title: label } : {};
   const typed = Tag === 'button' ? { type: 'button' as const } : {};
   return (
-    <Tag {...typed} {...(rest as object)} {...named} {...button({ variant, shape, size, rounded })} ref={ref as Ref<HTMLButtonElement>}>
+    <Tag {...typed} {...(rest as object)} {...named} {...button({ variant, shape, size, rounded, fill })} ref={ref as Ref<HTMLButtonElement>}>
       {children}
     </Tag>
   );

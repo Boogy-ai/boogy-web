@@ -3,9 +3,10 @@
 // in as many columns as fit, never more than three.
 export interface CardAttrs { 'data-boogy': 'card' }
 export function card(): CardAttrs { return { 'data-boogy': 'card' }; }
-/** `spaced`: separate cards with gaps between. `flush`: cards abut on hairline
- *  dividers — no gaps, square corners, no outer frame — the way panes tile. */
-export const CARD_GRID_VARIANTS = ['spaced', 'flush'] as const;
+/** `spaced`: separate cards with gaps between. `spaced-square`: the same gaps,
+ *  with square corners. `flush`: cards abut on hairline dividers — no gaps,
+ *  square corners, no outer frame — the way panes tile. */
+export const CARD_GRID_VARIANTS = ['spaced', 'spaced-square', 'flush'] as const;
 export type CardGridVariant = (typeof CARD_GRID_VARIANTS)[number];
 export interface CardGridAttrs { 'data-boogy': 'card-grid'; 'data-variant': CardGridVariant }
 export function cardGrid(opts: { variant?: CardGridVariant } = {}): CardGridAttrs {

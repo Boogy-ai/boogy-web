@@ -53,6 +53,14 @@ describe('card and card grid', () => {
     expect(c).toMatch(/width:\s*auto/);
     expect(c).toMatch(/flex:\s*1 1 auto/);
   });
+  it('spaced-square: the spaced grid, with square corners on the card and its cover', () => {
+    expect(cardGrid({ variant: 'spaced-square' })['data-variant']).toBe('spaced-square');
+    // No override of the grid itself, so it keeps the base gap.
+    expect(rule('[data-boogy="card-grid"][data-variant="spaced-square"]')).toBeNull();
+    expect(rule('[data-boogy="card-grid"][data-variant="spaced-square"] [data-boogy="card"]')).toMatch(/border-radius:\s*0/);
+    expect(rule('[data-boogy="card-grid"]:is([data-variant="flush"], [data-variant="spaced-square"]) [data-boogy="card"] > [data-slot="cover"]'))
+      .toMatch(/border-radius:\s*0/);
+  });
   it('flush: the focus ring is drawn inside the card, where the grid cannot clip it', () => {
     expect(rule('[data-boogy="card-grid"][data-variant="flush"] [data-boogy="card"]:has([data-slot="title"] > :focus-visible)'))
       .toMatch(/outline-offset:\s*calc\(var\(--ring\) \* -1\)/);

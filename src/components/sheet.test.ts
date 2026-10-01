@@ -32,6 +32,12 @@ describe('field', () => {
     expect(field()).toEqual({ 'data-boogy': 'field' });
     expect(field({ invalid: true })).toEqual({ 'data-boogy': 'field', 'data-invalid': 'true' });
   });
+  it('lg: a taller frame with larger, medium-weight text; md is the unmarked default', () => {
+    expect(field({ size: 'lg' })['data-size']).toBe('lg');
+    expect(field({ size: 'md' })['data-size']).toBeUndefined();
+    expect(ruleFor('[data-boogy="field"][data-size="lg"] > [data-slot="group"]')).toMatch(/font-size:\s*var\(--fs-title\);\s*font-weight:\s*500/);
+    expect(CODE).toMatch(/\[data-boogy="field"\]\[data-size="lg"\] > \[data-slot="group"\] > \[data-slot="control"\] \{ min-height: var\(--control-lg\); \}/);
+  });
   it('an invalid field shows its message in the danger colour and edges its control', () => {
     expect(ruleFor('[data-boogy="field"][data-invalid="true"] > [data-slot="message"]')).toMatch(/var\(--danger\)/);
     expect(ruleFor('[data-boogy="field"][data-invalid="true"] > [data-slot="control"]')).toMatch(/var\(--danger\)/);

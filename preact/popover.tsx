@@ -36,6 +36,9 @@ export type PopoverProps = {
   /** The dialog's accessible name, and its head's title where it has a head
    *  (the full-screen page, a centred popover, or one with `onBack`). */
   title?: string;
+  /** A glyph before the head's title. Decoration — the title alone names the
+   *  dialog. */
+  titleIcon?: ComponentChildren;
   /** In the middle of the viewport instead of against its trigger (which it
    *  still returns focus to). `placement`, `offset`, `crossOffset` and
    *  `shouldFlip` do not apply. Default false. */
@@ -76,7 +79,7 @@ function useMode(below: DrawerBreakpoint | false): PopoverMode {
 
 export function Popover({
   triggerRef, isOpen, onOpenChange, placement, offset, crossOffset, shouldFlip, containerPadding, maxHeight,
-  fullscreenBelow = 'sm', title, centered = false, centerY = 0.5, overlay, onBack, children, ...rest
+  fullscreenBelow = 'sm', title, titleIcon, centered = false, centerY = 0.5, overlay, onBack, children, ...rest
 }: PopoverProps) {
   const mode = useMode(fullscreenBelow);
   const ref = useRef<HTMLDivElement>(null);
@@ -256,6 +259,7 @@ export function Popover({
                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
             </Button>
           )}
+          {title && titleIcon != null && <span data-slot="title-icon" aria-hidden="true">{titleIcon}</span>}
           {title && <span data-slot="title">{title}</span>}
           {!page && (
             <Button variant="quiet" shape="icon" label="Close" onClick={close}>

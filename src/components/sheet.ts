@@ -21,12 +21,16 @@ export interface FieldOptions {
   invalid?: boolean;
   /** Fully rounded: the frame is a pill. */
   rounded?: boolean;
+  /** `lg`: a taller frame with larger, medium-weight text — a field that is
+   *  the main thing on its surface (a search at the top of a picker, say). */
+  size?: 'md' | 'lg';
 }
-export interface FieldAttrs { 'data-boogy': 'field'; 'data-invalid'?: 'true'; 'data-rounded'?: 'true' }
+export interface FieldAttrs { 'data-boogy': 'field'; 'data-invalid'?: 'true'; 'data-rounded'?: 'true'; 'data-size'?: 'lg' }
 export function field(opts: FieldOptions = {}): FieldAttrs {
   const attrs: FieldAttrs = { 'data-boogy': 'field' };
   if (opts.invalid) attrs['data-invalid'] = 'true';
   if (opts.rounded) attrs['data-rounded'] = 'true';
+  if (opts.size === 'lg') attrs['data-size'] = 'lg';
   return attrs;
 }
 

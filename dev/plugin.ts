@@ -39,6 +39,9 @@ function proxy(
   url: string,
   body: string | undefined,
   res: ServerResponse,
+  /** Attach the real account's bearer. Off for public platform routes, which
+   *  need no credential and must not be handed one. */
+  withToken = true,
 ): Promise<void> {
   const target = new URL(url, api.target);
   const send = target.protocol === 'https:' ? httpsRequest : httpRequest;
@@ -51,7 +54,7 @@ function proxy(
           host: api.host,
           'content-type': String(freq.headers['content-type'] ?? 'application/json'),
           ...(body ? { 'content-length': String(Buffer.byteLength(body)) } : {}),
-          ...(api.token ? { authorization: `Bearer ${api.token}` } : {}),
+          ...(api.token && withToken ? { authorization: `Bearer ${api.token}` } : {}),
         },
       },
       (upRes) => {
@@ -140,6 +143,17 @@ export function boogyDev(opts: BoogyDevOptions): Plugin {
             res.setHeader('content-type', 'font/woff2');
             res.setHeader('cache-control', 'no-cache');
             res.end(req.method === 'HEAD' ? undefined : bytes);
+            return;
+          }
+          // A registry listing's thumbnails are root-relative URLs on a public
+          // platform route the host answers on every origin. In proxy mode they
+          // come from the real platform — WITHOUT the bearer, which a public
+          // image needs no more than a stranger's browser has it; in mock mode
+          // there is no platform, so there are no thumbnails.
+          if (path.startsWith('/boogy/thumbnails/') && (req.method === 'GET' || req.method === 'HEAD')) {
+            const api = opts.api;
+            if (api?.mode === 'proxy') { await proxy(api, freq, url, undefined, res, false); return; }
+            send(res, { status: 404, headers: {}, body: 'boogyDev: thumbnails come from the platform (api mode "proxy")' });
             return;
           }
           if (path === '/__boogy/dev/badge.js') {

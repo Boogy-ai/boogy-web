@@ -280,6 +280,19 @@ describe('<Popover> head', () => {
     expect(onBack).toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
+  it('a title icon sits before the title as decoration; the dialog is still named by the title alone', () => {
+    const { q } = mount({ centered: true, titleIcon: <svg id="glyph" /> });
+    const head = q('[data-slot="head"]')!;
+    const slots = [...head.children].map((c) => c.getAttribute('data-slot'));
+    expect(slots.indexOf('title-icon')).toBe(slots.indexOf('title') - 1);
+    expect(head.querySelector('[data-slot="title-icon"]')!.getAttribute('aria-hidden')).toBe('true');
+    expect(head.querySelector('[data-slot="title-icon"] #glyph')).not.toBeNull();
+    expect(q('[data-boogy="popover"]')!.getAttribute('aria-label')).toBe('Set content');
+  });
+  it('no title icon unless one is given', () => {
+    const { q } = mount({ centered: true });
+    expect(q('[data-slot="title-icon"]')).toBeNull();
+  });
   it('no title and anchored: no head at all', () => {
     const { q } = mount({ title: undefined });
     expect(q('[data-slot="head"]')).toBeNull();

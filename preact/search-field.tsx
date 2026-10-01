@@ -13,6 +13,8 @@ export type SearchFieldProps = {
   placeholder?: string;
   /** Fully rounded: the field is a pill, and so is its clear button. */
   rounded?: boolean;
+  /** `lg`: taller, with larger medium-weight text. */
+  size?: 'md' | 'lg';
   autoFocus?: boolean;
   onKeyDown?: (e: KeyboardEvent) => void;
   /** Sees a paste first; `preventDefault()` takes it over — e.g. to keep a
@@ -20,7 +22,7 @@ export type SearchFieldProps = {
   onPaste?: (e: ClipboardEvent) => void;
 };
 
-export function SearchField({ label, value, onValueChange, placeholder, rounded, autoFocus, onKeyDown, onPaste }: SearchFieldProps) {
+export function SearchField({ label, value, onValueChange, placeholder, rounded, size, autoFocus, onKeyDown, onPaste }: SearchFieldProps) {
   const input = useRef<HTMLInputElement>(null);
   const clear = () => { onValueChange(''); input.current?.focus(); };
   // Focused ON MOUNT, by an effect: the `autofocus` attribute is honoured once
@@ -28,7 +30,7 @@ export function SearchField({ label, value, onValueChange, placeholder, rounded,
   // would otherwise leave focus on nothing.
   useEffect(() => { if (autoFocus) input.current?.focus(); }, []);
   return (
-    <div {...field({ rounded })}>
+    <div {...field({ rounded, size })}>
       <div data-slot="group">
         <span data-slot="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

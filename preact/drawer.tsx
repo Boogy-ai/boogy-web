@@ -241,7 +241,11 @@ export function DrawerItem<T extends ItemElement = 'a'>({ as, label, mark, curre
   const Tag = (as ?? 'a') as 'a';
   return (
     <Tag {...(rest as object)} {...drawerItem({ current, variant })} title={label}>
-      {mark !== false && <span data-slot="mark" aria-hidden="true">{mark ?? monogram(label)}</span>}
+      {mark !== false && (
+        <span data-slot="mark" aria-hidden="true">
+          {mark ?? <span data-slot="initials">{monogram(label)}</span>}
+        </span>
+      )}
       <span data-slot="label">{label}</span>
     </Tag>
   );

@@ -74,4 +74,12 @@ describe('proxy mode', () => {
     await fetch(`${base}/api/boards`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"a":1}' });
     expect(seen.body).toBe('{"a":1}');
   });
+
+  it('fetches a listing thumbnail from the platform at its own path, without the bearer', async () => {
+    const r = await fetch(`${base}/boogy/thumbnails/${'a'.repeat(64)}`);
+    expect(r.status).toBe(200);
+    expect(seen.url).toBe(`/boogy/thumbnails/${'a'.repeat(64)}`);
+    expect(seen.host).toBe('boards.local.boogy.app');
+    expect(seen.auth).toBeUndefined();
+  });
 });

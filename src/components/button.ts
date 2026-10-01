@@ -24,6 +24,8 @@ export interface ButtonOptions {
   size?: ButtonSize;
   /** Fully rounded (a pill, or a circle when `shape` is `icon`), whatever the variant. */
   rounded?: boolean;
+  /** Take the whole width of its container — a card's one action, say. */
+  fill?: boolean;
 }
 
 export interface ButtonAttrs {
@@ -32,6 +34,7 @@ export interface ButtonAttrs {
   'data-shape': ButtonShape;
   'data-size': ButtonSize;
   'data-rounded'?: 'true';
+  'data-fill'?: 'true';
 }
 
 function oneOf<T extends string>(what: string, value: T, allowed: readonly T[]): T {
@@ -49,5 +52,6 @@ export function button(opts: ButtonOptions = {}): ButtonAttrs {
     'data-size': oneOf('size', opts.size ?? 'md', BUTTON_SIZES),
   };
   if (opts.rounded) attrs['data-rounded'] = 'true';
+  if (opts.fill) attrs['data-fill'] = 'true';
   return attrs;
 }

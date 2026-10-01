@@ -8,6 +8,8 @@ export function CardGrid({ variant, children, ...rest }: { variant?: CardGridVar
 }
 
 export type CardProps = {
+  /** Full-bleed media across the top, above the head — a Carousel, say. */
+  cover?: ComponentChildren;
   media?: ComponentChildren;
   /** The title — plain text, or a button/link that then covers the whole card
    *  (its action in `footer` stays above it and keeps its own). */
@@ -24,12 +26,13 @@ export type CardProps = {
 } & Omit<JSX.HTMLAttributes<HTMLElement>, 'title'>;
 
 /** One card, in its own grid item. */
-export function Card({ media, title, subtitle, summary, meta = [], footer, children, ...rest }: CardProps) {
+export function Card({ cover, media, title, subtitle, summary, meta = [], footer, children, ...rest }: CardProps) {
   const lines = meta.filter((m) => m != null && m !== '' && m !== false);
   const body = summary != null || lines.length > 0 || children != null;
   return (
     <li>
       <article {...rest} {...card()}>
+        {cover != null && <div data-slot="cover">{cover}</div>}
         <div data-slot="head">
           {media != null && <span data-slot="media">{media}</span>}
           <div data-slot="heading">

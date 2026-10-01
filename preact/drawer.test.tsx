@@ -44,6 +44,12 @@ describe('DrawerLayout and friends', () => {
     expect(item.getAttribute('aria-current')).toBe('page');
   });
 
+  it("wraps the default initials in their own slot, so they can be centred on their capitals", () => {
+    const { q } = setup({ mode: 'docked' });
+    const item = q('a[data-boogy="drawer-item"]');
+    expect(item.querySelector('[data-slot="mark"] > [data-slot="initials"]')!.textContent).toBe('Sc');
+  });
+
   it('uses a custom mark when one is given', () => {
     const { q } = setup({ mode: 'docked' });
     expect(q('button[data-boogy="drawer-item"] [data-slot="mark"] #plus')).not.toBeNull();
