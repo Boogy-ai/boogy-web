@@ -230,3 +230,55 @@ describe('drawer mark initials', () => {
     expect(ruleFor('[data-boogy="drawer-item"] > [data-slot="mark"] > [data-slot="initials"]')).toMatch(/text-box:\s*trim-both cap alphabetic/);
   });
 });
+
+describe('inline edit', () => {
+  it('reads as text at rest: no edge, no ground, sized to its content', () => {
+    const rest = ruleFor('[data-boogy="inline-edit"]')!;
+    expect(rest).toContain('border: 1px solid transparent');
+    expect(rest).toContain('background: transparent');
+    expect(rest).toContain('field-sizing: content');
+    expect(rest).toContain('font: inherit');
+  });
+  it('shows its edge when pointed at, and its field when focused', () => {
+    expect(ruleFor('[data-boogy="inline-edit"]:hover')).toContain('border-color: var(--edge)');
+    const focus = ruleFor('[data-boogy="inline-edit"]:focus')!;
+    expect(focus).toContain('border-color: var(--edge-strong)');
+    expect(focus).toContain('background: var(--ground-sunken)');
+  });
+});
+
+describe('swatch', () => {
+  it('is a round chip at icon size, filled from --swatch-color, with an edge so a dark colour still shows', () => {
+    const rule = ruleFor('[data-boogy="swatch"]')!;
+    expect(rule).toContain('width: var(--icon-sm)');
+    expect(rule).toContain('height: var(--icon-sm)');
+    expect(rule).toContain('border-radius: 50%');
+    expect(rule).toContain('background: var(--swatch-color, transparent)');
+    // A border inside the chip's size, not a shadow: shadows are role tokens only.
+    expect(rule).toContain('box-sizing: border-box');
+    expect(rule).toContain('border: 1px solid var(--edge-strong)');
+    expect(rule).not.toContain('box-shadow');
+  });
+});
+
+describe('menu item icon slot', () => {
+  it('gives an item with a leading icon its own column, and leaves items without one alone', () => {
+    const withIcon = ruleFor('[data-boogy="menu-item"]:has(> [data-slot="icon"])')!;
+    expect(withIcon).toContain('grid-template-columns: auto 1fr auto auto');
+    expect(withIcon).toContain('"icon label kbd indicator" "icon description kbd indicator"');
+    expect(ruleFor('[data-boogy="menu-item"] > [data-slot="icon"]')).toContain('grid-area: icon');
+    expect(ruleFor('[data-boogy="menu-item"]')).toContain('grid-template-columns: 1fr auto auto');
+  });
+});
+
+describe('tabs', () => {
+  it('a row of tabs on a hairline, the selected one in the full ink with the accent under it', () => {
+    expect(ruleFor('[data-boogy="tabs"] > [data-slot="list"]')).toContain('border-bottom: 1px solid var(--edge)');
+    const t = ruleFor('[data-boogy="tabs"] [data-slot="tab"]')!;
+    expect(t).toContain('color: var(--text-2)');
+    expect(t).toContain('border-bottom: var(--ring) solid transparent');
+    const on = ruleFor('[data-boogy="tabs"] [data-slot="tab"][aria-selected="true"]')!;
+    expect(on).toContain('color: var(--text-1)');
+    expect(on).toContain('border-bottom-color: var(--accent)');
+  });
+});

@@ -22,6 +22,12 @@ export function Pill<T extends PillElement = 'span'>({ as, variant, children, ..
 export { DrawerLayout, Drawer, DrawerMain, DrawerItem, DrawerToggle } from './drawer';
 export type { DrawerLayoutProps, DrawerProps, DrawerItemProps, DrawerToggleProps } from './drawer';
 export { Button } from './button';
+export { InlineEdit } from './inline-edit';
+export type { InlineEditProps } from './inline-edit';
+export { Swatch } from './swatch';
+export type { SwatchProps } from './swatch';
+export { Tabs } from './tabs';
+export type { TabsProps, TabItem } from './tabs';
 export type { ButtonProps } from './button';
 export { Popover } from './popover';
 export type { PopoverProps } from './popover';

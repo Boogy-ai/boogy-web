@@ -24,9 +24,7 @@ import { cloneElement, createContext, toChildArray, type ComponentChildren, type
 import { useContext, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { menuItem, moveFocus, typeahead, type MenuItemVariant, type MenuSelectionMode } from '@boogy/web';
 import { Popover, type PopoverProps } from './popover';
-
-let nextId = 0;
-const useId = (prefix: string) => useRef(`${prefix}${++nextId}`).current;
+import { useId } from './use-id';
 
 type FocusStrategy = 'first' | 'last' | null;
 

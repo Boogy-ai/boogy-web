@@ -488,6 +488,13 @@ const MENU_CSS = `
   }
   [data-boogy="menu-item"][data-disabled="true"] { opacity: 0.45; }
   [data-boogy="menu-item"] > [data-slot="label"] { grid-area: label; min-width: 0; }
+  /* A leading icon or swatch: a column of its own, only on an item that has
+     one, so a menu without icons keeps its labels against the edge. */
+  [data-boogy="menu-item"]:has(> [data-slot="icon"]) {
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-areas: "icon label kbd indicator" "icon description kbd indicator";
+  }
+  [data-boogy="menu-item"] > [data-slot="icon"] { grid-area: icon; display: flex; color: var(--text-2); }
   [data-boogy="menu-item"] > [data-slot="description"] {
     grid-area: description;
     color: var(--text-3);
@@ -1091,7 +1098,89 @@ const CAROUSEL_CSS = `
 `;
 
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS };
+// --- InlineEdit (see inline-edit.ts) ---
+// Text at rest — no edge, no ground, the surrounding type — so a name reads as a
+// name; a field when pointed at (its edge) and when editing (edge and ground).
+// `field-sizing: content` makes it as wide as its text, so it hugs a short name
+// and gives way (to `max-width`) for a long one.
+const INLINE_EDIT_CSS = `
+  [data-boogy="inline-edit"] {
+    box-sizing: border-box;
+    min-width: var(--control-md);
+    max-width: 100%;
+    min-height: var(--control-sm);
+    padding: 0 var(--space-1);
+    border: 1px solid transparent;
+    border-radius: var(--radius-1);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    field-sizing: content;
+    text-overflow: ellipsis;
+    transition: border-color var(--dur-fast) ease-out;
+  }
+  [data-boogy="inline-edit"]:hover { border-color: var(--edge); }
+  [data-boogy="inline-edit"]:focus {
+    border-color: var(--edge-strong);
+    background: var(--ground-sunken);
+    outline: none;
+  }
+  [data-boogy="inline-edit"]:focus-visible {
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: 1px;
+  }
+`;
+
+// --- Swatch (see swatch.ts) ---
+// A round chip at icon size, filled from --swatch-color. The hairline border,
+// inside the chip's size, is what keeps a colour close to its surroundings (a
+// black chip on a near-black menu) visible as a chip.
+const SWATCH_CSS = `
+  [data-boogy="swatch"] {
+    display: inline-block;
+    flex: none;
+    box-sizing: border-box;
+    width: var(--icon-sm);
+    height: var(--icon-sm);
+    border: 1px solid var(--edge-strong);
+    border-radius: 50%;
+    background: var(--swatch-color, transparent);
+  }
+`;
+
+// --- Tabs (see tabs.ts) ---
+// A row of tabs on a hairline; the selected tab in the full ink with the accent
+// under it, drawn as its own bottom border laid over the row's hairline (the
+// -1px margin), so the two read as one line.
+const TABS_CSS = `
+  [data-boogy="tabs"] > [data-slot="list"] {
+    display: flex;
+    gap: var(--space-1);
+    border-bottom: 1px solid var(--edge);
+  }
+  [data-boogy="tabs"] [data-slot="tab"] {
+    margin-bottom: -1px;
+    padding: var(--space-1) var(--space-2);
+    border: none;
+    border-bottom: var(--ring) solid transparent;
+    background: transparent;
+    color: var(--text-2);
+    font: inherit;
+    cursor: pointer;
+  }
+  [data-boogy="tabs"] [data-slot="tab"]:hover { color: var(--text-1); }
+  [data-boogy="tabs"] [data-slot="tab"][aria-selected="true"] {
+    color: var(--text-1);
+    border-bottom-color: var(--accent);
+  }
+  [data-boogy="tabs"] [data-slot="tab"]:focus-visible {
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: -1px;
+  }
+  [data-boogy="tabs"] > [data-slot="panel"] { outline: none; }
+`;
+
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, INLINE_EDIT_CSS, SWATCH_CSS, TABS_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS };
 
 export const COMPONENTS_CSS = `
 @layer boogy.components {
@@ -1102,6 +1191,9 @@ ${POPOVER_CSS}
 ${MENU_CSS}
 ${SHEET_CSS}
 ${FIELD_CSS}
+${INLINE_EDIT_CSS}
+${SWATCH_CSS}
+${TABS_CSS}
 ${SECTION_CSS}
 ${THUMBNAIL_CSS}
 ${TILE_CSS}
