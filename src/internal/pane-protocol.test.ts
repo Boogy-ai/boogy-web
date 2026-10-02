@@ -76,3 +76,21 @@ describe('parseFrame', () => {
     expect(parseFrame({ ...h, payload: { ...h.payload, index: 2 } })).toBeNull();
   });
 });
+
+describe('parseFrame zoom', () => {
+  it('accepts a zoom frame only with a finite factor in [0.5, 3]', () => {
+    const z = (factor: unknown) => parseFrame({ boogy: PANE_PROTOCOL, type: 'zoom', nonce: 'n', payload: { factor } });
+    for (const ok of [0.5, 1, 1.5, 3]) expect(z(ok), String(ok)).not.toBeNull();
+    for (const bad of [Number.NaN, Infinity, -Infinity, 0.49, 3.01, '1.5', null, undefined]) {
+      expect(z(bad), String(bad)).toBeNull();
+    }
+  });
+
+  it("accepts a connect with no zoom or a valid one, and refuses one whose zoom is out of bounds", () => {
+    const c = (payload: unknown) => parseFrame({ boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n', payload });
+    expect(c({ shellOrigin: 'https://b.example' })).not.toBeNull();
+    expect(c({ shellOrigin: 'https://b.example', zoom: 1.25 })).not.toBeNull();
+    expect(c({ shellOrigin: 'https://b.example', zoom: 1000 })).toBeNull();
+    expect(c({ shellOrigin: 'https://b.example', zoom: 'big' })).toBeNull();
+  });
+});

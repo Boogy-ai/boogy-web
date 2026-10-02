@@ -308,6 +308,49 @@ therefore knows which *frame* a message came from, but an app could send
 messages that appear to come from another app of the same account. Treat a
 report as coming from the account's apps, not from one app in particular.
 
+### Sizing with the frame
+
+A frame can be any size, from a narrow column to most of the screen. To have
+your whole page follow it, pass `scale` once where you install the SDK's styles:
+
+```ts
+import { installFoundation } from '@boogy/web';
+
+installFoundation({ scale: true });
+```
+
+The page's size unit then follows the frame's shorter side, between a floor and
+a cap (10px to 17px by default; 17px is reached once the shorter side is
+about 425px wide). Every component, every size token (`--space-*`, `--fs-*`,
+`--control-*`, …) and the page's plain text derive from that one unit, so they
+scale together and nothing else needs a setting. Size your own styles from the
+same tokens, not from `px` or `rem`, and they follow too. To change the range,
+pass the fields you want instead of `true`, for example
+`installFoundation({ scale: { cap: '1.25rem' } })`.
+
+It is off by default: without it the page keeps a fixed base size, which suits
+an app that fills a browser window of its own.
+
+### Zoom
+
+A person can make your whole interface larger or smaller. `--zoom` multiplies
+the same size unit, so every component, size token and line of plain text grows
+or shrinks together. Hairlines, shadows and images keep their shape. This is
+not browser zoom.
+
+```tsx
+import { ZoomControls, useZoom } from '@boogy/web/preact';
+
+<ZoomControls />          // a Smaller / Larger pair
+const { zoom } = useZoom(); // the number, for code that needs it (a canvas, say)
+```
+
+`<ZoomControls />` steps the page's own zoom along `ZOOM_STEPS` (0.8 to 2). The
+value is remembered in this browser under your app's mount; `rememberZoom(key)`
+changes where. Pass `value` and `onValueChange` to step a value of your own
+instead. In a board, the page is drawn at the board's zoom times its own (see
+the shell's `setZoom` below).
+
 ### Building a board
 
 ```ts
@@ -341,6 +384,18 @@ Register a frame once; the board reconnects it every time the frame loads.
 Titles are trimmed, stripped of control and text-direction characters, and
 capped at `MAX_TITLE_LENGTH` characters; a location outside the frame's own
 `mount`, or longer than 2048 characters, is never reported.
+
+**Zoom.** A board can set the size its panes are drawn at:
+
+```ts
+shell.setZoom(1.25);              // every pane
+shell.setPaneZoom('pane-1', 1.5); // this pane, outranking the board's
+shell.setPaneZoom('pane-1', null); // this pane follows the board again
+```
+
+A pane applies it through `connectPane`, with no code of its own, multiplied by
+the app's own zoom (see [Zoom](#zoom)). A pane that is reloaded, or registered
+again, keeps its size. Factors are clamped to 0.5–3.
 
 ### Versioning
 

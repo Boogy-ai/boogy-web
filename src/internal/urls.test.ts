@@ -7,7 +7,6 @@ import {
   authOrigin,
   authorizeUrl,
   MAX_AUDIENCES,
-  siteSignInUrl,
   siteSignOutUrl,
 } from './urls';
 import { loadPlatformConfig } from './platform-config';
@@ -46,6 +45,7 @@ async function withLoadedConfig(config: {
   authOrigin: string;
   owner: string;
   shellOrigins?: string[];
+  appOriginTemplate?: string;
 }) {
   vi.resetModules();
   const { loadPlatformConfig } = await import('./platform-config');
@@ -336,11 +336,21 @@ describe('parseApps', () => {
 });
 
 describe('siteSignInUrl / siteSignOutUrl — a board signing the apps\' site in and out', () => {
-  it('goes through the apps\' site with every app and the way back', () => {
+  // The board shell is one owner's service; the apps it frames are often
+  // ANOTHER person's, on that person's site. The config below is the shell's
+  // (owner `tester`), so an `aud` naming `tester` for alice's site is the
+  // defect — the site refuses any audience but its own owner's.
+  const SHELL = {
+    authOrigin: 'https://auth.boogy.ai',
+    owner: 'tester',
+    appOriginTemplate: 'https://{owner}.boogy.ai',
+  };
+
+  it('names every app under the SITE\'s owner, never the shell\'s', async () => {
+    const urls = await withLoadedConfig(SHELL);
     const u = new URL(
-      siteSignInUrl({
+      urls.siteSignInUrl({
         site: 'https://alice.boogy.ai',
-        owner: 'alice',
         services: ['squad', 'notes'],
         returnTo: 'https://boards.boogy.ai/boards/b/1',
       }),
@@ -351,11 +361,58 @@ describe('siteSignInUrl / siteSignOutUrl — a board signing the apps\' site in 
     expect(u.searchParams.get('redirect')).toBe('https://boards.boogy.ai/boards/b/1');
   });
 
-  it('takes only the origin of the site it is given', () => {
-    const u = new URL(
-      siteSignInUrl({ site: 'https://alice.boogy.ai/squad/x', owner: 'alice', services: ['squad'], returnTo: '/' }),
-    );
+  it('the shell owner\'s own site is named under the shell owner', async () => {
+    const urls = await withLoadedConfig(SHELL);
+    const u = new URL(urls.siteSignInUrl({ site: 'https://tester.boogy.ai', services: ['squad'], returnTo: '/' }));
+    expect(u.searchParams.getAll('aud')).toEqual(['boogy://tester/services/squad']);
+  });
+
+  it('takes only the origin of the site it is given', async () => {
+    const urls = await withLoadedConfig(SHELL);
+    const u = new URL(urls.siteSignInUrl({ site: 'https://alice.boogy.ai/squad/x', services: ['squad'], returnTo: '/' }));
     expect(u.origin + u.pathname).toBe('https://alice.boogy.ai/boogy/signin');
+    expect(u.searchParams.getAll('aud')).toEqual(['boogy://alice/services/squad']);
+  });
+
+  it('the scheme and port the platform publishes are part of the match', async () => {
+    const urls = await withLoadedConfig({ ...SHELL, appOriginTemplate: 'https://{owner}.local.boogy.app:8443' });
+    const u = new URL(
+      urls.siteSignInUrl({ site: 'https://dave.local.boogy.app:8443/squad', services: ['squad'], returnTo: '/' }),
+    );
+    expect(u.searchParams.getAll('aud')).toEqual(['boogy://dave/services/squad']);
+    for (const site of ['https://dave.local.boogy.app/squad', 'http://dave.local.boogy.app:8443/squad']) {
+      expect(() => urls.siteSignInUrl({ site, services: ['squad'], returnTo: '/' }), site).toThrow(
+        expect.objectContaining({ code: 'app_not_found' }),
+      );
+    }
+  });
+
+  it('a default port spelled out in the template still matches the origin a URL reports', async () => {
+    const urls = await withLoadedConfig({ ...SHELL, appOriginTemplate: 'HTTPS://{owner}.Boogy.AI:443' });
+    const u = new URL(urls.siteSignInUrl({ site: 'https://alice.boogy.ai/squad', services: ['squad'], returnTo: '/' }));
+    expect(u.searchParams.getAll('aud')).toEqual(['boogy://alice/services/squad']);
+  });
+
+  it('refuses a site that names no owner, rather than sending a trip the site refuses', async () => {
+    const urls = await withLoadedConfig(SHELL);
+    for (const site of [
+      'https://a.b.boogy.ai', // two labels where one handle goes
+      'https://boogy.ai', // the bare base
+      'https://alice.boogy.ai.evil.example', // the base as a prefix of someone else's
+      'https://apps.example.com', // a host outside the tenant base
+      'not a url',
+    ]) {
+      expect(() => urls.siteSignInUrl({ site, services: ['squad'], returnTo: '/' }), site).toThrow(
+        expect.objectContaining({ code: 'app_not_found' }),
+      );
+    }
+  });
+
+  it('refuses when the platform publishes no app-origin template', async () => {
+    const urls = await withLoadedConfig({ authOrigin: 'https://auth.boogy.ai', owner: 'tester' });
+    expect(() =>
+      urls.siteSignInUrl({ site: 'https://alice.boogy.ai', services: ['squad'], returnTo: '/' }),
+    ).toThrow(expect.objectContaining({ code: 'config_unavailable' }));
   });
 
   it('signs the apps\' site out with the way back', () => {

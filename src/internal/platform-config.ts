@@ -24,7 +24,22 @@ export interface PlatformConfig {
    * shell is designated, which is the default.
    */
   shellOrigins: string[];
+  /**
+   * How ANY owner's apps are addressed: an absolute origin with one literal
+   * `{owner}` where the owner's handle goes, e.g.
+   * `https://{owner}.boogy.app`. The platform publishes it whole — scheme,
+   * base domain and port — so a page never composes an app origin out of its
+   * own `location`. Absent when the platform serves no owner subdomains.
+   *
+   * `owner` above is THIS origin's owner. On a board shell that is the
+   * shell's, and the apps it frames are usually someone else's: this is how
+   * the page relates those apps' origins to their owner.
+   */
+  appOriginTemplate?: string;
 }
+
+/** The placeholder `appOriginTemplate` carries where an owner handle goes. */
+export const OWNER_PLACEHOLDER = '{owner}';
 
 const CONFIG_PATH = '/boogy/config';
 
@@ -46,10 +61,11 @@ export function parsePlatformConfig(body: unknown): PlatformConfig {
     throw new BoogyError('config_unavailable', 'the platform config response was not an object');
   }
 
-  const { authOrigin, owner, shellOrigins } = body as {
+  const { authOrigin, owner, shellOrigins, appOriginTemplate } = body as {
     authOrigin?: unknown;
     owner?: unknown;
     shellOrigins?: unknown;
+    appOriginTemplate?: unknown;
   };
 
   if (typeof owner !== 'string' || !owner) {
@@ -69,7 +85,21 @@ export function parsePlatformConfig(body: unknown): PlatformConfig {
     ? shellOrigins.filter((o): o is string => typeof o === 'string')
     : [];
 
-  return { authOrigin: authOrigin.replace(/\/+$/, ''), owner, shellOrigins: origins };
+  const config: PlatformConfig = { authOrigin: authOrigin.replace(/\/+$/, ''), owner, shellOrigins: origins };
+  if (usableTemplate(appOriginTemplate)) config.appOriginTemplate = appOriginTemplate;
+  return config;
+}
+
+/**
+ * Whether `value` is a template this SDK can substitute: an absolute http(s)
+ * origin carrying the placeholder exactly once. Anything else is dropped
+ * rather than half-used — a template that cannot be matched both ways would
+ * name the wrong owner, and naming no owner refuses honestly instead.
+ */
+function usableTemplate(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  if (!/^https?:\/\//i.test(value)) return false;
+  return value.split(OWNER_PLACEHOLDER).length === 2;
 }
 
 /** The actual fetch-and-parse, factored out so `loadPlatformConfig` can wrap it in single-flight. */

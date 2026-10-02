@@ -13,7 +13,7 @@ beforeAll(async () => {
 beforeEach(() => sessionStorage.clear());
 afterEach(() => vi.restoreAllMocks());
 
-const me = { pairwiseId: 'pw', services: ['boards'], displayName: 'Alice', avatarUrl: null };
+const me = { pairwiseId: 'pw', services: ['boards'], displayName: 'Alice', handle: 'alice', avatarUrl: null };
 
 describe('Boogy.currentUser', () => {
   it('returns the whole session the platform reports, name and covered services included', async () => {

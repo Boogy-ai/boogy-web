@@ -10,6 +10,7 @@
 import { MAX_HISTORY, PANE_PROTOCOL, parseFrame, type Frame } from './internal/pane-protocol';
 import { exactOrigin, sendFrame, type ExactOrigin } from './internal/pane-messaging';
 import { loadPlatformConfig } from './internal/platform-config';
+import { setHostZoom, clearHostZoom } from './layout/zoom';
 
 export interface PaneHandle {
   /** Whether this module has a signed-in person. Nothing more: no id, no name. */
@@ -43,7 +44,7 @@ export interface ConnectPaneOptions {
   onNavigate?(path: string): void;
 }
 
-type Report = Exclude<Frame, { type: 'hello' | 'connect' | 'ready' | 'history' }>;
+type Report = Exclude<Frame, { type: 'hello' | 'connect' | 'ready' | 'history' | 'zoom' }>;
 
 export function connectPane(opts: ConnectPaneOptions): PaneHandle {
   let shell: { origin: ExactOrigin; nonce: string } | null = null;
@@ -95,9 +96,15 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
     if (event.source !== window.parent) return;
     if (shell && event.origin === shell.origin) {
       const frame = parseFrame(event.data);
-      if (frame?.type === 'history' && frame.nonce === shell.nonce) {
-        step(frame.payload.delta);
-        return;
+      if (frame && frame.nonce === shell.nonce) {
+        if (frame.type === 'history') {
+          step(frame.payload.delta);
+          return;
+        }
+        if (frame.type === 'zoom') {
+          setHostZoom(frame.payload.factor);
+          return;
+        }
       }
     }
     const data = event.data as { boogy?: unknown; type?: unknown; nonce?: unknown; payload?: { shellOrigin?: unknown } } | null;
@@ -118,12 +125,18 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
     // A history the board hands back (this pane's content moved to this
     // frame): adopted only if this page is its current page, so it can never
     // describe somewhere the pane is not.
-    const handed = parseFrame(data)?.type === 'connect' ? (data.payload as { history?: { entries: string[]; index: number } }).history : undefined;
+    const parsed = parseFrame(data);
+    const connectPayload = parsed?.type === 'connect' ? parsed.payload : undefined;
+    const handed = connectPayload?.history;
     if (keepsHistory && handed && handed.entries[handed.index] === here()) {
       stack.splice(0, stack.length, ...handed.entries);
       index = handed.index;
       reportHistory();
     }
+    // The size this board draws the pane at; a board that sends none (or one
+    // out of bounds, which fails the frame check) leaves it at 1.
+    if (connectPayload?.zoom !== undefined) setHostZoom(connectPayload.zoom);
+    else clearHostZoom();
     sendFrame(window.parent, shell.origin, {
       boogy: PANE_PROTOCOL, type: 'ready', nonce: shell.nonce, payload: { service: opts.service },
     });
@@ -181,6 +194,7 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
     disconnect: () => {
       live = false;
       shell = null;
+      clearHostZoom();
       window.removeEventListener('message', onMessage);
     },
   };

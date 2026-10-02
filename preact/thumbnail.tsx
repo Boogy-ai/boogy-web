@@ -1,7 +1,7 @@
 // <Thumbnail>: an image in a rounded square, or the label's initials on a
 // tone from the label when there is no image or it fails to load.
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { usePicture } from './use-picture';
 import { initialsOf, thumbnail, type ThumbnailSize } from '@boogy/web';
 
 export type ThumbnailProps = {
@@ -15,12 +15,10 @@ export type ThumbnailProps = {
 } & Omit<JSX.HTMLAttributes<HTMLSpanElement>, 'size' | 'label'>;
 
 export function Thumbnail({ label, src, size, decorative, ...rest }: ThumbnailProps) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  const image = Boolean(src) && !failed;
+  const [image, onError] = usePicture(src);
   return (
     <span {...rest} {...(decorative ? { 'aria-hidden': 'true' } : { role: 'img', 'aria-label': label })} {...thumbnail({ label, size, image })}>
-      {image ? <img src={src} alt="" onError={() => setFailed(true)} /> : <span aria-hidden="true">{initialsOf(label)}</span>}
+      {image ? <img src={src} alt="" onError={onError} /> : <span aria-hidden="true">{initialsOf(label)}</span>}
     </span>
   );
 }

@@ -8,6 +8,13 @@ export { scale, surface, withScale, DEFAULT_SCALE } from './layout/scale';
 export type { Axis, Policy, Scale, ScaleAttrs, Sized } from './layout/scale';
 export { installFoundation } from './layout/install';
 export type { InstallOptions } from './layout/install';
+export {
+  ZOOM_STEPS, ZOOM_MIN, ZOOM_MAX, zoomState, zoomIn, zoomOut, resetZoom, onZoomChange, rememberZoom,
+  stepZoom, canStepZoom, isZoomFactor,
+} from './layout/zoom';
+export type { ZoomState } from './layout/zoom';
+export { zoomControls } from './components/zoom-controls';
+export type { ZoomControlsAttrs } from './components/zoom-controls';
 export { FOUNDATION_CSS } from './layout/foundation-css';
 export { findLayoutViolations } from './layout/checks';
 export type { LayoutViolation } from './layout/checks';
@@ -18,7 +25,7 @@ export type { InlineEditAttrs } from './components/inline-edit';
 export { swatch } from './components/swatch';
 export type { SwatchAttrs } from './components/swatch';
 export { tabs, tab, tabKey } from './components/tabs';
-export type { TabsAttrs, TabAttrs } from './components/tabs';
+export type { TabsAttrs, TabAttrs, TabsOptions } from './components/tabs';
 export { COMPONENTS_CSS } from './components/components-css';
 export { drawerLayout, drawerItem, drawerMode, monogram, DRAWER_ITEM_VARIANTS } from './components/drawer';
 export type { DrawerBreakpoint, DrawerSide, DrawerLayoutOptions, DrawerLayoutAttrs, DrawerItemVariant, DrawerItemAttrs } from './components/drawer';
@@ -49,6 +56,14 @@ export type {
 } from './consent/install';
 export type { ModuleRef, InstallModuleOptions, Installed } from './internal/install-flow';
 export { sheet, field, section } from './components/sheet';
+export { emptyState } from './components/empty-state';
+export { bubble, thread, BUBBLE_SIDES } from './components/bubble';
+export type { BubbleAttrs, BubbleSide, ThreadAttrs } from './components/bubble';
+export { avatar, AVATAR_SIZES, AVATAR_VARIANTS } from './components/avatar';
+export type { AvatarAttrs, AvatarSize, AvatarVariant } from './components/avatar';
+export { seededArt, SEEDED_ART_W, SEEDED_ART_H } from './components/seeded-art';
+export type { SeededArtData, SeededArtBlob } from './components/seeded-art';
+export type { EmptyStateAttrs } from './components/empty-state';
 export { initialsOf, thumbnail, toneOf, THUMBNAIL_SIZES, THUMBNAIL_TONES } from './components/thumbnail';
 export { stack, STACK_GAPS } from './components/stack';
 export { card, cardGrid, CARD_GRID_VARIANTS } from './components/card';

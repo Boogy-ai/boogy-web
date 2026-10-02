@@ -275,3 +275,72 @@ describe('createShell', () => {
     expect(onTitle).not.toHaveBeenCalled();
   });
 });
+describe('createShell zoom', () => {
+  const zooms = (f: ReturnType<typeof fakeFrame>) =>
+    f.post.mock.calls.filter((c) => c[0].type === 'zoom').map((c) => {
+      expect(c[0].nonce).toBe(f.nonce());
+      return c[0].payload.factor as number;
+    });
+
+  it('sends the board-wide zoom to every pane, and puts it in each later connect', () => {
+    const shell = createShell({});
+    const a = fakeFrame();
+    const b = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    shell.registerPane(b.el, reg('b', 'squad'));
+    shell.setZoom(1.5);
+    expect(zooms(a)).toEqual([1.5]);
+    expect(zooms(b)).toEqual([1.5]);
+    a.load();
+    expect(a.connects().at(-1)!.frame.payload.zoom).toBe(1.5);
+    shell.destroy();
+  });
+
+  it('says nothing about zoom in a connect while the pane is at 1', () => {
+    const shell = createShell({});
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    expect('zoom' in a.connects().at(-1)!.frame.payload).toBe(false);
+    shell.destroy();
+  });
+
+  it('an override reaches only its pane, outranks the board, and null follows the board again', () => {
+    const shell = createShell({});
+    const a = fakeFrame();
+    const b = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    shell.registerPane(b.el, reg('b', 'squad'));
+    shell.setPaneZoom('a', 2);
+    shell.setZoom(1.25);
+    expect(zooms(a)).toEqual([2]);
+    expect(zooms(b)).toEqual([1.25]);
+    shell.setPaneZoom('a', null);
+    expect(zooms(a)).toEqual([2, 1.25]);
+    shell.destroy();
+  });
+
+  it('an override survives the pane being registered again, and a reload', () => {
+    const shell = createShell({});
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    shell.setPaneZoom('a', 1.75);
+    shell.unregisterPane('a');
+    shell.registerPane(a.el, reg('a', 'notes'));
+    expect(a.connects().at(-1)!.frame.payload.zoom).toBe(1.75);
+    a.load();
+    expect(a.connects().at(-1)!.frame.payload.zoom).toBe(1.75);
+    shell.destroy();
+  });
+
+  it('clamps a factor to [0.5, 3] and ignores one that is not finite', () => {
+    const shell = createShell({});
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    shell.setZoom(10);
+    shell.setZoom(0.1);
+    shell.setZoom(Number.NaN);
+    shell.setPaneZoom('a', Infinity);
+    expect(zooms(a)).toEqual([3, 0.5]);
+    shell.destroy();
+  });
+});

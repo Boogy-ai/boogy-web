@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { sheet, field, section } from './sheet';
 import { COMPONENTS_CSS } from './components-css';
+import { ruleFor } from '../../test-support/rule-for';
 
 const CODE = COMPONENTS_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
-function ruleFor(selector: string): string | null {
-  const at = CODE.indexOf(`${selector} {`);
-  return at < 0 ? null : CODE.slice(at, CODE.indexOf('}', at));
-}
 
 describe('sheet', () => {
   it('marks a window-filling frame', () => {
@@ -84,5 +81,17 @@ describe('section', () => {
   it('its caption stands a step further from the content than the two caption lines stand apart', () => {
     expect(ruleFor('[data-boogy="section"]')).toMatch(/gap:\s*var\(--space-3\)/);
     expect(ruleFor('[data-boogy="section"] > [data-slot="head"]')).toMatch(/gap:\s*var\(--space-2\)/);
+  });
+});
+
+describe('the sheet head end, and the glyph', () => {
+  it("pushes the head's end bar to the far edge, spaced by a token", () => {
+    const r = ruleFor('[data-boogy="sheet"] > [data-slot="head"] > [data-slot="end"]');
+    expect(r).toMatch(/margin-inline-start: auto/);
+    expect(r).toMatch(/gap: var\(--space-\d\)/);
+  });
+  it('sizes a glyph from the icon tokens only', () => {
+    expect(ruleFor('[data-boogy="glyph"]')).toMatch(/width: var\(--icon-md\);\s*height: var\(--icon-md\)/);
+    expect(ruleFor('[data-boogy="glyph"][data-size="sm"]')).toMatch(/width: var\(--icon-sm\);\s*height: var\(--icon-sm\)/);
   });
 });

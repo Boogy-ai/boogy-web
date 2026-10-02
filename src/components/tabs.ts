@@ -1,5 +1,7 @@
 // Tabs: a row of tabs choosing which of several panels shows in one place.
 // The row is a tablist and each tab a button that says whether it is selected.
+// By default the tabs sit together at the start of the row; with `fill` they
+// share the row's width evenly.
 // The row is ONE tab stop — the selected tab — and the arrow keys move between
 // tabs, selecting as they go (wrapping round at either end); Home and End go to
 // the first and last.
@@ -8,10 +10,17 @@ import { stepIndex } from './carousel';
 
 export interface TabsAttrs {
   'data-boogy': 'tabs';
+  'data-fill'?: 'true';
 }
 
-export function tabs(): TabsAttrs {
-  return { 'data-boogy': 'tabs' };
+export interface TabsOptions {
+  /** The tabs share the row's width evenly, rather than sitting together at
+   *  its start. */
+  fill?: boolean;
+}
+
+export function tabs(opts: TabsOptions = {}): TabsAttrs {
+  return opts.fill ? { 'data-boogy': 'tabs', 'data-fill': 'true' } : { 'data-boogy': 'tabs' };
 }
 
 export interface TabAttrs {

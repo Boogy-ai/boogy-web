@@ -7,6 +7,7 @@
 import { createContext, type ComponentChildren, type JSX } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Button } from './button';
+import { Glyph } from './glyphs';
 import { drawerItem, drawerLayout, drawerMode, monogram, type DrawerBreakpoint, type DrawerItemVariant, type DrawerSide } from '@boogy/web';
 
 interface DrawerState {
@@ -254,12 +255,7 @@ export function DrawerItem<T extends ItemElement = 'a'>({ as, label, mark, curre
 /** Drawn pointing toward the drawer's own edge (collapse); the stylesheet
  *  turns it to point away when collapsed, and mirrors it for an end drawer. */
 function Chevron() {
-  return (
-    <svg data-slot="chevron" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  );
+  return <Glyph shape="back" data-slot="chevron" />;
 }
 
 export type DrawerToggleProps = { children?: ComponentChildren } & JSX.HTMLAttributes<HTMLButtonElement>;

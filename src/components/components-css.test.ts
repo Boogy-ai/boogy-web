@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { COMPONENTS_CSS } from './components-css';
 import { FOUNDATION_CSS } from '../layout/foundation-css';
+import { ruleFor } from '../../test-support/rule-for';
 
 // Code only: comments are prose and may name sizes. Newlines kept for line numbers.
 const CODE = COMPONENTS_CSS.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
@@ -21,12 +22,6 @@ describe('component styles use the size scale', () => {
   });
 });
 
-// The rule body for a selector, from the code (comments stripped). Null when absent.
-function ruleFor(selector: string): string | null {
-  const at = CODE.indexOf(`${selector} {`);
-  if (at < 0) return null;
-  return CODE.slice(at, CODE.indexOf('}', at));
-}
 
 describe('drawer head', () => {
   it('collapsed to the strip, the title entry gives its place to the toggle', () => {
@@ -273,12 +268,80 @@ describe('menu item icon slot', () => {
 
 describe('tabs', () => {
   it('a row of tabs on a hairline, the selected one in the full ink with the accent under it', () => {
-    expect(ruleFor('[data-boogy="tabs"] > [data-slot="list"]')).toContain('border-bottom: 1px solid var(--edge)');
+    // The row's line: a dimmer, thinner shade of the selected tab's accent, so
+    // every tab sits on it and the selected one's full accent reads on top.
+    expect(ruleFor('[data-boogy="tabs"] > [data-slot="list"]')).toContain('border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent)');
     const t = ruleFor('[data-boogy="tabs"] [data-slot="tab"]')!;
     expect(t).toContain('color: var(--text-2)');
-    expect(t).toContain('border-bottom: var(--ring) solid transparent');
+    // The underline is twice a focus ring's thickness; every tab reserves it,
+    // so selecting one never shifts its label.
+    expect(t).toContain('border-bottom: var(--underline) solid transparent');
     const on = ruleFor('[data-boogy="tabs"] [data-slot="tab"][aria-selected="true"]')!;
     expect(on).toContain('color: var(--text-1)');
     expect(on).toContain('border-bottom-color: var(--accent)');
+  });
+});
+
+describe('tabs fill', () => {
+  it('a filled bar gives every tab an equal share of its width', () => {
+    expect(ruleFor('[data-boogy="tabs"][data-fill="true"] [data-slot="tab"]')).toContain('flex: 1 1 0');
+  });
+});
+
+describe('tab padding', () => {
+  it('a tab is padded --space-2 on every side (its vertical padding was --space-1)', () => {
+    expect(ruleFor('[data-boogy="tabs"] [data-slot="tab"]')).toContain('padding: var(--space-2);');
+  });
+});
+
+describe('opaque covering surfaces', () => {
+  it('a page popover covers the app with the solid ground, never the translucent one', () => {
+    expect(ruleFor('[data-boogy="popover"][data-mode="page"]')).toContain('background: var(--popover-ground, var(--ground-solid))');
+  });
+  it("the drawer's mark tile is solid too", () => {
+    expect(ruleFor('[data-boogy="drawer-layout"]')).toContain('--drawer-mark-ground: var(--ground-solid)');
+  });
+});
+
+describe('tab dividers', () => {
+  it('a faint line between neighbouring tabs, inset from the row\'s top and bottom', () => {
+    const d = ruleFor('[data-boogy="tabs"] [data-slot="tab"] + [data-slot="tab"]::before');
+    expect(d).toContain('position: absolute');
+    expect(d).toContain('inset-block: var(--space-2)');
+    expect(d).toContain('inset-inline-start: 0');
+    expect(d).toContain('border-inline-start: 1px solid var(--edge)');
+    expect(ruleFor('[data-boogy="tabs"] [data-slot="tab"]')).toContain('position: relative');
+  });
+  it('the tabs sit edge to edge, so a divider is exactly between two; their padding spaces the labels', () => {
+    expect(ruleFor('[data-boogy="tabs"] > [data-slot="list"]')).toContain('gap: 0');
+  });
+});
+
+describe('list item meta', () => {
+  it('the heading row holds the title and, pushed to its end on the title\'s baseline, the meta', () => {
+    const h = ruleFor('[data-boogy="list-item"] [data-slot="heading"]');
+    expect(h).toContain('display: flex');
+    expect(h).toContain('align-items: baseline');
+    const m = ruleFor('[data-boogy="list-item"] [data-slot="meta"]');
+    expect(m).toContain('margin-inline-start: auto');
+    expect(m).toContain('color: var(--text-3)');
+    expect(m).toContain('font-size: var(--fs-caption)');
+  });
+});
+
+describe('a list item squeezed narrow', () => {
+  it("gives up its meta before its title: the name is the row, the time is a detail", () => {
+    // Was `flex: none`: at a large zoom in a narrow pane the title shrank to
+    // nothing while the time kept its full width.
+    const meta = ruleFor('[data-boogy="list-item"] [data-slot="meta"]');
+    expect(meta).toMatch(/flex: 0 999 auto/);
+    expect(meta).toMatch(/min-width: 0/);
+    expect(meta).toMatch(/text-overflow: ellipsis/);
+    expect(meta).toMatch(/overflow: hidden/);
+    // The title does not shrink while the meta has width to give, and is
+    // capped at the row, so a long name still ellipsizes on its own.
+    const title = ruleFor('[data-boogy="list-item"] [data-slot="heading"] > [data-slot="title"]');
+    expect(title).toMatch(/flex: 1 0 auto/);
+    expect(title).toMatch(/max-width: 100%/);
   });
 });

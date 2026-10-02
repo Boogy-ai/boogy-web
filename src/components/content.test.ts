@@ -9,7 +9,7 @@ describe('content attrs', () => {
     expect(notice({ tone: 'warning' })['data-tone']).toBe('warning');
     // @ts-expect-error — not a NoticeTone
     expect(() => notice({ tone: 'loud' })).toThrow(/neutral.*warning/);
-    expect([...NOTICE_TONES]).toEqual(['neutral', 'warning']);
+    expect([...NOTICE_TONES]).toEqual(['neutral', 'warning', 'danger']);
   });
   it('info list and detail header name themselves', () => {
     expect(infoList()).toEqual({ 'data-boogy': 'info-list' });

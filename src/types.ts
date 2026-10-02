@@ -33,8 +33,19 @@ export interface CurrentUser {
   connectedAt?: string;
   /** The services this origin's session covers, as ids under the app's owner. */
   services: string[];
-  /** The person's display name, when they chose to share it. */
+  /**
+   * The name to show for the person: the profile name they chose to share with
+   * this app, else their handle when this app is entitled to it (always for the
+   * person's own app; otherwise only with their consent to share their
+   * identity). `null` when neither applies.
+   */
   displayName: string | null;
+  /**
+   * The person's handle, when this app is entitled to it — always for the
+   * person's own app, otherwise only with their consent to share their
+   * identity. `null` otherwise.
+   */
+  handle: string | null;
   /** The person's avatar URL, when they chose to share it. */
   avatarUrl: string | null;
 }

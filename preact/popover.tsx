@@ -11,6 +11,8 @@
 import { type ComponentChildren, type JSX, type RefObject } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Button } from './button';
+import { BackButton } from './back-button';
+import { Glyph } from './glyphs';
 import { DRAWER_BREAKPOINTS, place, popover, type DrawerBreakpoint, type PopoverMode, type PopoverPlacement } from '@boogy/web';
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -254,17 +256,13 @@ export function Popover({
         // menu off its trigger, and the title only names it.
         <div data-slot="head">
           {(page || onBack) && (
-            <Button variant="quiet" shape="icon" label="Back" onClick={onBack ?? close}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-            </Button>
+            <BackButton onClick={onBack ?? close} />
           )}
           {title && titleIcon != null && <span data-slot="title-icon" aria-hidden="true">{titleIcon}</span>}
           {title && <span data-slot="title">{title}</span>}
           {!page && (
             <Button variant="quiet" shape="icon" label="Close" onClick={close}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+              <Glyph shape="close" />
             </Button>
           )}
         </div>

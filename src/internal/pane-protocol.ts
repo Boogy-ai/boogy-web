@@ -5,6 +5,8 @@
 // type alone accepts `{ signedIn: 'yes' }`, which is a string check wearing
 // validation's clothes.
 
+import { isZoomFactor } from '../layout/zoom';
+
 export const PANE_PROTOCOL = 'pane/v1' as const;
 
 /** The most history entries a pane keeps and a board hands back. */
@@ -24,7 +26,8 @@ export type PaneMessageType =
   | 'title'
   | 'location'
   | 'history'
-  | 'history-state';
+  | 'history-state'
+  | 'zoom';
 
 export interface Envelope<T extends PaneMessageType, P> {
   boogy: typeof PANE_PROTOCOL;
@@ -40,6 +43,8 @@ export interface ConnectPayload {
   /** The pane's history, handed back after its content moved to this frame.
    *  The pane adopts it only if it is on the history's current page. */
   history?: PaneHistory;
+  /** The size the board draws this pane at (its override, or the board's); absent means 1. */
+  zoom?: number;
 }
 /** `hello` (pane → board: "I am listening now") and `ready` both name the service. */
 export interface ReadyPayload {
@@ -67,6 +72,11 @@ export interface HistoryStatePayload {
   index?: number;
 }
 
+/** Board → pane: draw at this size (the zoom store's host value). */
+export interface ZoomPayload {
+  factor: number;
+}
+
 export type Frame =
   | Envelope<'hello', ReadyPayload>
   | Envelope<'connect', ConnectPayload>
@@ -75,7 +85,8 @@ export type Frame =
   | Envelope<'title', TitlePayload>
   | Envelope<'location', LocationPayload>
   | Envelope<'history', HistoryPayload>
-  | Envelope<'history-state', HistoryStatePayload>;
+  | Envelope<'history-state', HistoryStatePayload>
+  | Envelope<'zoom', ZoomPayload>;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -98,6 +109,7 @@ function payloadOk(type: PaneMessageType, p: unknown): boolean {
   switch (type) {
     case 'connect':
       if (typeof p.shellOrigin !== 'string') return false;
+      if (p.zoom !== undefined && !isZoomFactor(p.zoom)) return false;
       if (p.history === undefined) return true;
       return isRecord(p.history) && historyOk(p.history.entries, p.history.index);
     case 'hello':
@@ -115,6 +127,8 @@ function payloadOk(type: PaneMessageType, p: unknown): boolean {
       if (typeof p.canBack !== 'boolean' || typeof p.canForward !== 'boolean') return false;
       if (p.entries === undefined && p.index === undefined) return true;
       return historyOk(p.entries, p.index);
+    case 'zoom':
+      return isZoomFactor(p.factor);
   }
 }
 
@@ -127,6 +141,7 @@ const TYPES: readonly PaneMessageType[] = [
   'location',
   'history',
   'history-state',
+  'zoom',
 ];
 
 /** The single entry point for an inbound frame. `null` means "not ours". */

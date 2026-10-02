@@ -2,6 +2,7 @@
 // to load — it shows the label's initials on a tone chosen from the label, so
 // the same label always wears the same colour wherever it appears.
 import { labelWords } from './drawer';
+import { hashSeed } from './seeded-art';
 
 export const THUMBNAIL_SIZES = ['sm', 'md', 'lg'] as const;
 export type ThumbnailSize = (typeof THUMBNAIL_SIZES)[number];
@@ -16,14 +17,9 @@ export interface ThumbnailAttrs {
   'data-image': 'true' | 'false';
 }
 
-/** A stable tone for `label`: FNV-1a over its UTF-16 code units, mod the palette. */
+/** A stable tone for `label`: its seed hash, mod the palette. */
 export function toneOf(label: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < label.length; i++) {
-    h ^= label.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h % THUMBNAIL_TONES;
+  return hashSeed(label) % THUMBNAIL_TONES;
 }
 
 /** The placeholder's letters: the initials of the label's first two words —

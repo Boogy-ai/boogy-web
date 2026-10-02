@@ -14,6 +14,7 @@
 import { PANE_PROTOCOL, parseFrame, type Frame, type PaneHistory } from './internal/pane-protocol';
 import { exactOrigin, sendFrame, receiveFrames, type ExactOrigin } from './internal/pane-messaging';
 import { isRestorablePath } from './internal/pane-paths';
+import { ZOOM_MIN, ZOOM_MAX } from './layout/zoom';
 
 /** The longest title a board shows for a pane. */
 export const MAX_TITLE_LENGTH = 120;
@@ -52,6 +53,10 @@ export interface Shell {
   /** Ask a pane to go back, or forward, in its own history. */
   back(id: string): void;
   forward(id: string): void;
+  /** The board-wide zoom: sent to every pane that has no override of its own. */
+  setZoom(factor: number): void;
+  /** One pane's zoom, outranking the board's; `null` makes it follow the board again. */
+  setPaneZoom(id: string, factor: number | null): void;
   destroy(): void;
 }
 
@@ -90,6 +95,20 @@ function newNonce(): string {
 
 export function createShell(events: Partial<ShellEvents>): Shell {
   const panes = new Map<string, Entry>();
+
+  // The board's zoom and each pane's override. Overrides are kept by pane id,
+  // apart from the registration, so a pane registered again keeps its own.
+  let boardZoom = 1;
+  const overrides = new Map<string, number>();
+  const clampZoom = (f: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, f));
+  const zoomFor = (id: string) => overrides.get(id) ?? boardZoom;
+  const sendZoom = (entry: Entry) => {
+    const target = entry.iframe.contentWindow;
+    if (!target || !entry.nonce) return;
+    sendFrame(target as Window, entry.exact, {
+      boogy: PANE_PROTOCOL, type: 'zoom', nonce: entry.nonce, payload: { factor: zoomFor(entry.pane.id) },
+    });
+  };
 
   const handle = (entry: Entry, frame: Frame) => {
     const pane = entry.pane;
@@ -167,9 +186,11 @@ export function createShell(events: Partial<ShellEvents>): Shell {
           boogy: PANE_PROTOCOL,
           type: 'connect',
           nonce,
-          payload: entry.history
-            ? { shellOrigin: window.location.origin, history: entry.history }
-            : { shellOrigin: window.location.origin },
+          payload: {
+            shellOrigin: window.location.origin,
+            ...(entry.history ? { history: entry.history } : {}),
+            ...(zoomFor(pane.id) !== 1 ? { zoom: zoomFor(pane.id) } : {}),
+          },
         });
       };
 
@@ -193,8 +214,28 @@ export function createShell(events: Partial<ShellEvents>): Shell {
     back: (id) => move(id, -1),
     forward: (id) => move(id, 1),
 
+    setZoom(factor) {
+      if (!Number.isFinite(factor)) return;
+      const next = clampZoom(factor);
+      if (next === boardZoom) return;
+      boardZoom = next;
+      for (const entry of panes.values()) if (!overrides.has(entry.pane.id)) sendZoom(entry);
+    },
+
+    setPaneZoom(id, factor) {
+      if (factor === null) {
+        if (!overrides.delete(id)) return;
+      } else {
+        if (!Number.isFinite(factor)) return;
+        overrides.set(id, clampZoom(factor));
+      }
+      const entry = panes.get(id);
+      if (entry) sendZoom(entry);
+    },
+
     destroy() {
       for (const id of [...panes.keys()]) remove(id);
+      overrides.clear();
     },
   };
 }

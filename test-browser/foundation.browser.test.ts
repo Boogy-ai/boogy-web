@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 import { existsSync } from 'node:fs';
 import { FOUNDATION_CSS } from '../src/layout/foundation-css';
+import { scale } from '../src/layout/scale';
 
 // A missing browser FAILS the suite: a skipped measurement is not a pass.
 const BROWSER = process.env.BOOGY_TEST_BROWSER ?? '/usr/bin/chromium';
@@ -185,19 +186,21 @@ describe('theme', () => {
 describe('overrides', () => {
   it("an app's own unlayered rule beats the foundation, though the foundation sheet comes later", async () => {
     const [before, after] = await page.evaluate(() => {
-      document.body.innerHTML = '<div id="g" style="background:var(--ground)"></div>';
+      // Observed through the TEXT colour, which still derives from --hue and
+      // --tint (the grounds are pure black / white, untinted by design).
+      document.body.innerHTML = '<div id="g" style="color:var(--text-1)"></div>';
       const g = document.getElementById('g')!;
       document.documentElement.style.removeProperty('--scheme');
       const style = document.createElement('style');
       style.textContent = ':root { --scheme: dark; --hue: 30; --tint: 0.1; }';
-      const b = getComputedStyle(g).backgroundColor;
+      const b = getComputedStyle(g).color;
       document.head.appendChild(style); // a document sheet: ordered BEFORE the adopted foundation sheet
-      const a = getComputedStyle(g).backgroundColor;
+      const a = getComputedStyle(g).color;
       style.remove();
       return [b, a];
     });
     expect(after).not.toBe(before);
-    expect(after).toContain('30'); // the app's hue reached the derived ground
+    expect(after).toContain('30'); // the app's hue reached the derived text colour
   });
 });
 
@@ -233,5 +236,44 @@ describe('the size scale', () => {
       return parseFloat(getComputedStyle(document.getElementById('p')!).width);
     });
     expect(w).toBe(44);
+  });
+});
+
+describe('a scaled page', () => {
+  // installFoundation({ scale: true }) puts scale()'s attributes on <html>. It
+  // has no container above it, so its container units fall back to the
+  // viewport — which, for a page embedded in a frame, is the frame.
+  async function at(w: number, h: number) {
+    await page.setViewport({ width: w, height: h });
+    return page.evaluate((attrs) => {
+      const root = document.documentElement;
+      for (const [k, v] of Object.entries(attrs)) if (k !== 'style') root.setAttribute(k, v as string);
+      for (const [k, v] of Object.entries(attrs.style)) root.style.setProperty(k, v);
+      document.body.innerHTML = '<p id="plain">text</p><span id="title" style="font-size:var(--fs-title)"></span>';
+      const px = (el: Element, prop: string) => parseFloat(getComputedStyle(el).getPropertyValue(prop));
+      const out = {
+        u: px(root, '--u'),
+        body: px(document.getElementById('plain')!, 'font-size'),
+        title: px(document.getElementById('title')!, 'font-size'),
+      };
+      for (const k of Object.keys(attrs)) if (k !== 'style') root.removeAttribute(k);
+      for (const k of Object.keys(attrs.style)) root.style.removeProperty(k);
+      document.body.innerHTML = '';
+      return out;
+    }, scale() as unknown as Record<string, string> & { style: Record<string, string> });
+  }
+  afterAll(async () => { await page.setViewport({ width: 800, height: 600 }); });
+
+  it('tracks the viewport\'s shorter side: 4% of 300px is 12px, and plain text and tokens follow', async () => {
+    const r = await at(300, 800);
+    expect(r.u).toBeCloseTo(12, 1);
+    expect(r.body).toBeCloseTo(12, 1);
+    expect(r.title).toBeCloseTo(15, 1); // --fs-title = 1.25 * --u
+  });
+  it('stops at its cap on a large viewport', async () => {
+    expect((await at(1000, 800)).u).toBeCloseTo(17, 1); // 1.0625rem
+  });
+  it('stops at its floor on a small one', async () => {
+    expect((await at(200, 800)).u).toBeCloseTo(10, 1); // 0.625rem
   });
 });

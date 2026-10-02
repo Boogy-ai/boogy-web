@@ -12,17 +12,20 @@ export type TabsProps = {
   /** The id of the selected tab. */
   selected: string;
   onSelect: (id: string) => void;
+  /** The tabs share the row's width evenly, rather than sitting together at
+   *  its start. */
+  fill?: boolean;
   /** The selected tab's panel. */
   children?: ComponentChildren;
 } & Omit<JSX.HTMLAttributes<HTMLDivElement>, 'onSelect' | 'label'>;
 
 /** A row of tabs over the selected tab's panel. See `tabs()`. */
-export function Tabs({ label, items, selected, onSelect, children, ...rest }: TabsProps) {
+export function Tabs({ label, items, selected, onSelect, fill, children, ...rest }: TabsProps) {
   const base = useId('boogy-tabs-');
   const list = useRef<HTMLDivElement>(null);
   const at = Math.max(0, items.findIndex((t) => t.id === selected));
   return (
-    <div {...rest} {...tabs()}>
+    <div {...rest} {...tabs({ fill })}>
       <div
         data-slot="list"
         role="tablist"

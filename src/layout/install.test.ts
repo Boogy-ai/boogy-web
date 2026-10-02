@@ -26,7 +26,44 @@ describe('installFoundation', () => {
   });
 });
 
+describe('installFoundation scale', () => {
+  const root = () => document.documentElement;
+  const reset = () => {
+    for (const a of ['data-u-axis', 'data-u-policy', 'data-component']) root().removeAttribute(a);
+    root().removeAttribute('style');
+  };
+  it('is off by default: the page keeps the fixed base size', async () => {
+    reset();
+    const { installFoundation } = await import('./install');
+    installFoundation();
+    expect(root().hasAttribute('data-u-policy')).toBe(false);
+  });
+  it('scale: true — the whole page follows its viewport, between the default floor and cap', async () => {
+    reset();
+    const { installFoundation } = await import('./install');
+    const { DEFAULT_SCALE } = await import('./scale');
+    installFoundation({ scale: true });
+    expect(root().getAttribute('data-u-axis')).toBe(DEFAULT_SCALE.axis);
+    expect(root().getAttribute('data-u-policy')).toBe(DEFAULT_SCALE.policy);
+    expect(root().style.getPropertyValue('--u-factor')).toBe(String(DEFAULT_SCALE.factor));
+    expect(root().style.getPropertyValue('--u-floor')).toBe(DEFAULT_SCALE.floor);
+    expect(root().style.getPropertyValue('--u-cap')).toBe(DEFAULT_SCALE.cap);
+    reset();
+  });
+  it('a Scale overrides the default per field', async () => {
+    reset();
+    const { installFoundation } = await import('./install');
+    installFoundation({ scale: { cap: '1.25rem' } });
+    expect(root().style.getPropertyValue('--u-cap')).toBe('1.25rem');
+    expect(root().getAttribute('data-u-policy')).toBe('clamped');
+    reset();
+  });
+});
+
 describe('FOUNDATION_CSS', () => {
+  it('a scaled page sizes its plain text from the scale too', () => {
+    expect(FOUNDATION_CSS).toMatch(/:root:is\(\[data-u-policy\], \[data-zoom\]\) > body \{ font-size: var\(--fs-body\); \}/);
+  });
   it('contains no media query', () => {
     expect(FOUNDATION_CSS).not.toMatch(/@media/);
   });

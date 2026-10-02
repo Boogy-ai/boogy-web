@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { PANE_PROTOCOL } from './internal/pane-protocol';
 import { loadPlatformConfig } from './internal/platform-config';
 import { connectPane } from './pane';
+import { zoomState } from './layout/zoom';
 
 const SHELL = 'https://boards.example';
 
@@ -145,5 +146,63 @@ describe('connectPane', () => {
     connectFrom(SHELL);
     await settle();
     expect(post).not.toHaveBeenCalled();
+  });
+});
+
+describe('connectPane zoom', () => {
+  const connectWith = (payload: Record<string, unknown>, nonce = 'z1') =>
+    fromShell({ boogy: PANE_PROTOCOL, type: 'connect', nonce, payload: { shellOrigin: SHELL, ...payload } });
+  const zoomFrame = (factor: unknown, nonce = 'z1', origin = SHELL) =>
+    fromShell({ boogy: PANE_PROTOCOL, type: 'zoom', nonce, payload: { factor } }, origin);
+
+  it('draws at the zoom the board connects with, and back at 1 once disconnected', async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    connectWith({ zoom: 1.5 });
+    await vi.waitFor(() => expect(zoomState().host).toBe(1.5));
+    pane.disconnect();
+    expect(zoomState().host).toBe(1);
+  });
+
+  it("follows a zoom frame from its board, carrying that board's nonce", async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    connectWith({});
+    await vi.waitFor(() => expect(post).toHaveBeenCalled());
+    zoomFrame(1.25);
+    expect(zoomState().host).toBe(1.25);
+    pane.disconnect();
+  });
+
+  it('ignores a zoom frame with another nonce, from another origin, or out of bounds', async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    connectWith({});
+    await vi.waitFor(() => expect(post).toHaveBeenCalled());
+    zoomFrame(1.5, 'other');
+    zoomFrame(1.5, 'z1', 'https://evil.example');
+    zoomFrame(1000);
+    zoomFrame(Number.NaN);
+    expect(zoomState().host).toBe(1);
+    pane.disconnect();
+  });
+
+  it('a connect with no zoom (an older board) draws at 1, even after a zoomed one', async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    connectWith({ zoom: 2 }, 'a');
+    await vi.waitFor(() => expect(zoomState().host).toBe(2));
+    connectWith({}, 'b');
+    await vi.waitFor(() => expect(zoomState().host).toBe(1));
+    pane.disconnect();
+  });
+
+  it('a connect whose zoom is out of bounds still connects, at 1', async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    connectWith({ zoom: 1000 });
+    await vi.waitFor(() => expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: 'ready' }), SHELL));
+    expect(zoomState().host).toBe(1);
+    pane.disconnect();
   });
 });

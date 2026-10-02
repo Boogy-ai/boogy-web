@@ -31,6 +31,35 @@ describe('parsePlatformConfig', () => {
     ).toEqual([]);
   });
 
+  it('carries appOriginTemplate — how a page names ANOTHER owner\'s app origin', async () => {
+    const { parsePlatformConfig } = await import('./platform-config');
+    expect(
+      parsePlatformConfig({
+        authOrigin: 'https://auth.boogy.ai',
+        owner: 'alice',
+        appOriginTemplate: 'https://{owner}.local.boogy.app:8443',
+      }).appOriginTemplate,
+    ).toBe('https://{owner}.local.boogy.app:8443');
+  });
+
+  it('drops an appOriginTemplate it could not substitute exactly once into an absolute origin', async () => {
+    const { parsePlatformConfig } = await import('./platform-config');
+    for (const appOriginTemplate of [
+      undefined,
+      42,
+      'https://local.boogy.app', // no placeholder
+      'https://{owner}.{owner}.boogy.app', // two
+      '{owner}.boogy.app', // not absolute
+      'javascript:{owner}', // not http(s)
+    ]) {
+      expect(
+        parsePlatformConfig({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', appOriginTemplate })
+          .appOriginTemplate,
+        String(appOriginTemplate),
+      ).toBeUndefined();
+    }
+  });
+
   it('rejects a non-object body', async () => {
     const { parsePlatformConfig } = await import('./platform-config');
     expect(() => parsePlatformConfig(null)).toThrow();

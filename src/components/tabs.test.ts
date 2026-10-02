@@ -5,6 +5,10 @@ describe('tabs', () => {
   it('marks the root', () => {
     expect(tabs()).toEqual({ 'data-boogy': 'tabs' });
   });
+  it('fill: the tabs share the bar evenly', () => {
+    expect(tabs({ fill: true })).toEqual({ 'data-boogy': 'tabs', 'data-fill': 'true' });
+    expect(tabs({ fill: false })).toEqual({ 'data-boogy': 'tabs' });
+  });
   it('a tab is a button that says whether it is selected, and only the selected one is a tab stop', () => {
     expect(tab({ selected: true })).toEqual({ 'data-slot': 'tab', role: 'tab', type: 'button', 'aria-selected': 'true', tabIndex: 0 });
     expect(tab({ selected: false })).toEqual({ 'data-slot': 'tab', role: 'tab', type: 'button', 'aria-selected': 'false', tabIndex: -1 });

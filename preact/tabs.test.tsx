@@ -56,4 +56,8 @@ describe('<Tabs>', () => {
     key(tabsOf(r)[2], 'Home');
     expect(document.activeElement).toBe(tabsOf(r)[0]);
   });
+  it('fill: the root carries the option, so its tabs share the bar evenly', () => {
+    const r = mount(<Tabs label="Pick" items={ITEMS} selected="one" onSelect={() => {}} fill />);
+    expect(r.querySelector('[data-boogy="tabs"]')!.getAttribute('data-fill')).toBe('true');
+  });
 });

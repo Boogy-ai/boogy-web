@@ -23,10 +23,21 @@ export const FOUNDATION_CSS = `
 @property --u { syntax: '<length>'; inherits: true; initial-value: 16px; }
 @property --u-inline { syntax: '<length>'; inherits: true; initial-value: 16px; }
 @property --u-block { syntax: '<length>'; inherits: true; initial-value: 16px; }
+@property --zoom { syntax: '<number>'; inherits: true; initial-value: 1; }
 
 @layer boogy.foundation {
   :root {
     --u-base: 1rem;
+    /* The interface zoom: a multiplier on the unit. The zoom store sets it on
+       <html>; it is 1 until a person (or a board framing the page) changes it.
+       Declared here too, so a page with no scale still follows it — from the
+       unit's own 16px, NOT from rem: an app may size its root font from the
+       unit (html { font: var(--fs-body) … }), and a root unit derived from the
+       root's font would be a cycle, which a browser resolves by dropping the
+       tokens (Firefox does, per spec). */
+    --u: calc(16px * var(--zoom));
+    --u-inline: calc(16px * var(--zoom));
+    --u-block: calc(16px * var(--zoom));
 
     /* knobs */
     --hue: 250;
@@ -36,21 +47,42 @@ export const FOUNDATION_CSS = `
     --scheme: light dark;
     color-scheme: var(--scheme);
 
-    /* grounds: one lightness ramp, a step apart */
+    /* grounds: the base is pure WHITE in light and pure BLACK in dark, with no
+       tint; the other grounds step from it the only way there is room to. In
+       light a sunken field is a step below white and raised / overlay surfaces
+       stay white (they cannot go above it); in dark a sunken field stays black
+       (it cannot go below it) and raised / overlay surfaces rise a step and two
+       above it. Edges and shadows, not a ground step, set a white surface on a
+       white page apart.
+       The base ground is translucent, so whatever a page sits on (a frame's
+       host, a backdrop) shows through it: 85% opaque in light, 40% in dark
+       (black at 85% over a dark backdrop leaves almost none of its colour,
+       while white lower than 85% would muddy the ground behind dark text).
+       --ground-solid is the same colour fully opaque, for surfaces that
+       cover content (a full-page popover). */
     --_step: calc(0.035 * var(--contrast));
-    --ground: light-dark(oklch(0.975 var(--tint) var(--hue)), oklch(0.17 var(--tint) var(--hue)));
-    --ground-sunken: light-dark(oklch(calc(0.975 - var(--_step)) var(--tint) var(--hue)), oklch(calc(0.17 - var(--_step)) var(--tint) var(--hue)));
-    --ground-raised: light-dark(oklch(0.995 var(--tint) var(--hue)), oklch(calc(0.17 + var(--_step)) var(--tint) var(--hue)));
-    --ground-overlay: light-dark(oklch(1 0 0), oklch(calc(0.17 + 2 * var(--_step)) var(--tint) var(--hue)));
+    --ground-solid: light-dark(oklch(1 0 0), oklch(0 0 0));
+    --ground: light-dark(oklch(1 0 0 / 0.85), oklch(0 0 0 / 0.4));
+    --ground-sunken: light-dark(oklch(calc(1 - var(--_step)) 0 0), oklch(0 0 0));
+    --ground-raised: light-dark(oklch(1 0 0), oklch(var(--_step) 0 0));
+    --ground-overlay: light-dark(oklch(1 0 0), oklch(calc(2 * var(--_step)) 0 0));
+    /* The well: a translucent SUNKEN ground — a darker band over a page (a
+       message bar, a footer) that still shows what is behind. A step below
+       white at the page's 85% in light; black at 60% in dark, over a page that
+       is black at 40%. */
+    --ground-well: light-dark(oklch(calc(1 - var(--_step)) 0 0 / 0.85), oklch(0 0 0 / 0.6));
 
     /* text */
     --text-1: light-dark(oklch(0.22 var(--tint) var(--hue)), oklch(0.93 var(--tint) var(--hue)));
     --text-2: light-dark(oklch(0.42 var(--tint) var(--hue)), oklch(0.72 var(--tint) var(--hue)));
     --text-3: light-dark(oklch(0.56 var(--tint) var(--hue)), oklch(0.58 var(--tint) var(--hue)));
 
-    /* edges */
-    --edge: color-mix(in oklch, var(--text-1) 12%, var(--ground));
-    --edge-strong: color-mix(in oklch, var(--text-1) 28%, var(--ground));
+    /* edges: a translucent share of the ink, so over an opaque ground they
+       are close to an opaque mix of the two, and over a translucent one they
+       read as a dim line in the colour showing through — never a near-black
+       line across a page in dark */
+    --edge: color-mix(in oklch, var(--text-1) 12%, transparent);
+    --edge-strong: color-mix(in oklch, var(--text-1) 28%, transparent);
     --rule: 1px solid var(--edge);
 
     /* accent, derived */
@@ -132,6 +164,7 @@ export const FOUNDATION_CSS = `
     --card-min: calc(var(--u) * 15);
     --card-divider: var(--edge);
     --ring: calc(var(--u) * 0.125);
+    --underline: calc(var(--u) * 0.25);
     --radius-1: calc(var(--u) * 0.25);
     --radius-2: calc(var(--u) * 0.5);
     --radius-3: calc(var(--u) * 1);
@@ -144,6 +177,10 @@ export const FOUNDATION_CSS = `
   * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
   *:hover { scrollbar-color: var(--scrollbar-thumb-hover) transparent; }
 
+  /* A scaled or zoomed page sizes its plain text from the unit too, not only
+     its components. */
+  :root:is([data-u-policy], [data-zoom]) > body { font-size: var(--fs-body); }
+
   [data-surface="inline"] { container-type: inline-size; }
   [data-surface="both"] { container-type: size; }
 
@@ -153,20 +190,22 @@ export const FOUNDATION_CSS = `
   [data-u-axis="max"] { --_ub: 1cqmax; }
   [data-u-axis="diagonal"] { --_ub: calc(hypot(1cqi, 1cqb) / 1.41421356); }
 
+  /* The zoom multiplies OUTSIDE each expression, so zooming in is never
+     clamped back by a scale's cap. */
   [data-u-policy="fixed"] {
-    --u: var(--u-base);
-    --u-inline: var(--u-base);
-    --u-block: var(--u-base);
+    --u: calc(var(--u-base) * var(--zoom));
+    --u-inline: calc(var(--u-base) * var(--zoom));
+    --u-block: calc(var(--u-base) * var(--zoom));
   }
   [data-u-policy="clamped"] {
-    --u: clamp(var(--u-floor), calc(var(--_ub) * var(--u-factor)), var(--u-cap));
-    --u-inline: clamp(var(--u-floor), calc(1cqi * var(--u-factor)), var(--u-cap));
-    --u-block: clamp(var(--u-floor), calc(1cqb * var(--u-factor)), var(--u-cap));
+    --u: calc(clamp(var(--u-floor), calc(var(--_ub) * var(--u-factor)), var(--u-cap)) * var(--zoom));
+    --u-inline: calc(clamp(var(--u-floor), calc(1cqi * var(--u-factor)), var(--u-cap)) * var(--zoom));
+    --u-block: calc(clamp(var(--u-floor), calc(1cqb * var(--u-factor)), var(--u-cap)) * var(--zoom));
   }
   [data-u-policy="fluid"] {
-    --u: max(var(--u-floor), calc(var(--_ub) * var(--u-factor)));
-    --u-inline: max(var(--u-floor), calc(1cqi * var(--u-factor)));
-    --u-block: max(var(--u-floor), calc(1cqb * var(--u-factor)));
+    --u: calc(max(var(--u-floor), calc(var(--_ub) * var(--u-factor))) * var(--zoom));
+    --u-inline: calc(max(var(--u-floor), calc(1cqi * var(--u-factor))) * var(--zoom));
+    --u-block: calc(max(var(--u-floor), calc(1cqb * var(--u-factor))) * var(--zoom));
   }
 }
 `;

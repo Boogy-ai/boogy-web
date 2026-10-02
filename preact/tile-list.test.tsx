@@ -24,6 +24,22 @@ describe('<Tile>/<TileGrid>', () => {
   });
 });
 
+describe('<ListItem> meta', () => {
+  it('trailing info on the title\'s line — allowed on a row that is itself a control', () => {
+    const r = mount(<List><ListItem as="button" title="carol" subtitle="see you at 6" meta="14:02" /></List>);
+    const text = r.querySelector('[data-boogy="list-item"] > [data-slot="text"]')!;
+    const heading = text.querySelector(':scope > [data-slot="heading"]')!;
+    expect([...heading.children].map((c) => c.getAttribute('data-slot'))).toEqual(['title', 'meta']);
+    expect(heading.querySelector('[data-slot="meta"]')!.textContent).toBe('14:02');
+    expect(text.querySelector(':scope > [data-slot="subtitle"]')!.textContent).toBe('see you at 6');
+  });
+  it('without meta, the title stays a direct child of the text', () => {
+    const r = mount(<List><ListItem title="carol" /></List>);
+    expect(r.querySelector('[data-slot="text"] > [data-slot="title"]')).not.toBeNull();
+    expect(r.querySelector('[data-slot="heading"]')).toBeNull();
+  });
+});
+
 describe('<ListItem>', () => {
   it('lays out media, text and an end action', () => {
     const r = mount(<List><ListItem media={<i />} title="Chat EU" subtitle="alice · Messaging" description="A chat." end={<button id="act">Install</button>} /></List>);

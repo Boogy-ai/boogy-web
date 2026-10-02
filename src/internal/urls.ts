@@ -1,5 +1,5 @@
 import { BoogyError } from '../errors';
-import { platformConfig } from './platform-config';
+import { OWNER_PLACEHOLDER, platformConfig } from './platform-config';
 
 /**
  * Parse an `owner/service` app identifier.
@@ -132,19 +132,74 @@ export function authorizeUrl(p: {
  * the board's own origin. The site makes the PKCE verifier itself, on the server
  * (it has to be a cookie on that site), which is why a page on another site can
  * start this at all. Only `site`'s origin is used.
+ *
+ * Every service is named under the SITE's owner ([`siteOwner`]), because the
+ * site refuses an audience of any other owner. That is deliberately not
+ * `platformConfig().owner`: on a board that is the board's own owner, and the
+ * apps a person frames on it are usually their own, on their own site.
  */
 export function siteSignInUrl(p: {
   site: string;
-  owner: string;
   services: readonly string[];
   returnTo: string;
 }): string {
+  const owner = siteOwner(p.site);
   const url = new URL('/boogy/signin', new URL(p.site).origin);
   for (const service of p.services) {
-    url.searchParams.append('aud', `boogy://${p.owner}/services/${service}`);
+    url.searchParams.append('aud', `boogy://${owner}/services/${service}`);
   }
   url.searchParams.set('redirect', p.returnTo);
   return url.toString();
+}
+
+/**
+ * The owner handle whose apps `site` serves, read off the platform's own
+ * `appOriginTemplate` — one owner's origin is that template with the handle in
+ * place of `{owner}`, so the handle is what sits there in `site`'s origin.
+ *
+ * Throws `config_unavailable` when the platform published no template, and
+ * `app_not_found` when `site` is not an origin the template produces (another
+ * scheme or port, a host outside the base, more than one label where a handle
+ * goes). Both refuse rather than guess: the only alternative is naming an
+ * owner the site does not serve, which it refuses after a full page trip.
+ */
+export function siteOwner(site: string): string {
+  const template = platformConfig().appOriginTemplate;
+  if (!template) {
+    throw new BoogyError(
+      'config_unavailable',
+      'the platform config names no appOriginTemplate, so the owner of an app site cannot be read',
+    );
+  }
+  const parts = templateParts(template);
+  let origin: string | null = null;
+  try {
+    origin = new URL(site).origin;
+  } catch {
+    origin = null;
+  }
+  if (parts && origin) {
+    const [prefix, suffix] = parts;
+    if (origin.length > prefix.length + suffix.length && origin.startsWith(prefix) && origin.endsWith(suffix)) {
+      const owner = origin.slice(prefix.length, origin.length - suffix.length);
+      if (/^[a-z0-9-]+$/.test(owner)) return owner;
+    }
+  }
+  throw new BoogyError('app_not_found', `"${site}" is not an app origin of this platform (${template})`);
+}
+
+/** A handle-shaped stand-in, so the template parses as a URL and its origin
+ *  comes out normalised exactly as `site`'s does (case, default port). */
+const OWNER_STAND_IN = 'boogy-owner-stand-in';
+
+/** The template's normalised origin, split at the owner: `[before, after]`. */
+function templateParts(template: string): [string, string] | null {
+  try {
+    const parts = new URL(template.replace(OWNER_PLACEHOLDER, OWNER_STAND_IN)).origin.split(OWNER_STAND_IN);
+    return parts.length === 2 ? [parts[0], parts[1]] : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

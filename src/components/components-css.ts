@@ -77,6 +77,17 @@ const BUTTON_CSS = `
     [data-boogy="button"][data-shape="icon"] { min-width: var(--touch-min); }
   }
 
+  /* A glyph the SDK draws: sized from the icon tokens. */
+  [data-boogy="glyph"] { flex: none; width: var(--icon-md); height: var(--icon-md); }
+  [data-boogy="glyph"][data-size="sm"] { width: var(--icon-sm); height: var(--icon-sm); }
+
+  /* Zoom controls: two buttons a hair apart; each shows a letter, small for
+     smaller and large for larger, from the text tokens. */
+  [data-boogy="zoom-controls"] { display: inline-flex; align-items: center; gap: var(--space-0); }
+  [data-boogy="zoom-controls"] [data-slot="letter"] { font-family: var(--font-body); font-weight: 600; line-height: 1; }
+  [data-boogy="zoom-controls"] [data-slot="smaller"] > [data-slot="letter"] { font-size: var(--fs-caption); }
+  [data-boogy="zoom-controls"] [data-slot="larger"] > [data-slot="letter"] { font-size: var(--fs-title); }
+
   /* solid */
   [data-boogy="button"][data-variant="solid"] {
     background: var(--accent);
@@ -197,7 +208,7 @@ const DRAWER_CSS = `
     --drawer-strip-width: calc(var(--mark-lg) + 2 * var(--space-2) + 1px); /* + the 1px edge: the drawer is border-box */
     /* The framed entry's mark tile. An app themes it by redefining these on
        the drawer (e.g. to match its own panels). */
-    --drawer-mark-ground: var(--ground);
+    --drawer-mark-ground: var(--ground-solid);
     --drawer-mark-edge: var(--edge);
     --drawer-mark-edge-hover: var(--edge-strong);
     --drawer-mark-edge-current: var(--text-3);
@@ -432,7 +443,7 @@ const POPOVER_CSS = `
     border: none;
     border-radius: 0;
     box-shadow: none;
-    background: var(--popover-ground, var(--ground));
+    background: var(--popover-ground, var(--ground-solid));
   }
   /* The head, in every mode that has one; the body scrolls beneath it. */
   [data-boogy="popover"]:has(> [data-slot="head"]) { display: flex; flex-direction: column; overflow: hidden; }
@@ -551,6 +562,25 @@ const SHEET_CSS = `
     font-size: var(--fs-title);
     font-weight: 600;
   }
+  /* The title may carry media beside its text (an avatar by a name). */
+  [data-boogy="sheet"] > [data-slot="head"] > [data-slot="title"] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    margin: 0;
+    font: inherit;
+  }
+  /* The head's end: a bar of controls, pushed to the far edge. Body-sized, so
+     its controls are the controls' own size, not the title's. */
+  [data-boogy="sheet"] > [data-slot="head"] > [data-slot="end"] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-inline-start: auto;
+    font-size: var(--fs-body);
+    font-weight: 400;
+  }
   [data-boogy="sheet"] > [data-slot="body"] {
     flex: 1 1 auto;
     min-height: 0;
@@ -568,6 +598,58 @@ const SHEET_CSS = `
     padding: var(--space-3) var(--space-4);
     border-top: var(--rule);
   }
+  /* A field in the foot (a composer) takes the foot's width — and IS the bar:
+     the foot becomes a darker translucent well, the field's own frame dissolves
+     into it, and with no frame left the foot's top edge shows focus. */
+  [data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] { flex: 1 1 auto; min-width: 0; }
+  [data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"]) { background: var(--ground-well); }
+  [data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"]):focus-within { border-top-color: var(--accent); }
+  [data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] > [data-slot="group"] {
+    border: none;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  [data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] > [data-slot="group"]:focus-within { outline: none; }
+`;
+
+// --- EmptyState (see empty-state.ts) ---
+// Centred on both axes in whatever space it is given; the graphic in a large
+// accent disc, sized by the disc's font-size (an icon drawn at 1em fills it).
+const EMPTY_STATE_CSS = `
+  [data-boogy="empty-state"] {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-6) var(--space-4);
+    text-align: center;
+  }
+  [data-boogy="empty-state"] > [data-slot="media"] {
+    display: grid;
+    place-items: center;
+    width: var(--thumb-lg);
+    height: var(--thumb-lg);
+    margin-bottom: var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: var(--fs-display);
+  }
+  [data-boogy="empty-state"] > [data-slot="title"] {
+    margin: 0;
+    color: var(--text-1);
+    font-size: var(--fs-title);
+    font-weight: 600;
+  }
+  [data-boogy="empty-state"] > [data-slot="description"] {
+    margin: 0;
+    max-width: 32ch;
+    color: var(--text-2);
+  }
+  [data-boogy="empty-state"] > [data-slot="action"] { margin-top: var(--space-3); }
 `;
 
 const FIELD_CSS = `
@@ -649,6 +731,25 @@ const FIELD_CSS = `
     font: inherit;
     outline: none;
   }
+  /* A multi-line field: a textarea in the group grows with its text, up to
+     eight lines, and what sits beside it (a send button) stays at its bottom. */
+  [data-boogy="field"] > [data-slot="group"]:has(> textarea) { align-items: flex-end; }
+  /* Beside it, a suffix is one line of the field tall (the group is
+     content-box: inside its border it is exactly the control height), its
+     content centred: centred on one line, at the bottom as the text grows. */
+  [data-boogy="field"] > [data-slot="group"]:has(> textarea) > [data-slot="suffix"] {
+    align-items: center;
+    block-size: var(--control-md);
+  }
+  [data-boogy="field"] > [data-slot="group"] > textarea[data-slot="control"] {
+    align-self: stretch;
+    padding-block: var(--space-1);
+    resize: none;
+    field-sizing: content;
+    max-height: 8lh;
+  }
+  /* Nothing before the control (no icon or prefix): it pads its own start. */
+  [data-boogy="field"] > [data-slot="group"] > [data-slot="control"]:first-child { padding-inline-start: var(--space-2); }
   [data-boogy="field"][data-invalid="true"] > [data-slot="group"] { border-color: var(--danger); }
   /* A pill. Its ends are half circles, so what sits at either end steps in
      further from them. */
@@ -728,6 +829,75 @@ const THUMBNAIL_CSS = `
   [data-boogy="thumbnail"][data-tone="5"] { --thumb-hue: 260; }
   [data-boogy="thumbnail"][data-tone="6"] { --thumb-hue: 300; }
   [data-boogy="thumbnail"][data-tone="7"] { --thumb-hue: 340; }
+`;
+
+// Avatar: a person, as a circle or a rounded square, at the thumbnail's sizes
+// so the two line up. A picture covers it; without one the initials sit in
+// white over seeded art (always dark enough for white to read).
+const AVATAR_CSS = `
+  [data-boogy="avatar"] {
+    position: relative;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    overflow: hidden;
+    background: var(--fill-hover);
+    color: oklch(0.98 0 0);
+    font-weight: 600;
+    line-height: 1;
+    user-select: none;
+    /* Its own container, so the initials can be a share of its size. */
+    container-type: size;
+  }
+  [data-boogy="avatar"][data-variant="circle"] { border-radius: var(--radius-full); }
+  [data-boogy="avatar"][data-variant="rounded"] { border-radius: var(--radius-2); }
+  [data-boogy="avatar"][data-variant="rounded"][data-size="lg"] { border-radius: var(--radius-3); }
+  [data-boogy="avatar"][data-size="sm"] { width: var(--thumb-sm); height: var(--thumb-sm); }
+  [data-boogy="avatar"][data-size="md"] { width: var(--thumb-md); height: var(--thumb-md); }
+  [data-boogy="avatar"][data-size="lg"] { width: var(--thumb-lg); height: var(--thumb-lg); }
+  [data-boogy="avatar"] > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  /* The initials: 42% of the avatar's diameter at every size. */
+  [data-boogy="avatar"] > [data-slot="initials"] { position: relative; font-size: 42cqmin; }
+`;
+
+// Thread and Bubble (see bubble.ts): a column of messages, each on its side.
+// The other person's on a faint fill with a faint edge, yours on the soft
+// accent — both in the ink, so either reads on any ground behind.
+const BUBBLE_CSS = `
+  [data-boogy="thread"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  [data-boogy="bubble"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    align-self: flex-start;
+    gap: var(--space-0);
+    max-width: 80%;
+  }
+  [data-boogy="bubble"][data-side="end"] { align-self: flex-end; align-items: flex-end; }
+  [data-boogy="bubble"] > [data-slot="body"] {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-3);
+    background: var(--fill-hover);
+    color: var(--text-1);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  [data-boogy="bubble"][data-side="end"] > [data-slot="body"] { border-color: transparent; background: var(--accent-soft); }
+  [data-boogy="bubble"] > [data-slot="meta"] {
+    padding-inline: var(--space-1);
+    color: var(--text-3);
+    font-size: var(--fs-caption);
+  }
+`;
+
+// SeededArt: fills its nearest positioned ancestor, cropped to cover it.
+const SEEDED_ART_CSS = `
+  [data-boogy="seeded-art"] { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 `;
 
 // Tile and TileGrid: cards in as many columns as fit. A tile's title clamps to
@@ -839,6 +1009,23 @@ const LIST_CSS = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     color: var(--text-3); font-size: var(--fs-caption);
   }
+  /* With meta: the title and, at the end of its line, the meta. */
+  [data-boogy="list-item"] [data-slot="heading"] { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+  /* The title keeps its width while the meta has any to give (capped at the
+     row, so a long name still ellipsizes on its own). */
+  [data-boogy="list-item"] [data-slot="heading"] > [data-slot="title"] { flex: 1 0 auto; max-width: 100%; min-width: 0; }
+  /* Squeezed, the meta gives up its width first and ellipsizes: the title is
+     the row, the meta a detail. */
+  [data-boogy="list-item"] [data-slot="meta"] {
+    flex: 0 999 auto;
+    min-width: 0;
+    margin-inline-start: auto;
+    color: var(--text-3);
+    font-size: var(--fs-caption);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   [data-boogy="list-item"] > [data-slot="end"] { flex: none; position: relative; }
 ${titleControlCovers('[data-boogy="list-item"]')}
 `;
@@ -848,6 +1035,7 @@ ${titleControlCovers('[data-boogy="list-item"]')}
 const NOTICE_CSS = `
   [data-boogy="notice"] { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
   [data-boogy="notice"][data-tone="warning"] { color: var(--warn); }
+  [data-boogy="notice"][data-tone="danger"] { color: var(--danger); }
 `;
 
 // Info list: labels in one column, values in the other; a long value ends in
@@ -1149,26 +1337,40 @@ const SWATCH_CSS = `
 `;
 
 // --- Tabs (see tabs.ts) ---
-// A row of tabs on a hairline; the selected tab in the full ink with the accent
-// under it, drawn as its own bottom border laid over the row's hairline (the
-// -1px margin), so the two read as one line.
+// A row of tabs on a line: a thin, dim shade of the accent under every tab, and
+// the selected tab in the full ink with the full accent, thicker, under it —
+// drawn as its own bottom border laid over the row's line (the -1px margin), so
+// the two read as one line that brightens under the selected tab.
 const TABS_CSS = `
   [data-boogy="tabs"] > [data-slot="list"] {
     display: flex;
-    gap: var(--space-1);
-    border-bottom: 1px solid var(--edge);
+    gap: 0;
+    border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
   }
   [data-boogy="tabs"] [data-slot="tab"] {
+    position: relative;
     margin-bottom: -1px;
-    padding: var(--space-1) var(--space-2);
+    padding: var(--space-2);
     border: none;
-    border-bottom: var(--ring) solid transparent;
+    border-bottom: var(--underline) solid transparent;
     background: transparent;
     color: var(--text-2);
     font: inherit;
     cursor: pointer;
   }
   [data-boogy="tabs"] [data-slot="tab"]:hover { color: var(--text-1); }
+  /* A faint divider between neighbouring tabs, short of the row's top and
+     bottom. The tabs sit edge to edge (no gap), so it is exactly between two;
+     each tab's padding spaces the labels. */
+  [data-boogy="tabs"] [data-slot="tab"] + [data-slot="tab"]::before {
+    content: "";
+    position: absolute;
+    inset-block: var(--space-2);
+    inset-inline-start: 0;
+    border-inline-start: 1px solid var(--edge);
+  }
+  /* fill: every tab an equal share of the row, its label centred in it */
+  [data-boogy="tabs"][data-fill="true"] [data-slot="tab"] { flex: 1 1 0; }
   [data-boogy="tabs"] [data-slot="tab"][aria-selected="true"] {
     color: var(--text-1);
     border-bottom-color: var(--accent);
@@ -1180,7 +1382,7 @@ const TABS_CSS = `
   [data-boogy="tabs"] > [data-slot="panel"] { outline: none; }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, FIELD_CSS, INLINE_EDIT_CSS, SWATCH_CSS, TABS_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS };
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, TABS_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS };
 
 export const COMPONENTS_CSS = `
 @layer boogy.components {
@@ -1190,7 +1392,11 @@ ${DRAWER_CSS}
 ${POPOVER_CSS}
 ${MENU_CSS}
 ${SHEET_CSS}
+${EMPTY_STATE_CSS}
 ${FIELD_CSS}
+${AVATAR_CSS}
+${SEEDED_ART_CSS}
+${BUBBLE_CSS}
 ${INLINE_EDIT_CSS}
 ${SWATCH_CSS}
 ${TABS_CSS}
