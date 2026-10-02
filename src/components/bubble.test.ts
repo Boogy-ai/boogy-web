@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { bubble, thread, BUBBLE_SIDES } from './bubble';
 import { notice } from './notice';
 import { ruleFor } from '../../test-support/rule-for';
+import { COMPONENTS_CSS } from './components-css';
 
 
 describe('bubble', () => {
@@ -108,5 +109,18 @@ describe('a composer in a sheet foot is the whole bar', () => {
     const r = ruleFor('[data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] > [data-slot="group"]');
     for (const d of ['border: none', 'background: transparent', 'border-radius: 0', 'box-shadow: none']) expect(r).toContain(d);
     expect(ruleFor('[data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] > [data-slot="group"]:focus-within')).toContain('outline: none');
+  });
+});
+
+describe('delivery marks and typing CSS', () => {
+  it('lays the mark beside the time and colours "seen" with the accent', () => {
+    expect(ruleFor('[data-boogy="bubble"] > [data-slot="meta"]')).toMatch(/display: inline-flex/);
+    expect(ruleFor('[data-boogy="delivery-mark"]')).toMatch(/display: inline-flex/);
+    expect(ruleFor('[data-boogy="delivery-mark"][data-status="seen"]')).toMatch(/color: var\(--accent\)/);
+  });
+  it('pulses the typing dots, and stills them under reduced motion', () => {
+    expect(ruleFor('[data-boogy="bubble"][data-typing="true"] [data-slot="dot"]')).toMatch(/animation: boogy-typing/);
+    expect(COMPONENTS_CSS).toMatch(/@keyframes boogy-typing/);
+    expect(COMPONENTS_CSS).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\[data-boogy="bubble"\]\[data-typing="true"\] \[data-slot="dot"\] \{ animation: none; \}/);
   });
 });

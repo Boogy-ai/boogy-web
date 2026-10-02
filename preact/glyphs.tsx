@@ -8,6 +8,8 @@ const PATHS = {
   back: ['m15 18-6-6 6-6'],
   close: ['M18 6 6 18', 'm6 6 12 12'],
   send: ['m5 12 7-7 7 7', 'M12 19V5'],
+  check: ['M20 6 9 17l-5-5'],
+  'check-double': ['M18 6 7 17l-5-5', 'm22 10-7.5 7.5L13 16'],
 } as const;
 
 export type GlyphShape = keyof typeof PATHS;

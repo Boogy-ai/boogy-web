@@ -405,6 +405,52 @@ a board speaks both while apps move over.
 
 ---
 
+## Live channels
+
+A service can push events to its open pages over a channel it declares in its
+manifest. `openStream` is the browser half: it connects to the platform's
+streaming gateway, subscribes with a short-lived grant your service mints,
+renews the grant before it expires, reconnects when the connection drops —
+including when the server ends it — and hands you each typed event
+(`{ type, v, ts, data }`) once, however it arrived.
+
+Your service mints the ticket from one of its own routes — the grant from
+`ws_mint_subscribe_grant(channel, ttl)` plus where to subscribe:
+`{ grant, ttl_secs, owner, service, channel }`, with `owner` and `service` taken
+from the service's own identity, never guessed from the hostname.
+
+```ts
+import { io } from 'socket.io-client';
+import { openStream } from '@boogy/web';
+
+const stream = openStream({
+  io,                                            // socket.io-client v4, passed in
+  mint: async () => {
+    const r = await fetch('api/live/grant', { method: 'POST' });
+    if (!r.ok) throw new Error(`grant: ${r.status}`); // retried after a pause
+    return r.json();
+  },
+  onEvent: (e) => { if (e.type === 'message.received') show(e.data); },
+  onResync: () => reload(),                      // after a reconnect: re-read
+});
+stream.close();                                  // when the page is done with it
+```
+
+In Preact, `useStream(options)` keeps one stream open while the component is
+mounted (and `enabled` is not `false`) and returns its status: `connecting`,
+`live` or `offline`.
+
+The stream is a hint, not the record. After a reconnect, events published while
+the page was away may be gone, so `onResync` is where you re-read real state
+from your service. Events are de-duplicated by their sequence number; an
+unsequenced one is always delivered. `onEvent`'s third argument says whether an
+event is replayed history, sent once on subscribe, rather than something that
+just happened — a typing signal from then, say, is long over.
+
+For chat-shaped pages, `Bubble` takes a `status` (`sent`, `delivered` or
+`seen`) that draws delivery marks after its time, and `TypingBubble` shows the
+other person typing.
+
 ## Errors
 
 The SDK throws a single error type with a closed-enum `code`. Always discriminate on `code`, never on the message string.

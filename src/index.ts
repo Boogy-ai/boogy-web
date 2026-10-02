@@ -90,3 +90,5 @@ export type { PaneHandle, ConnectPaneOptions } from './pane';
 export { createShell, MAX_TITLE_LENGTH } from './shell';
 export type { Shell, ShellEvents, PaneRegistration } from './shell';
 export { PANE_PROTOCOL } from './internal/pane-protocol';
+export { openStream, parseEnvelope, REMINT_AT } from './stream';
+export type { StreamTicket, StreamEnvelope, StreamStatus, StreamSocket, StreamConnect, StreamOptions } from './stream';

@@ -889,9 +889,34 @@ const BUBBLE_CSS = `
   }
   [data-boogy="bubble"][data-side="end"] > [data-slot="body"] { border-color: transparent; background: var(--accent-soft); }
   [data-boogy="bubble"] > [data-slot="meta"] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
     padding-inline: var(--space-1);
     color: var(--text-3);
     font-size: var(--fs-caption);
+  }
+  /* Delivery: one check sent, two delivered, two in the accent seen. */
+  [data-boogy="delivery-mark"] { display: inline-flex; color: var(--text-3); }
+  [data-boogy="delivery-mark"][data-status="seen"] { color: var(--accent); }
+  /* Typing: three dots on the other person's side, pulsing in turn. */
+  [data-boogy="bubble"][data-typing="true"] > [data-slot="body"] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  [data-boogy="bubble"][data-typing="true"] [data-slot="dot"] {
+    width: var(--space-2);
+    height: var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--text-3);
+    animation: boogy-typing 1.2s infinite ease-in-out;
+  }
+  [data-boogy="bubble"][data-typing="true"] [data-slot="dot"]:nth-child(2) { animation-delay: 0.15s; }
+  [data-boogy="bubble"][data-typing="true"] [data-slot="dot"]:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes boogy-typing { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    [data-boogy="bubble"][data-typing="true"] [data-slot="dot"] { animation: none; }
   }
 `;
 

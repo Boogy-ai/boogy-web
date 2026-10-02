@@ -72,3 +72,6 @@ export type { ZoomControlsProps } from './zoom';
 export { TextField } from './text-field';
 export type { TextFieldProps } from './text-field';
 export type { SearchFieldProps } from './search-field';
+export { useStream } from './stream';
+export { DeliveryMark, TypingBubble } from './delivery';
+export type { DeliveryStatus } from './delivery';

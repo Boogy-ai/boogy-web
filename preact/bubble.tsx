@@ -3,6 +3,7 @@
 // person's, `end` for your own — with its time (`meta`) beneath.
 import type { ComponentChildren, JSX } from 'preact';
 import { bubble, thread, type BubbleSide } from '@boogy/web';
+import { DeliveryMark, type DeliveryStatus } from './delivery';
 
 export type ThreadProps = {
   /** The thread's accessible name ("Messages with carol"). */
@@ -19,15 +20,22 @@ export type BubbleProps = {
   side?: BubbleSide;
   /** Beneath the text: its time, say. */
   meta?: ComponentChildren;
+  /** Your own message's delivery — sent, delivered or seen — marked after `meta`. */
+  status?: DeliveryStatus;
   /** The message's text; its line breaks are kept. */
   children?: ComponentChildren;
 } & JSX.HTMLAttributes<HTMLDivElement>;
 
-export function Bubble({ side, meta, children, ...rest }: BubbleProps) {
+export function Bubble({ side, meta, status, children, ...rest }: BubbleProps) {
   return (
     <div {...rest} {...bubble({ side })}>
       <div data-slot="body">{children}</div>
-      {meta != null && <div data-slot="meta">{meta}</div>}
+      {(meta != null || status) && (
+        <div data-slot="meta">
+          {meta}
+          {status && <DeliveryMark status={status} />}
+        </div>
+      )}
     </div>
   );
 }
