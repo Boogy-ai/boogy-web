@@ -32,7 +32,7 @@ async function at(zoom: number, box: { w: number; h: number }) {
   return page.evaluate(
     (zoom, box, attrs, style) => {
       const root = document.documentElement;
-      root.style.setProperty('--zoom', String(zoom));
+      root.style.setProperty('--u-zoom', String(zoom));
       const outer = document.createElement('div');
       outer.setAttribute('data-surface', 'both');
       outer.style.width = `${box.w}px`;
@@ -101,7 +101,7 @@ describe('a page that sizes its root font from the SDK (as an app shell does)', 
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(css + '\nhtml, body { font: var(--fs-body)/1.5 monospace; }');
       document.adoptedStyleSheets = [sheet];
-      if (zoom !== 1) document.documentElement.style.setProperty('--zoom', String(zoom));
+      if (zoom !== 1) document.documentElement.style.setProperty('--u-zoom', String(zoom));
       const root = getComputedStyle(document.documentElement);
       return {
         u: parseFloat(root.getPropertyValue('--u')),

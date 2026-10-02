@@ -1,4 +1,4 @@
-// The interface zoom: one multiplier on the size unit (`--zoom`, which every
+// The interface zoom: one multiplier on the size unit (`--u-zoom`, which every
 // `--u` declaration in the foundation multiplies by). It is the product of two
 // values: this app's OWN, which its controls step and this browser remembers,
 // and the HOST's, which a board framing the page may send. A board can size
@@ -102,10 +102,10 @@ function apply(): void {
   if (typeof document !== 'undefined') {
     const root = document.documentElement;
     if (s.zoom === 1) {
-      root.style.removeProperty('--zoom');
+      root.style.removeProperty('--u-zoom');
       root.removeAttribute('data-zoom');
     } else {
-      root.style.setProperty('--zoom', String(s.zoom));
+      root.style.setProperty('--u-zoom', String(s.zoom));
       root.setAttribute('data-zoom', '');
     }
   }

@@ -21,7 +21,7 @@ describe('the zoom store', () => {
     const z = await fresh();
     z.initZoom();
     expect(z.zoomState()).toEqual({ zoom: 1, own: 1, host: 1, canZoomIn: true, canZoomOut: true });
-    expect(root().style.getPropertyValue('--zoom')).toBe('');
+    expect(root().style.getPropertyValue('--u-zoom')).toBe('');
     expect(root().hasAttribute('data-zoom')).toBe(false);
   });
 
@@ -52,11 +52,11 @@ describe('the zoom store', () => {
     z.zoomIn();
     z.setHostZoom(1.5);
     expect(z.zoomState().zoom).toBeCloseTo(1.65);
-    expect(Number(root().style.getPropertyValue('--zoom'))).toBeCloseTo(1.65);
+    expect(Number(root().style.getPropertyValue('--u-zoom'))).toBeCloseTo(1.65);
     expect(root().hasAttribute('data-zoom')).toBe(true);
     z.clearHostZoom();
     z.resetZoom();
-    expect(root().style.getPropertyValue('--zoom')).toBe('');
+    expect(root().style.getPropertyValue('--u-zoom')).toBe('');
     expect(root().hasAttribute('data-zoom')).toBe(false);
   });
 
@@ -167,7 +167,7 @@ describe('the zoom store', () => {
     Object.defineProperty(document, 'adoptedStyleSheets', { configurable: true, writable: true, value: [] });
     const { installFoundation } = await import('./install');
     installFoundation();
-    expect(root().style.getPropertyValue('--zoom')).toBe('1.5');
+    expect(root().style.getPropertyValue('--u-zoom')).toBe('1.5');
     vi.unstubAllGlobals();
   });
 });

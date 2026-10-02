@@ -23,7 +23,7 @@ export const FOUNDATION_CSS = `
 @property --u { syntax: '<length>'; inherits: true; initial-value: 16px; }
 @property --u-inline { syntax: '<length>'; inherits: true; initial-value: 16px; }
 @property --u-block { syntax: '<length>'; inherits: true; initial-value: 16px; }
-@property --zoom { syntax: '<number>'; inherits: true; initial-value: 1; }
+@property --u-zoom { syntax: '<number>'; inherits: true; initial-value: 1; }
 
 @layer boogy.foundation {
   :root {
@@ -35,9 +35,9 @@ export const FOUNDATION_CSS = `
        unit (html { font: var(--fs-body) … }), and a root unit derived from the
        root's font would be a cycle, which a browser resolves by dropping the
        tokens (Firefox does, per spec). */
-    --u: calc(16px * var(--zoom));
-    --u-inline: calc(16px * var(--zoom));
-    --u-block: calc(16px * var(--zoom));
+    --u: calc(16px * var(--u-zoom));
+    --u-inline: calc(16px * var(--u-zoom));
+    --u-block: calc(16px * var(--u-zoom));
 
     /* knobs */
     --hue: 250;
@@ -193,19 +193,19 @@ export const FOUNDATION_CSS = `
   /* The zoom multiplies OUTSIDE each expression, so zooming in is never
      clamped back by a scale's cap. */
   [data-u-policy="fixed"] {
-    --u: calc(var(--u-base) * var(--zoom));
-    --u-inline: calc(var(--u-base) * var(--zoom));
-    --u-block: calc(var(--u-base) * var(--zoom));
+    --u: calc(var(--u-base) * var(--u-zoom));
+    --u-inline: calc(var(--u-base) * var(--u-zoom));
+    --u-block: calc(var(--u-base) * var(--u-zoom));
   }
   [data-u-policy="clamped"] {
-    --u: calc(clamp(var(--u-floor), calc(var(--_ub) * var(--u-factor)), var(--u-cap)) * var(--zoom));
-    --u-inline: calc(clamp(var(--u-floor), calc(1cqi * var(--u-factor)), var(--u-cap)) * var(--zoom));
-    --u-block: calc(clamp(var(--u-floor), calc(1cqb * var(--u-factor)), var(--u-cap)) * var(--zoom));
+    --u: calc(clamp(var(--u-floor), calc(var(--_ub) * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
+    --u-inline: calc(clamp(var(--u-floor), calc(1cqi * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
+    --u-block: calc(clamp(var(--u-floor), calc(1cqb * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
   }
   [data-u-policy="fluid"] {
-    --u: calc(max(var(--u-floor), calc(var(--_ub) * var(--u-factor))) * var(--zoom));
-    --u-inline: calc(max(var(--u-floor), calc(1cqi * var(--u-factor))) * var(--zoom));
-    --u-block: calc(max(var(--u-floor), calc(1cqb * var(--u-factor))) * var(--zoom));
+    --u: calc(max(var(--u-floor), calc(var(--_ub) * var(--u-factor))) * var(--u-zoom));
+    --u-inline: calc(max(var(--u-floor), calc(1cqi * var(--u-factor))) * var(--u-zoom));
+    --u-block: calc(max(var(--u-floor), calc(1cqb * var(--u-factor))) * var(--u-zoom));
   }
 }
 `;

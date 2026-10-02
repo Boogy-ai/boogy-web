@@ -1,6 +1,6 @@
 {
   "name": "@boogy/web",
-  "version": "0.3.22",
+  "version": "0.3.23",
   "description": "Browser SDK for Boogy \u2014 sign-in, app connection, and credentialed fetch.",
   "license": "MIT",
   "type": "module",

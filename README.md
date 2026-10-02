@@ -333,7 +333,7 @@ an app that fills a browser window of its own.
 
 ### Zoom
 
-A person can make your whole interface larger or smaller. `--zoom` multiplies
+A person can make your whole interface larger or smaller. `--u-zoom` multiplies
 the same size unit, so every component, size token and line of plain text grows
 or shrinks together. Hairlines, shadows and images keep their shape. This is
 not browser zoom.

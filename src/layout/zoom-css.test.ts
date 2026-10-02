@@ -7,14 +7,14 @@ const unitDeclarations = () =>
   [...CODE.matchAll(/(--u(?:-inline|-block)?):\s*([^;]+);/g)].map((m) => ({ name: m[1], value: m[2].trim() }));
 
 describe('interface zoom in the foundation', () => {
-  it('registers --zoom as a number that defaults to 1', () => {
-    expect(CODE).toContain("@property --zoom { syntax: '<number>'; inherits: true; initial-value: 1; }");
+  it('registers --u-zoom as a number that defaults to 1', () => {
+    expect(CODE).toContain("@property --u-zoom { syntax: '<number>'; inherits: true; initial-value: 1; }");
   });
 
-  it('multiplies every declaration of the unit by --zoom: the root default and all three policies', () => {
+  it('multiplies every declaration of the unit by --u-zoom: the root default and all three policies', () => {
     const decls = unitDeclarations();
     expect(decls).toHaveLength(12);
-    for (const d of decls) expect(d.value, `${d.name}: ${d.value}`).toMatch(/\* var\(--zoom\)\)?$/);
+    for (const d of decls) expect(d.value, `${d.name}: ${d.value}`).toMatch(/\* var\(--u-zoom\)\)?$/);
   });
 
   it('a zoomed page sizes its plain text from the unit, as a scaled one does', () => {
@@ -25,5 +25,9 @@ describe('interface zoom in the foundation', () => {
     const root = CODE.slice(CODE.indexOf(':root {'));
     const decl = /--u:\s*([^;]+);/.exec(root)![1];
     expect(decl).not.toMatch(/rem|em\b|var\(--u-base\)/);
+  });
+
+  it('the zoom variable is prefixed: no bare --zoom an app could collide with', () => {
+    expect(CODE).not.toMatch(/--zoom\b/);
   });
 });

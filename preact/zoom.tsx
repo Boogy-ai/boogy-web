@@ -31,29 +31,43 @@ export type ZoomControlsProps = {
   largerLabel?: string;
 };
 
-export function ZoomControls({
-  value, onValueChange, size, label = 'Size', smallerLabel = 'Smaller', largerLabel = 'Larger',
-}: ZoomControlsProps) {
-  const page = useZoom();
-  const current = value ?? page.own;
-  const step = (direction: 1 | -1) => {
-    if (value === undefined) {
-      if (direction === 1) page.zoomIn(); else page.zoomOut();
-      return;
-    }
-    const next = stepZoom(value, direction);
-    if (next !== value) onValueChange?.(next);
-  };
+type StepperProps = Omit<ZoomControlsProps, 'value' | 'onValueChange'> & {
+  value: number;
+  step: (direction: 1 | -1) => void;
+};
+
+/** The two buttons over a value, stepped by `step`: no state of its own. */
+function ZoomStepper({ value, step, size, label = 'Size', smallerLabel = 'Smaller', largerLabel = 'Larger' }: StepperProps) {
   return (
     <div {...zoomControls()} aria-label={label}>
       <Button variant="quiet" shape="icon" size={size} label={smallerLabel} data-slot="smaller"
-              disabled={!canStepZoom(current, -1)} onClick={() => step(-1)}>
+              disabled={!canStepZoom(value, -1)} onClick={() => step(-1)}>
         <span data-slot="letter" aria-hidden="true">A</span>
       </Button>
       <Button variant="quiet" shape="icon" size={size} label={largerLabel} data-slot="larger"
-              disabled={!canStepZoom(current, 1)} onClick={() => step(1)}>
+              disabled={!canStepZoom(value, 1)} onClick={() => step(1)}>
         <span data-slot="letter" aria-hidden="true">A</span>
       </Button>
     </div>
+  );
+}
+
+/** The page's own zoom: the one form that subscribes, because it shows it. */
+function PageZoomControls(props: Omit<ZoomControlsProps, 'value' | 'onValueChange'>) {
+  const { own, zoomIn, zoomOut } = useZoom();
+  return <ZoomStepper {...props} value={own} step={(d) => (d === 1 ? zoomIn() : zoomOut())} />;
+}
+
+export function ZoomControls({ value, onValueChange, ...rest }: ZoomControlsProps) {
+  if (value === undefined) return <PageZoomControls {...rest} />;
+  return (
+    <ZoomStepper
+      {...rest}
+      value={value}
+      step={(d) => {
+        const next = stepZoom(value, d);
+        if (next !== value) onValueChange?.(next);
+      }}
+    />
   );
 }
