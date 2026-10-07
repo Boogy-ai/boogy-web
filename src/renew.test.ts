@@ -4,7 +4,7 @@ import { loadPlatformConfig } from './internal/platform-config';
 
 beforeAll(async () => {
   vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-    new Response(JSON.stringify({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', shellOrigins: [] }), { status: 200 }),
+    new Response(JSON.stringify({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', shellOrigins: [], service: 'boards' }), { status: 200 }),
   );
   await loadPlatformConfig();
   vi.restoreAllMocks();
@@ -13,10 +13,10 @@ beforeAll(async () => {
 beforeEach(() => sessionStorage.clear());
 afterEach(() => vi.restoreAllMocks());
 
-const me = { pairwiseId: 'pw', services: ['boards'], displayName: 'Alice', handle: 'alice', avatarUrl: null };
+const me = { pairwiseId: 'pw', displayName: 'Alice', handle: 'alice', avatarUrl: null };
 
 describe('Boogy.currentUser', () => {
-  it('returns the whole session the platform reports, name and covered services included', async () => {
+  it('returns the whole session the platform reports, name included', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(me), { status: 200 }));
     await expect(new Boogy().currentUser('alice/boards')).resolves.toEqual(me);
   });
@@ -30,13 +30,13 @@ describe('Boogy.renew', () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
-  it('after currentUser saw a session, renews once — with renewAudiences — then waits out the cooldown', async () => {
+  it('after currentUser saw a session, renews once — that one app — then waits out the cooldown', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(me), { status: 200 }));
-    const boogy = new Boogy({ renewAudiences: () => ['alice/notes'] });
+    const boogy = new Boogy();
     const connect = vi.spyOn(boogy, 'connectApp').mockResolvedValue(undefined);
     await boogy.currentUser('alice/boards');
     expect(boogy.renew('alice/boards')).toBe(true);
-    expect(connect).toHaveBeenCalledWith(['alice/boards', 'alice/notes']);
+    expect(connect).toHaveBeenCalledWith('alice/boards');
     expect(boogy.renew('alice/boards')).toBe(false);
     expect(connect).toHaveBeenCalledTimes(1);
   });
@@ -85,7 +85,7 @@ describe('Boogy.signOut result', () => {
 
 describe('Boogy.refreshSession', () => {
   it('POSTs /boogy/renew on its own origin and reports success', async () => {
-    const f = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"services":["boards"]}', { status: 200 }));
+    const f = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"service":"boards"}', { status: 200 }));
     await expect(new Boogy().refreshSession('alice/boards')).resolves.toBe(true);
     expect(f).toHaveBeenCalledWith(
       'https://alice.boogy.ai/boogy/renew',

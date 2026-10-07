@@ -34,7 +34,7 @@ beforeAll(async () => {
   vite = await createServer({
     root, logLevel: 'silent', server: { port: 0 },
     plugins: [
-      boogyDev({ owner: 'o', service: 's', mount: '/s', users: [],
+      boogyDev({ owner: 'o', service: 's', users: [],
         api: { mode: 'proxy', target: `http://127.0.0.1:${port}`, host: 'o.example', token: 'real' } }),
       echo,
     ],

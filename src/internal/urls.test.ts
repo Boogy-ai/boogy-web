@@ -1,18 +1,14 @@
 import { describe, it, expect, vi, afterEach, afterAll, beforeAll } from 'vitest';
 import {
   parseApp,
-  parseApps,
   baseFromHost,
   appOrigin,
   authOrigin,
-  authorizeUrl,
-  MAX_AUDIENCES,
-  siteSignOutUrl,
 } from './urls';
 import { loadPlatformConfig } from './platform-config';
 import type { BoogyError } from '../errors';
 
-// The `appOrigin`/`authOrigin`/`authorizeUrl` tests below use the STATIC
+// The `appOrigin`/`authOrigin` tests below use the STATIC
 // top-level import above, so they share ONE platform-config instance for the
 // whole file — seeded once here, before any test runs, with the same
 // owner/authOrigin fixture every existing assertion already assumes
@@ -24,7 +20,7 @@ import type { BoogyError } from '../errors';
 beforeAll(async () => {
   vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
     new Response(
-      JSON.stringify({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', shellOrigins: [] }),
+      JSON.stringify({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', shellOrigins: [], service: 'notes' }),
       { status: 200 },
     ),
   );
@@ -34,7 +30,7 @@ beforeAll(async () => {
 
 // ─── Config-driven origins (task B3a) ──────────────────────────────────────
 //
-// `appOrigin`/`authOrigin`/`authorizeUrl` now read from the platform-config
+// `appOrigin`/`authOrigin` now read from the platform-config
 // singleton (`./platform-config`) instead of taking a `base` string. Each
 // test below needs a FRESH module graph — `platformConfig()`'s cache is
 // module-scoped state, and a test that loaded config would otherwise leak
@@ -45,7 +41,8 @@ async function withLoadedConfig(config: {
   authOrigin: string;
   owner: string;
   shellOrigins?: string[];
-  appOriginTemplate?: string;
+  service?: string;
+  mount?: string;
 }) {
   vi.resetModules();
   const { loadPlatformConfig } = await import('./platform-config');
@@ -63,33 +60,55 @@ describe('appOrigin / authOrigin — config-driven origins (decisions 1–3)', (
     vi.restoreAllMocks();
   });
 
-  it('own owner: appOrigin returns the PAGE origin, not a constructed one', async () => {
-    vi.stubGlobal('location', { origin: 'https://alice.boogy.ai' });
-    const urls = await withLoadedConfig({ authOrigin: 'https://auth.boogy.ai', owner: 'alice' });
-    expect(urls.appOrigin('alice')).toBe('https://alice.boogy.ai');
+  it('its own service: appOrigin returns the PAGE origin, not a constructed one', async () => {
+    vi.stubGlobal('location', { origin: 'https://boards.boogy.app' });
+    const urls = await withLoadedConfig({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', service: 'boards' });
+    expect(urls.appOrigin('alice', 'boards')).toBe('https://boards.boogy.app');
   });
 
-  // `/boogy/config` carries `owner`, `authOrigin` and `shellOrigins` — nothing
-  // that names the tenant BASE domain. `authOrigin` is not reliably
-  // `auth.<base>`: the host resolves it from `BOOGY_AUTH_ORIGIN`, which
-  // accepts any absolute origin an operator sets, so stripping a leading
-  // label off it to reconstruct a foreign owner's origin is a GUESS dressed
-  // up as a derivation — the exact defect this slice exists to remove,
-  // reintroduced in the one branch the local dev fake platform never
-  // exercises (it serves same-owner sign-in only, so a wrong guess here
-  // would ship green). So this throws instead: a cross-owner `appOrigin` is
-  // UNSUPPORTED until `/boogy/config` grows an explicit base-domain field —
-  // a host-side change, not made in this slice.
-  it('foreign owner: appOrigin throws rather than guess a base domain — cross-owner origins are unsupported', async () => {
-    vi.stubGlobal('location', { origin: 'https://alice.boogy.ai' });
+  // On a service's own label the platform names its one service, and that is
+  // the only app the label serves: its origin is this page's own, and any
+  // other app is not here at any path.
+  it('on a service\'s own label: that service is this origin, and no other app is', async () => {
+    vi.stubGlobal('location', { origin: 'https://chats-k3v9.boogy.app' });
+    const urls = await withLoadedConfig({ authOrigin: 'https://auth.boogy.app', owner: 'dave', service: 'chats' });
+    expect(urls.appOrigin('dave', 'chats')).toBe('https://chats-k3v9.boogy.app');
+    for (const [owner, service] of [['dave', 'notes'], ['erin', 'chats']]) {
+      expect(() => urls.appOrigin(owner, service), `${owner}/${service}`).toThrow(expect.objectContaining({ code: 'app_not_found' }));
+    }
+  });
+
+  // A verified custom domain, or a designated label, is bound to one service
+  // too, and the platform names it there: the owner's other services are not
+  // served on that origin, at any path.
+  it('on a bound origin: its one service is this origin, and the owner\'s other services are not', async () => {
+    vi.stubGlobal('location', { origin: 'https://notes.example.com' });
+    const urls = await withLoadedConfig({ authOrigin: 'https://auth.boogy.app', owner: 'dave', service: 'notes' });
+    expect(urls.appOrigin('dave', 'notes')).toBe('https://notes.example.com');
+    expect(() => urls.appOrigin('dave', 'chats')).toThrow(expect.objectContaining({ code: 'app_not_found', app: 'dave/chats' }));
+  });
+
+  // Another app's address is a label the platform allocated (`notes-k3v9`):
+  // nothing on this page can compose it from the app's owner and id, and a
+  // guess would send the request to whatever answers there. So it is refused,
+  // naming the app, rather than composed.
+  it('another owner\'s app: refused as not served here, never composed', async () => {
+    vi.stubGlobal('location', { origin: 'https://boards.boogy.app' });
     const urls = await withLoadedConfig({ authOrigin: 'https://auth.boogy.ai', owner: 'alice' });
-    expect(() => urls.appOrigin('bob')).toThrow(/base domain|not supported|cross-owner/i);
+    let thrown: unknown;
+    try {
+      urls.appOrigin('bob', 'notes');
+    } catch (e) {
+      thrown = e;
+    }
+    expect((thrown as BoogyError).code).toBe('app_not_found');
+    expect((thrown as BoogyError).app).toBe('bob/notes');
   });
 
   it('appOrigin throws when config was never loaded — no hostname fallback', async () => {
     vi.resetModules();
     const urls = await import('./urls');
-    expect(() => urls.appOrigin('alice')).toThrow();
+    expect(() => urls.appOrigin('alice', 'notes')).toThrow();
   });
 
   it('authOrigin reads the auth origin from config, not from any part of the hostname', async () => {
@@ -103,12 +122,11 @@ describe('appOrigin / authOrigin — config-driven origins (decisions 1–3)', (
     expect(() => urls.authOrigin()).toThrow();
   });
 
-  // Decision 3: `/boogy/config` deliberately 404s on a verified custom
-  // domain (no `/boogy/*` surface exists there at all). Pinning this as an
-  // honest failure — rather than a silent fallback to the hostname — is
-  // what stops a future "fix" from quietly reintroducing the derive-from-
-  // hostname defect this module exists to remove.
-  it('a verified custom domain — where /boogy/config 404s — fails honestly instead of falling back to the hostname', async () => {
+  // An origin the platform has no config for answers `/boogy/config` with a
+  // 404. Pinning this as an honest failure — rather than a silent fallback to
+  // the hostname — is what stops a future "fix" from quietly reintroducing
+  // the derive-from-hostname defect this module exists to remove.
+  it('an origin where /boogy/config 404s fails honestly instead of falling back to the hostname', async () => {
     vi.resetModules();
     const { loadPlatformConfig } = await import('./platform-config');
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
@@ -119,7 +137,7 @@ describe('appOrigin / authOrigin — config-driven origins (decisions 1–3)', (
 
     const urls = await import('./urls');
     expect(() => urls.authOrigin()).toThrow();
-    expect(() => urls.appOrigin('anyone')).toThrow();
+    expect(() => urls.appOrigin('anyone', 'notes')).toThrow();
   });
 });
 
@@ -178,8 +196,8 @@ describe('baseFromHost', () => {
 // needs per-test config control that this file-wide fixture doesn't give.
 describe('appOrigin', () => {
   it('builds the own-owner origin from the page location', () => {
-    vi.stubGlobal('location', { origin: 'https://alice.boogy.ai' });
-    expect(appOrigin('alice')).toBe('https://alice.boogy.ai');
+    vi.stubGlobal('location', { origin: 'https://notes-k3v9.boogy.app' });
+    expect(appOrigin('alice', 'notes')).toBe('https://notes-k3v9.boogy.app');
     vi.unstubAllGlobals();
   });
 });
@@ -190,234 +208,50 @@ describe('authOrigin', () => {
   });
 });
 
-describe('authorizeUrl', () => {
-  const params = {
-    owner: 'alice',
-    services: ['notes'],
-    redirect: '/notes/callback',
-    state: 'abc123',
-    codeChallenge: 'challenge_value',
-    mode: 'popup' as const,
-  };
+describe('appBaseUrl', () => {
+  async function withConfig(body: object) {
+    vi.resetModules();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify(body), { status: 200 }));
+    const config = await import('./platform-config');
+    await config.loadPlatformConfig();
+    vi.restoreAllMocks();
+    return import('./urls');
+  }
 
-  beforeAll(() => {
-    vi.stubGlobal('location', { origin: 'https://alice.boogy.ai' });
+  it('is the origin itself on the app\'s own origin', async () => {
+    const urls = await withConfig({ authOrigin: 'https://auth.example', owner: 'dave', shellOrigins: [], service: 'chats' });
+    expect(urls.appBaseUrl('dave', 'chats')).toBe(location.origin);
   });
 
-  afterAll(() => {
-    vi.unstubAllGlobals();
+  // Every service is served at the root of its own address, so its routes
+  // start at the origin, never under a path named for the service.
+  it('is the origin itself, never a path under it', async () => {
+    const urls = await withConfig({ authOrigin: 'https://auth.example', owner: 'dave', shellOrigins: [], service: 'boards' });
+    expect(urls.appBaseUrl('dave', 'boards')).toBe(location.origin);
   });
 
-  it('points to auth subdomain', () => {
-    const u = new URL(authorizeUrl(params));
-    expect(u.origin).toBe('https://auth.boogy.ai');
+  // An origin the platform names no service for serves no app at all.
+  it('refuses every app where the platform names no service', async () => {
+    const urls = await withConfig({ authOrigin: 'https://auth.example', owner: 'dave', shellOrigins: [] });
+    expect(() => urls.appBaseUrl('dave', 'boards')).toThrow(/names no service/);
   });
 
-  it('has /authorize path', () => {
-    const u = new URL(authorizeUrl(params));
-    expect(u.pathname).toBe('/authorize');
-  });
-
-  it('sets aud to workload URI', () => {
-    const u = new URL(authorizeUrl(params));
-    expect(u.searchParams.get('aud')).toBe('boogy://alice/services/notes');
-  });
-
-  it('sets app_origin to subdomain', () => {
-    const u = new URL(authorizeUrl(params));
-    expect(u.searchParams.get('app_origin')).toBe('https://alice.boogy.ai');
-  });
-
-  it('sets mode', () => {
-    const u = new URL(authorizeUrl(params));
-    expect(u.searchParams.get('mode')).toBe('popup');
-  });
-
-  it('sets redirect', () => {
-    const u = new URL(authorizeUrl(params));
-    expect(u.searchParams.get('redirect')).toBe('/notes/callback');
-  });
-
-  it('sets state', () => {
-    const u = new URL(authorizeUrl(params));
-    expect(u.searchParams.get('state')).toBe('abc123');
-  });
-
-  it('sets code_challenge', () => {
-    const u = new URL(authorizeUrl(params));
-    expect(u.searchParams.get('code_challenge')).toBe('challenge_value');
-  });
-
-  it('appends one aud param per service, in order — not the last one only', () => {
-    const u = new URL(authorizeUrl({ ...params, services: ['notes', 'todos'] }));
-    expect(u.searchParams.getAll('aud')).toEqual([
-      'boogy://alice/services/notes',
-      'boogy://alice/services/todos',
-    ]);
-  });
-});
-
-describe('parseApps', () => {
-  it('normalises a single string into a one-app batch', () => {
-    expect(parseApps('alice/notes')).toEqual({ owner: 'alice', services: ['notes'] });
-  });
-
-  it('collects services from multiple apps under the same owner', () => {
-    expect(parseApps(['alice/notes', 'alice/todos'])).toEqual({
-      owner: 'alice',
-      services: ['notes', 'todos'],
-    });
-  });
-
-  it('deduplicates a repeated app, preserving first-seen order', () => {
-    expect(parseApps(['alice/notes', 'alice/todos', 'alice/notes'])).toEqual({
-      owner: 'alice',
-      services: ['notes', 'todos'],
-    });
-  });
-
-  it('throws on an empty batch', () => {
-    expect(() => parseApps([])).toThrow();
-  });
-
-  it('throws naming the offending app when a batch spans owners', () => {
-    expect(() => parseApps(['alice/notes', 'bob/todos'])).toThrow(/bob\/todos/);
-  });
-
-  it('populates BoogyError.app with the offending app on a cross-owner batch', () => {
-    try {
-      parseApps(['alice/notes', 'bob/todos']);
-      throw new Error('expected parseApps to throw');
-    } catch (e) {
-      expect((e as BoogyError).app).toBe('bob/todos');
+  // A service's own label serves its ONE service: another service is not
+  // here at any path, so addressing it here would send the request to this
+  // app's own backend (a 200 with the wrong app's page, a write to the wrong
+  // service). Refused, naming the app, rather than misaddressed.
+  it('refuses any other app on a service\'s own label', async () => {
+    const urls = await withConfig({ authOrigin: 'https://auth.example', owner: 'dave', shellOrigins: [], service: 'chats' });
+    for (const [owner, service] of [['dave', 'notes'], ['erin', 'chats'], ['erin', 'notes']]) {
+      let thrown: unknown;
+      try {
+        urls.appBaseUrl(owner, service);
+      } catch (e) {
+        thrown = e;
+      }
+      expect((thrown as Error | undefined)?.name, `${owner}/${service}`).toBe('BoogyError');
+      expect((thrown as BoogyError).code).toBe('app_not_found');
+      expect((thrown as BoogyError).app).toBe(`${owner}/${service}`);
     }
-  });
-
-  it('throws naming the count and the limit over the cap', () => {
-    const apps = Array.from({ length: MAX_AUDIENCES + 1 }, (_, i) => `alice/svc${i}`);
-    expect(() => parseApps(apps)).toThrow(new RegExp(String(MAX_AUDIENCES + 1)));
-    expect(() => parseApps(apps)).toThrow(new RegExp(String(MAX_AUDIENCES)));
-  });
-
-  it('over the cap with duplicates present, names BOTH the raw count and the distinct count', () => {
-    // MAX_AUDIENCES + 1 distinct entries, one of them repeated once =>
-    // MAX_AUDIENCES + 2 raw, MAX_AUDIENCES + 1 distinct — still over the cap.
-    const apps = [
-      ...Array.from({ length: MAX_AUDIENCES + 1 }, (_, i) => `alice/svc${i}`),
-      'alice/svc0',
-    ];
-    expect(apps).toHaveLength(MAX_AUDIENCES + 2);
-
-    let message = '';
-    try {
-      parseApps(apps);
-    } catch (e) {
-      message = (e as Error).message;
-    }
-    expect(message).toContain(String(MAX_AUDIENCES + 2)); // the raw count the caller passed
-    expect(message).toContain(String(MAX_AUDIENCES + 1)); // the distinct count actually checked against the cap
-  });
-
-  it('allows exactly the cap with no error', () => {
-    const apps = Array.from({ length: MAX_AUDIENCES }, (_, i) => `alice/svc${i}`);
-    expect(parseApps(apps).services).toHaveLength(MAX_AUDIENCES);
-  });
-
-  /// The cap is DERIVED from the header arithmetic, not chosen — pinned against
-  /// the number the design reasons from, not just against itself. Every test
-  /// above derives its expectation FROM `MAX_AUDIENCES`, so none of them can
-  /// catch the constant itself drifting to the wrong value; this is the one
-  /// that pins the literal (mirrors `sso::MAX_AUDS`'s own Rust-side test).
-  it('MAX_AUDIENCES leaves real headroom under the proxy line', () => {
-    expect(MAX_AUDIENCES).toBe(32);
-    expect(MAX_AUDIENCES * 136).toBeLessThan(8 * 1024);
-    expect(MAX_AUDIENCES * 2 * 136).toBeGreaterThan(8 * 1024);
-  });
-});
-
-describe('siteSignInUrl / siteSignOutUrl — a board signing the apps\' site in and out', () => {
-  // The board shell is one owner's service; the apps it frames are often
-  // ANOTHER person's, on that person's site. The config below is the shell's
-  // (owner `tester`), so an `aud` naming `tester` for alice's site is the
-  // defect — the site refuses any audience but its own owner's.
-  const SHELL = {
-    authOrigin: 'https://auth.boogy.ai',
-    owner: 'tester',
-    appOriginTemplate: 'https://{owner}.boogy.ai',
-  };
-
-  it('names every app under the SITE\'s owner, never the shell\'s', async () => {
-    const urls = await withLoadedConfig(SHELL);
-    const u = new URL(
-      urls.siteSignInUrl({
-        site: 'https://alice.boogy.ai',
-        services: ['squad', 'notes'],
-        returnTo: 'https://boards.boogy.ai/boards/b/1',
-      }),
-    );
-    expect(u.origin).toBe('https://alice.boogy.ai');
-    expect(u.pathname).toBe('/boogy/signin');
-    expect(u.searchParams.getAll('aud')).toEqual(['boogy://alice/services/squad', 'boogy://alice/services/notes']);
-    expect(u.searchParams.get('redirect')).toBe('https://boards.boogy.ai/boards/b/1');
-  });
-
-  it('the shell owner\'s own site is named under the shell owner', async () => {
-    const urls = await withLoadedConfig(SHELL);
-    const u = new URL(urls.siteSignInUrl({ site: 'https://tester.boogy.ai', services: ['squad'], returnTo: '/' }));
-    expect(u.searchParams.getAll('aud')).toEqual(['boogy://tester/services/squad']);
-  });
-
-  it('takes only the origin of the site it is given', async () => {
-    const urls = await withLoadedConfig(SHELL);
-    const u = new URL(urls.siteSignInUrl({ site: 'https://alice.boogy.ai/squad/x', services: ['squad'], returnTo: '/' }));
-    expect(u.origin + u.pathname).toBe('https://alice.boogy.ai/boogy/signin');
-    expect(u.searchParams.getAll('aud')).toEqual(['boogy://alice/services/squad']);
-  });
-
-  it('the scheme and port the platform publishes are part of the match', async () => {
-    const urls = await withLoadedConfig({ ...SHELL, appOriginTemplate: 'https://{owner}.local.boogy.app:8443' });
-    const u = new URL(
-      urls.siteSignInUrl({ site: 'https://dave.local.boogy.app:8443/squad', services: ['squad'], returnTo: '/' }),
-    );
-    expect(u.searchParams.getAll('aud')).toEqual(['boogy://dave/services/squad']);
-    for (const site of ['https://dave.local.boogy.app/squad', 'http://dave.local.boogy.app:8443/squad']) {
-      expect(() => urls.siteSignInUrl({ site, services: ['squad'], returnTo: '/' }), site).toThrow(
-        expect.objectContaining({ code: 'app_not_found' }),
-      );
-    }
-  });
-
-  it('a default port spelled out in the template still matches the origin a URL reports', async () => {
-    const urls = await withLoadedConfig({ ...SHELL, appOriginTemplate: 'HTTPS://{owner}.Boogy.AI:443' });
-    const u = new URL(urls.siteSignInUrl({ site: 'https://alice.boogy.ai/squad', services: ['squad'], returnTo: '/' }));
-    expect(u.searchParams.getAll('aud')).toEqual(['boogy://alice/services/squad']);
-  });
-
-  it('refuses a site that names no owner, rather than sending a trip the site refuses', async () => {
-    const urls = await withLoadedConfig(SHELL);
-    for (const site of [
-      'https://a.b.boogy.ai', // two labels where one handle goes
-      'https://boogy.ai', // the bare base
-      'https://alice.boogy.ai.evil.example', // the base as a prefix of someone else's
-      'https://apps.example.com', // a host outside the tenant base
-      'not a url',
-    ]) {
-      expect(() => urls.siteSignInUrl({ site, services: ['squad'], returnTo: '/' }), site).toThrow(
-        expect.objectContaining({ code: 'app_not_found' }),
-      );
-    }
-  });
-
-  it('refuses when the platform publishes no app-origin template', async () => {
-    const urls = await withLoadedConfig({ authOrigin: 'https://auth.boogy.ai', owner: 'tester' });
-    expect(() =>
-      urls.siteSignInUrl({ site: 'https://alice.boogy.ai', services: ['squad'], returnTo: '/' }),
-    ).toThrow(expect.objectContaining({ code: 'config_unavailable' }));
-  });
-
-  it('signs the apps\' site out with the way back', () => {
-    const u = new URL(siteSignOutUrl({ site: 'https://alice.boogy.ai', returnTo: 'https://boards.boogy.ai/boards/' }));
-    expect(u.origin + u.pathname).toBe('https://alice.boogy.ai/boogy/logout');
-    expect(u.searchParams.get('redirect')).toBe('https://boards.boogy.ai/boards/');
   });
 });

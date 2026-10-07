@@ -11,7 +11,7 @@ export type ApiMode =
   | { mode: 'proxy'; target: string; host: string; token?: string }
   | { mode: 'mock'; handlers: Record<string, MockHandler> };
 
-/** Match `"GET /boards/:id"`-style keys against a method and a mount-relative API path. */
+/** Match `"GET /boards/:id"`-style keys against a method and an API path relative to the app's root. */
 export function matchMock(
   handlers: Record<string, MockHandler>,
   method: string,

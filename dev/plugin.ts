@@ -15,10 +15,7 @@ const FONT_NAME = /^[a-z0-9-]+(?:\.[0-9]+)*\.woff2$/;
 export interface BoogyDevOptions {
   owner: string;
   service: string;
-  /** Where the app is deployed, e.g. "/boards", or "/" for an app served at
-   *  its origin's root. Used to build the upstream path when proxying. */
-  mount: string;
-  /** API subtree relative to the mount (and, in dev, to the dev server's
+  /** API subtree relative to the app's root (and, in dev, to the dev server's
    *  root). Default "/api". */
   apiPrefix?: string;
   users: DevUser[];
@@ -95,12 +92,13 @@ function send(res: ServerResponse, r: FakeResponse): void {
 }
 
 export function boogyDev(opts: BoogyDevOptions): Plugin {
+  // There is no mount to configure: every app is served at the root of its
+  // own address, so a proxied request goes upstream at the path the app sent.
   const fake = createFakePlatform({ owner: opts.owner, service: opts.service, users: opts.users, consoleOrigin: opts.consoleOrigin });
-  // The dev server serves the app at ITS root, so the app's relative
-  // `./api/...` calls arrive at `<apiPrefix>/...` here whatever the deployed
-  // mount is. The mount only matters upstream, when proxying.
+  // The dev server serves the app at ITS root, as the platform serves it at
+  // the root of its own address, so the app's relative `./api/...` calls
+  // arrive at `<apiPrefix>/...` here and go upstream unchanged.
   const apiBase = opts.apiPrefix ?? '/api';
-  const mount = opts.mount === '/' ? '' : opts.mount.replace(/\/$/, '');
   const badge = opts.api?.mode === 'proxy' ? BADGE_JS.replace("'dev: '", "'dev (API: real account): '") : BADGE_JS;
 
   return {
@@ -109,7 +107,7 @@ export function boogyDev(opts: BoogyDevOptions): Plugin {
     transformIndexHtml() {
       return [
         // The platform injects a <base href> into every document it serves, so
-        // the app's relative URLs resolve from its mount at any route depth.
+        // the app's relative URLs resolve from its root at any route depth.
         // The dev server serves the app at its root; this is the same base.
         { tag: 'base', attrs: { href: '/' }, injectTo: 'head-prepend' },
         { tag: 'script', attrs: { type: 'module', src: '/__boogy/dev/badge.js' }, injectTo: 'body' },
@@ -202,7 +200,7 @@ export function boogyDev(opts: BoogyDevOptions): Plugin {
               send(res, { status: out.status ?? 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(out.body ?? null) });
               return;
             }
-            await proxy(api, freq, `${mount}${url}`, body, res);
+            await proxy(api, freq, url, body, res);
             return;
           }
           next();

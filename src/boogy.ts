@@ -1,16 +1,15 @@
 import type { BoogyOptions, CurrentUser, Grant } from './types';
 import { BoogyError } from './errors';
-import { parseApp, parseApps, appOrigin, authOrigin, authorizeUrl } from './internal/urls';
-import { randomVerifier, s256Challenge, randomState } from './internal/pkce';
-import { setPkceCookie } from './internal/cookies';
-import { runAuthFlow } from './internal/popup';
+import { parseApp, appOrigin, appBaseUrl, authOrigin } from './internal/urls';
 import { runInstallFlow, takeInstalled, type InstallModuleOptions, type Installed } from './internal/install-flow';
+import { loadPlatformConfig, type PlatformConfig } from './internal/platform-config';
+import { requestSignInFromFramer } from './pane';
 
 // ─── Silent re-authorization guards ────────────────────────────────────────
 //
-// A `401` from `Boogy.fetch` re-authorizes by driving `/authorize` again —
-// but that flow can navigate the whole page away (`authMode: 'redirect'`),
-// so doing it unconditionally is unsafe in two distinct ways this module
+// A `401` from `Boogy.fetch` re-authorizes by sending the person through the
+// platform's sign-in again — but that can navigate the whole page away, so
+// doing it unconditionally is unsafe in two distinct ways this module
 // guards against:
 //
 // 1. A caller who has never held a session would be bounced to `/authorize`
@@ -96,9 +95,9 @@ function canAttemptRenewal(): boolean {
  * ```
  */
 /**
- * In a frame, sign-in must neither open a popup nor navigate: the frame's board
- * owns sign-in, and does one top-level round trip for every app it frames. A
- * frame whose `top` cannot even be compared counts as framed.
+ * In a frame, sign-in must neither open a popup nor navigate: the board
+ * framing it owns sign-in. A frame whose `top` cannot even be compared counts
+ * as framed.
  */
 function isFramed(): boolean {
   try {
@@ -108,31 +107,143 @@ function isFramed(): boolean {
   }
 }
 
+/** This origin's platform configuration, or null when the platform did not
+ *  answer — then this page is taken to be on no origin that names a service. */
+async function configHere(): Promise<PlatformConfig | null> {
+  try {
+    return await loadPlatformConfig();
+  } catch {
+    return null;
+  }
+}
+
+/** Whether this origin holds a session (for the one service it
+ *  serves): `GET /boogy/me` on this page's own origin. Any failure reads as
+ *  signed out. */
+async function signedInHere(): Promise<boolean> {
+  try {
+    const res = await globalThis.fetch('/boogy/me', { credentials: 'same-origin' });
+    if (res.status !== 200) return false;
+    return (await res.json()) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `path` on `origin`, for a request that carries the app's cookies — refused
+ * with `url_not_allowed` unless it stays on that origin. `path` must start
+ * with exactly one `/`: anything else joined onto an origin can name another
+ * host or port (`.evil.example/x`, `:8443/x`, `//evil.example`, `/\\evil`).
+ */
+function onOrigin(origin: string, path: string, app: string): string {
+  const url = `${origin}${path}`;
+  let stays = path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/\\');
+  if (stays) {
+    try {
+      stays = new URL(url).origin === new URL(origin).origin;
+    } catch {
+      stays = false;
+    }
+  }
+  if (!stays) {
+    throw new BoogyError('url_not_allowed', `"${path}" is not a path on ${app}'s address: it must start with exactly one "/".`, app);
+  }
+  return url;
+}
+
+/**
+ * `/boogy/signin` on this origin, for the one service it serves (the platform
+ * knows which; none is named here): the platform
+ * starts the classic sign-in there — it keeps the PKCE verifier itself — and
+ * brings the person back to `redirect`, a path on this origin.
+ */
+function labelSignInUrl(): string {
+  const query = new URLSearchParams({
+    // A path, with leading slashes collapsed: `//host` would name another host.
+    redirect: location.pathname.replace(/^\/+/, '/') + location.search,
+  });
+  return `/boogy/signin?${query}`;
+}
+
+/**
+ * Where an app's sign-in is the platform's to make rather than this page's —
+ * in a frame, or on an origin that names its one service (a service's own
+ * label, a verified custom domain, a designated reserved label; the platform
+ * names none anywhere else) — `true` once it is taken care of:
+ * - signed in already (this origin's own session): nothing more to do;
+ * - framed and signed out: the page framing this one is told so and asked, and
+ *   it is leaving for sign-in (or says the app is signed in after all);
+ * - shown alone and signed out: the page goes to this origin's own
+ *   `/boogy/signin`, and never settles, since it is leaving.
+ * Rejects `sign_in_busy` when the page framing this one says a sign-in went too
+ * recently, `sign_in_unavailable` when no such page is connected or none
+ * answered, and `app_not_found` for a sign-in, framed or not, for an app the
+ * origin does not serve. `false` elsewhere: the classic sign-in is this page's
+ * to make.
+ *
+ * A frame never starts a sign-in itself: the sign-in page refuses to be framed.
+ */
+async function signInByPlatform(app?: string): Promise<boolean> {
+  const config = await configHere();
+  const service = config?.service;
+  const framed = isFramed();
+  if (!framed && service === undefined) return false;
+  // An origin that names its one service serves no other, framed or not.
+  if (config && service !== undefined && app !== undefined && app !== `${config.owner}/${service}`) {
+    throw new BoogyError('app_not_found', `"${app}" is not served here: this origin serves only "${config.owner}/${service}".`, app);
+  }
+  if (!framed && config && service !== undefined) {
+    if (await signedInHere()) return true;
+    location.assign(labelSignInUrl());
+    return new Promise<never>(() => {});
+  }
+  if (await signedInHere()) return true;
+  const result = await requestSignInFromFramer();
+  if (result === 'leaving' || result === 'already_signed_in') return true;
+  if (typeof result === 'object') {
+    throw new BoogyError(
+      'sign_in_busy',
+      `A sign-in went moments ago. Try again in ${Math.ceil(result.busy / 1000)} seconds.`,
+      app,
+    );
+  }
+  console.warn('[@boogy/web] sign-in: this app is signed in by the page framing it, and none answered.');
+  throw new BoogyError(
+    'sign_in_unavailable',
+    'This app is signed in by the page that shows it, and no such page is connected. Open the app at its own address.',
+    app,
+  );
+}
+
 export class Boogy {
   private readonly authMode: 'popup' | 'redirect';
-  private readonly renewAudiences?: () => readonly string[];
 
   constructor(options: BoogyOptions = {}) {
     this.authMode = options.authMode ?? 'popup';
-    this.renewAudiences = options.renewAudiences;
   }
 
   // ─── App-origin tier ──────────────────────────────────────────────────────
 
   /**
-   * Ensure a bootstrap session exists on the auth origin.
+   * Sign the person in to the one app this origin serves.
    *
-   * In v1, the auth-origin session is established lazily the first time
-   * `connectApp` or `fetch` drives the `/authorize` flow (the auth origin
-   * checks for an existing session and prompts login if absent).
-   * There is no standalone bootstrap endpoint, so calling `signIn()` without
-   * a subsequent `connectApp`/`fetch` is a no-op — it resolves immediately.
+   * On an origin that names its one service — a service's own label, a
+   * verified custom domain, a designated reserved label — it resolves at once
+   * when this origin already holds a session. Signed out and shown alone, the
+   * page goes to this origin's own `/boogy/signin` (and never settles: it is
+   * leaving). In a frame, the page framing this one is asked to sign the app
+   * in (see `connectApp`).
    *
-   * Expose this method to allow "Sign in" buttons that want to signal intent
-   * before the user navigates to a specific app page.
+   * Anywhere else — an origin that names no single service — there is no one
+   * app to sign in to, and it resolves at once without doing anything: name
+   * the app with `connectApp(app)` or `fetch` there.
    */
   async signIn(): Promise<void> {
-    // No-op in v1: session bootstrap is driven lazily by connectApp / fetch.
+    // In a frame, or on an origin that names its one service: resolved at once
+    // when this origin holds a session, else the platform signs it in.
+    if (await signInByPlatform()) return;
+    // Elsewhere there is no one app to sign in to; `connectApp(app)` names one.
     return;
   }
 
@@ -162,39 +273,11 @@ export class Boogy {
   }
 
   /**
-   * Ensure a consent grant and a fresh `boogy_app` cookie for one or more apps.
-   *
-   * Runs the `/authorize` popup (or redirect) flow. `app` is either a single
-   * `owner/service` app identifier, or a list of them — a batch signs every
-   * app in one consent round-trip (e.g. every pane of a board), instead of
-   * prompting once per app.
-   *
-   * A batch is validated locally, before any network request:
-   * - every app in the batch must belong to the same owner (a batch that
-   *   mixes owners is rejected, naming the app that doesn't match);
-   * - a repeated app is silently collapsed to one;
-   * - the platform accepts at most `MAX_AUDIENCES` distinct apps per
-   *   authorization request — a larger batch is rejected, naming the count
-   *   and the limit, rather than sent and refused with no detail.
-   *
-   * If a valid cookie already exists, call sites should check `currentUser`
-   * first and skip calling this (the "no-op if already connected"
-   * optimisation is left to the caller to avoid an extra network round-trip here).
-   */
-  /** The failing app first and always included, then `renewAudiences`'s apps
-   *  — `connectApp` (via `parseApps`) dedupes the combined list and refuses it
-   *  outright if it's over the cap or spans owners. */
-  private renewalBatch(app: string): string | readonly string[] {
-    const extra = this.renewAudiences?.() ?? [];
-    return extra.length > 0 ? [app, ...extra] : app;
-  }
-
-  /**
-   * Re-authorize `app` (with `renewAudiences`) because its session expired,
-   * under the same guards as `fetch`'s renewal: only in a tab that has held a
-   * session, at most once per cooldown, never after `signOut` — and never in a
-   * frame, where the board owns sign-in. Try `refreshSession` first: it renews
-   * with no page change.
+   * Re-authorize `app` because its session expired, under the same guards as
+   * `fetch`'s renewal: only in a tab that has held a session, at most once per
+   * cooldown, never after `signOut` — and never in a frame, where the board
+   * owns sign-in. Try `refreshSession` first: it renews with no page
+   * change.
    *
    * For an app whose own requests do not go through `fetch` — call it on a
    * `401` from them, or when `currentUser` answers signed-out in a tab that
@@ -206,14 +289,7 @@ export class Boogy {
   renew(app: string): boolean {
     // Framed: never — the board signs this app in (see `isFramed`).
     if (isFramed() || !canAttemptRenewal()) return false;
-    let batch: string | readonly string[];
-    try {
-      batch = this.renewalBatch(app);
-    } catch (e) {
-      console.warn('[@boogy/web] Boogy.renew: renewAudiences failed.', e);
-      return true;
-    }
-    this.connectApp(batch).catch((e) => {
+    this.connectApp(app).catch((e) => {
       console.warn('[@boogy/web] Boogy.renew: silent renewal failed.', e);
     });
     return true;
@@ -231,7 +307,8 @@ export class Boogy {
   async refreshSession(app: string): Promise<boolean> {
     let origin: string;
     try {
-      origin = appOrigin(parseApp(app).owner);
+      const { owner, service } = parseApp(app);
+      origin = appOrigin(owner, service);
     } catch {
       return false;
     }
@@ -248,27 +325,49 @@ export class Boogy {
     }
   }
 
-  async connectApp(app: string | readonly string[]): Promise<void> {
-    const { owner, services } = parseApps(app);
+  /**
+   * Ensure a consent grant and a fresh `boogy_app` cookie for ONE app.
+   *
+   * An app session covers exactly one service, so this names one
+   * `owner/service` app, and the platform makes the sign-in: this page runs none
+   * of its own.
+   *
+   * On an origin that names its one service (a service's own label, a
+   * verified custom domain, a designated reserved label), shown alone, the
+   * platform runs that sign-in: when this origin already holds a session it
+   * resolves at once, and otherwise the page goes to its own `/boogy/signin`
+   * (a redirect) and never settles. Such an origin
+   * serves one service, so an `app` naming another rejects with
+   * `app_not_found`, framed or not.
+   *
+   * In a frame it starts no sign-in. When this origin already holds a session
+   * it resolves at once; otherwise it tells the board framing this one the app
+   * is signed out and asks it to make the trip, as `PaneHandle.requestSignIn`
+   * does, resolving once that page is leaving. It rejects with `sign_in_busy`
+   * when that page says a sign-in went moments ago, and `sign_in_unavailable`
+   * when no such page is connected or answers.
+   *
+   * On any other origin — one the platform names no service for — there is no
+   * sign-in to make: it rejects with `sign_in_unavailable` and goes nowhere.
+   *
+   * If a valid cookie already exists, call sites should check `currentUser`
+   * first and skip calling this (the "no-op if already connected"
+   * optimisation is left to the caller to avoid an extra network round-trip here).
+   */
+  async connectApp(app: string): Promise<void> {
+    parseApp(app);
 
-    const verifier = randomVerifier();
-    const challenge = await s256Challenge(verifier);
-    const state = randomState();
+    // In a frame, or on an origin that names its one service, the platform
+    // makes the trip: the board framing this page, or its `/boogy/signin`.
+    if (await signInByPlatform(app)) return;
 
-    // Write the verifier into a short-lived, path-scoped cookie on the app origin.
-    // The host's /boogy/callback (same origin) reads it to complete the PKCE exchange.
-    setPkceCookie(verifier);
-
-    const redirect = location.pathname + location.search;
-    const url = authorizeUrl({ owner, services, redirect, state, codeChallenge: challenge, mode: this.authMode });
-
-    await runAuthFlow({ authorizeUrl: url, appOrigin: appOrigin(owner), mode: this.authMode });
-
-    // A completed authorization is as strong an "authenticated in this tab"
-    // signal as a successful API response — arm here too, not only in
-    // `fetch`, so a direct `connectApp` call (outside a 401 retry) also
-    // arms renewal for a later expiry.
-    noteAuthenticated();
+    // Anywhere else the page has no sign-in of its own to run: a service's
+    // address, a board's, or an app token's is where a person signs in.
+    throw new BoogyError(
+      'sign_in_unavailable',
+      'This origin signs in through the platform only, and names no service to sign in to. Open the app at its own address.',
+      app,
+    );
   }
 
   /**
@@ -281,8 +380,8 @@ export class Boogy {
    * Only if that could not help, AND this tab has previously seen an
    * authenticated response (from this method or a completed `connectApp`), AND
    * the page is not framed (a board owns its frames' sign-in), does it
-   * re-authorize — runs `connectApp` once (popup/redirect flow) and retries the
-   * request exactly once.  The retry result is returned
+   * re-authorize — runs `connectApp(app)` once (popup/redirect flow) and retries
+   * the request exactly once.  The retry result is returned
    * as-is — there is NO second retry even if the retried response is also 401.
    *
    * Silent renewal is guarded, in this order:
@@ -297,30 +396,20 @@ export class Boogy {
    *   marker before it issues its own request, so a 401 racing a sign-out
    *   cannot re-authorize the very session being ended.
    *
-   * When `renewAudiences` was supplied to the constructor, a renewal
-   * authorizes the failing app's own audience together with whatever that
-   * function currently returns, in one consent round-trip — e.g. every pane
-   * of a multi-app page — rather than renewing one app at a time as each
-   * one's session happens to expire. The failing app is always included,
-   * whatever `renewAudiences` returns: it's the request that actually 401'd.
+   * If the renewal attempt fails outright, that failure does NOT propagate.
+   * It's logged via `console.warn` and the original `401` `Response` is
+   * returned, exactly as if renewal had never been attempted.
    *
-   * There is no truncation here: if the combined batch is over the
-   * platform's per-request audience cap (`MAX_AUDIENCES`), `connectApp`
-   * refuses it outright — the same as a batch that spans owners — rather
-   * than silently signing in some of the apps and leaving the rest out.
-   *
-   * If the renewal attempt fails outright — `renewAudiences` itself throws,
-   * or the batch is invalid (over the cap, or spanning owners) — that
-   * failure does NOT propagate. It's logged via `console.warn` and the
-   * original `401` `Response` is returned, exactly as if renewal had never
-   * been attempted.
+   * `path` is a path on the app's own address, starting with exactly one
+   * `/`; anything else rejects with `BoogyError('url_not_allowed')`, sending
+   * nothing, since joined onto the origin it could name another host or port.
    *
    * HTTP error statuses (4xx / 5xx) are returned as-is and do NOT cause a throw.
    * Network / CORS failures throw `BoogyError('network')`.
    */
   async fetch(app: string, path: string, init?: RequestInit): Promise<Response> {
     const { owner, service } = parseApp(app);
-    const url = `${appOrigin(owner)}/${service}${path}`;
+    const url = onOrigin(appBaseUrl(owner, service), path, app);
 
     let res: Response;
     try {
@@ -343,23 +432,19 @@ export class Boogy {
     if (res.status === 401 && !isFramed() && canAttemptRenewal()) {
       // `canAttemptRenewal()` above has already written the cooldown mark,
       // BEFORE anything below runs — deliberately. A renewal attempt that
-      // fails right here (a broken `renewAudiences`, or a batch this SDK's
-      // own local validation rejects) still burns the cooldown window, so a
-      // caller stuck in this state gets one attempt per window rather than
-      // retrying — and failing — on every single request. Do not "fix" this
-      // by moving the mark after a successful renewal.
+      // fails right here still burns the cooldown window, so a caller stuck in
+      // this state gets one attempt per window rather than retrying — and
+      // failing — on every single request. Do not "fix" this by moving the
+      // mark after a successful renewal.
       let renewed = false;
       try {
-        const audiences = this.renewalBatch(app);
-        await this.connectApp(audiences);
+        await this.connectApp(app);
         renewed = true;
       } catch (e) {
         // Renewal is an optimisation on top of an ordinary 401 — its failure
         // must never turn that 401 into an exception the caller's error
-        // handling isn't expecting. Reached when `renewAudiences` itself
-        // throws, or when the batch is invalid (over the cap, or spanning
-        // owners). Fall through and return the original 401 below, but say so
-        // loudly enough that a developer whose provider is broken can find out.
+        // handling isn't expecting. Fall through and return the original 401
+        // below, but say so loudly enough that a developer can find out.
         console.warn('[@boogy/web] Boogy.fetch: silent renewal failed; returning the original 401.', e);
       }
       if (renewed) {
@@ -379,24 +464,20 @@ export class Boogy {
   /**
    * Check whether an end-user is currently authenticated on the given app.
    *
-   * GETs `<app-origin>/boogy/me?service=<service>` with `credentials:'include'`.
+   * GETs `<app-origin>/boogy/me` with `credentials:'same-origin'`.
    * The host returns either a JSON `{pairwiseId, connectedAt}` object or the
    * literal JSON `null` (both on 200).  Any non-200, parse failure, or network
    * error returns `null` without throwing — this is a pure read-only probe.
    *
-   * `?service=` is what makes the answer be about THIS app.  The app-session
-   * cookie is named per service and one tenant origin serves every one of that
-   * owner's services, so an unnamed `/boogy/me` answers with whichever session on
-   * the origin verifies first — i.e. with the browser's cookie-header order.  On
-   * an origin with sibling apps that can be a different app's session, and this
-   * probe would report a user who is not signed in to `app` at all.
+   * The answer is about the one app this origin serves: naming any other app
+   * rejects with `app_not_found` before anything is sent.
    */
   async currentUser(app: string): Promise<CurrentUser | null> {
     const { owner, service } = parseApp(app);
-    const url = `${appOrigin(owner)}/boogy/me?service=${encodeURIComponent(service)}`;
+    const url = `${appOrigin(owner, service)}/boogy/me`;
 
     try {
-      const res = await globalThis.fetch(url, { credentials: 'include' });
+      const res = await globalThis.fetch(url, { credentials: 'same-origin' });
       if (res.status !== 200) return null;
       const body = await res.json();
       if (body === null) return null;
@@ -412,15 +493,9 @@ export class Boogy {
   /**
    * Sign the user out.
    *
-   * - `signOut(app)` — POSTs `<app-origin>/boogy/logout?service=<service>` with
-   *   `credentials:'include'` to clear the app-session cookie for that specific
-   *   app.  Never throws (best-effort).
-   *
-   *   `?service=` is what makes "that specific app" true.  The cookie is named
-   *   per service, and an UNNAMED logout emits a clearing header for every app
-   *   session on the origin — so signing out of one app under a handle signed the
-   *   user out of every sibling app under it too. (Where the origin holds one
-   *   session covering every pane, the platform clears that one session.)
+   * - `signOut(app)` — POSTs `<app-origin>/boogy/logout` with
+   *   `credentials:'include'` to clear the app's session: the origin's one
+   *   session, which covers that one app.  Never throws (best-effort).
    *
    * - `signOut({ all: true })` — POSTs `<auth-origin>/_agents/logout` with
    *   `credentials:'include'` to clear the global bootstrap session.
@@ -447,7 +522,7 @@ export class Boogy {
 
     if (typeof target === 'string') {
       const { owner, service } = parseApp(target);
-      const url = `${appOrigin(owner)}/boogy/logout?service=${encodeURIComponent(service)}`;
+      const url = `${appOrigin(owner, service)}/boogy/logout`;
       // Never throws: an HTTP error or network failure resolves `false`.
       try {
         const res = await globalThis.fetch(url, { method: 'POST', credentials: 'include' });

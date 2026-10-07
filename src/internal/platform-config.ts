@@ -20,26 +20,29 @@ export interface PlatformConfig {
   owner: string;
   /**
    * The origins of the platform shells that may frame a deployment at this
-   * origin. A pane must be TOLD this rather than infer it. Empty when no
-   * shell is designated, which is the default.
+   * origin: the framers this origin's own policy admits. A pane must be TOLD
+   * this rather than infer it. Empty when nothing may frame it, which is also
+   * the case on the board shell itself (see `boardShell`).
    */
   shellOrigins: string[];
   /**
-   * How ANY owner's apps are addressed: an absolute origin with one literal
-   * `{owner}` where the owner's handle goes, e.g.
-   * `https://{owner}.boogy.app`. The platform publishes it whole — scheme,
-   * base domain and port — so a page never composes an app origin out of its
-   * own `location`. Absent when the platform serves no owner subdomains.
-   *
-   * `owner` above is THIS origin's owner. On a board shell that is the
-   * shell's, and the apps it frames are usually someone else's: this is how
-   * the page relates those apps' origins to their owner.
+   * The one service this origin serves, where it serves exactly one: a
+   * service's own address (its label, e.g. `https://notes-k3v9.boogy.app`), a
+   * verified custom domain bound to it, or a designated reserved label such as
+   * the boards origin. Absent where no single service is served. A page with
+   * it is on its app's own origin, and no other app is served there.
    */
-  appOriginTemplate?: string;
+  service?: string;
+  /**
+   * Whether this origin is the platform's board shell: the boards origin, where
+   * a board signs its apps in. `true` there and `false` everywhere else,
+   * including Boards served at any other address.
+   *
+   * Not `shellOrigins`: that lists who may frame this origin, and the boards
+   * origin lets nothing frame it, so it is empty there.
+   */
+  boardShell: boolean;
 }
-
-/** The placeholder `appOriginTemplate` carries where an owner handle goes. */
-export const OWNER_PLACEHOLDER = '{owner}';
 
 const CONFIG_PATH = '/boogy/config';
 
@@ -61,11 +64,12 @@ export function parsePlatformConfig(body: unknown): PlatformConfig {
     throw new BoogyError('config_unavailable', 'the platform config response was not an object');
   }
 
-  const { authOrigin, owner, shellOrigins, appOriginTemplate } = body as {
+  const { authOrigin, owner, shellOrigins, service, boardShell } = body as {
     authOrigin?: unknown;
     owner?: unknown;
     shellOrigins?: unknown;
-    appOriginTemplate?: unknown;
+    service?: unknown;
+    boardShell?: unknown;
   };
 
   if (typeof owner !== 'string' || !owner) {
@@ -85,21 +89,15 @@ export function parsePlatformConfig(body: unknown): PlatformConfig {
     ? shellOrigins.filter((o): o is string => typeof o === 'string')
     : [];
 
-  const config: PlatformConfig = { authOrigin: authOrigin.replace(/\/+$/, ''), owner, shellOrigins: origins };
-  if (usableTemplate(appOriginTemplate)) config.appOriginTemplate = appOriginTemplate;
+  const config: PlatformConfig = {
+    authOrigin: authOrigin.replace(/\/+$/, ''),
+    owner,
+    shellOrigins: origins,
+    // Only a literal `true` is a yes: anything else, or nothing, is no.
+    boardShell: boardShell === true,
+  };
+  if (typeof service === 'string' && service) config.service = service;
   return config;
-}
-
-/**
- * Whether `value` is a template this SDK can substitute: an absolute http(s)
- * origin carrying the placeholder exactly once. Anything else is dropped
- * rather than half-used — a template that cannot be matched both ways would
- * name the wrong owner, and naming no owner refuses honestly instead.
- */
-function usableTemplate(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  if (!/^https?:\/\//i.test(value)) return false;
-  return value.split(OWNER_PLACEHOLDER).length === 2;
 }
 
 /** The actual fetch-and-parse, factored out so `loadPlatformConfig` can wrap it in single-flight. */

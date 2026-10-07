@@ -2,7 +2,12 @@ export { Boogy } from './boogy';
 export { BoogyError } from './errors';
 export type { BoogyOptions, CurrentUser, Grant } from './types';
 export { loadPlatformConfig, platformConfig } from './internal/platform-config';
-export { siteSignInUrl, siteSignOutUrl } from './internal/urls';
+export { startExchangeSignIn, exchangeSignInUrl, MAX_SIGN_IN_PANES } from './exchange/flow';
+export type { ExchangeSignIn, ExchangeSignInHere, ExchangeSignInFrom } from './exchange/flow';
+export { requestAppToken, completeAppToken } from './token/flow';
+export type { AppToken, AppTokenRequest } from './token/flow';
+export { appTokenSession, SESSION_KEY_PREFIX, REFRESH_SKEW_MS } from './token/session';
+export type { AppTokenSession, AppTokenSessionOptions, SessionEnv, SessionLocks } from './token/session';
 export type { PlatformConfig } from './internal/platform-config';
 export { scale, surface, withScale, DEFAULT_SCALE } from './layout/scale';
 export type { Axis, Policy, Scale, ScaleAttrs, Sized } from './layout/scale';
@@ -41,7 +46,6 @@ export {
   mountInstallConsent,
   bootInstallConsent,
   serviceIdProblem,
-  mountPathProblem,
   INSTALL_CONSENT_CSS,
   INSTALL_DATA_ID,
   INSTALL_ROOT_ID,
@@ -84,11 +88,12 @@ export type { InfoListAttrs } from './components/info-list';
 export { detailHeader } from './components/detail-header';
 export type { DetailHeaderAttrs } from './components/detail-header';
 export type { SheetAttrs, FieldAttrs, FieldOptions, SectionAttrs } from './components/sheet';
-export type { TakenApp } from './consent/install';
-export { connectPane } from './pane';
+export { connectPane, SIGN_IN_REPLY_TIMEOUT_MS } from './pane';
 export type { PaneHandle, ConnectPaneOptions } from './pane';
-export { createShell, MAX_TITLE_LENGTH } from './shell';
-export type { Shell, ShellEvents, PaneRegistration } from './shell';
+export { createShell, MAX_TITLE_LENGTH, PANE_SANDBOX, TRIP_COOLDOWN_MS } from './shell';
+export { isServiceLabel } from './internal/service-label';
+export type { Shell, ShellEvents, ShellOptions, PaneRegistration } from './shell';
 export { PANE_PROTOCOL } from './internal/pane-protocol';
+export type { PaneHost, PaneLastSignIn, PaneSignInResult } from './internal/pane-protocol';
 export { openStream, parseEnvelope, REMINT_AT } from './stream';
 export type { StreamTicket, StreamEnvelope, StreamStatus, StreamSocket, StreamConnect, StreamOptions } from './stream';

@@ -7,7 +7,7 @@ import { boogyDev, type BoogyDevOptions } from './plugin.js';
  * upgrades this; the app's config stays its own.
  *
  * - Relative asset paths (`base: './'`): the platform injects the right
- *   `<base href>` at serve time, so one build works at any mount. An explicit
+ *   `<base href>` at serve time, so one build works wherever it is served. An explicit
  *   `base` in the app's own config still wins.
  * - The local dev platform (`boogyDev`), active under `vite` only.
  */

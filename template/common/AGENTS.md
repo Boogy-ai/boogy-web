@@ -15,6 +15,6 @@ A Boogy frontend on @boogy/web {{sdk_version}}.
 - Upgrading: the layout, theme, dev platform, Vite preset and TypeScript base
   all live in `@boogy/web`. In dist mode bump it in `package.json`; in source
   mode redeploy. `boogy new --upgrade` refreshes this block only.
-- Sign-in works on your `<handle>.<base>` origin. It does not work on a custom
-  domain today; serve signed-in pages from the tenant subdomain.
+- Sign-in works on your app's own address (the `URL:` that `boogy deploy`
+  prints) and on a verified custom domain bound to it.
 <!-- END BOOGY SCAFFOLD -->

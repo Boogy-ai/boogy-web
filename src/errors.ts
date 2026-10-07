@@ -12,7 +12,11 @@ export class BoogyError extends Error {
     | 'config_unavailable'
     | 'network'
     | 'install_cancelled'
-    | 'install_aborted';
+    | 'install_aborted'
+    | 'sign_in_unavailable'
+    | 'sign_in_busy'
+    | 'sign_in_required'
+    | 'url_not_allowed';
 
   /** The `owner/service` app identifier, when the error is app-specific. */
   readonly app?: string;

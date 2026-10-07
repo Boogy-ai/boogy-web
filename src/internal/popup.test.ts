@@ -1,10 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runAuthFlow } from './popup';
+import { awaitPopup } from './popup';
+import { BoogyError } from '../errors';
 
 const APP_ORIGIN = 'https://alice.boogy.ai';
 const AUTH_URL = 'https://auth.boogy.ai/authorize?foo=1';
 
-describe('runAuthFlow — popup mode', () => {
+// A small popup flow built on awaitPopup, the way the install flow drives it:
+// done resolves, cancelled rejects consent_denied.
+function runAuthFlow({ authorizeUrl, appOrigin }: { authorizeUrl: string; appOrigin: string; mode: 'popup' }): Promise<void> {
+  return awaitPopup<void>({
+    url: authorizeUrl,
+    name: 'boogy_sso',
+    origin: appOrigin,
+    blocked: () => new BoogyError('popup_blocked', 'The sign-in popup was blocked by the browser.'),
+    aborted: () => new BoogyError('sign_in_aborted', 'The sign-in popup was closed before completion.'),
+    decide(data) {
+      const boogy = (data as { boogy?: string } | null)?.boogy;
+      if (boogy === 'sso_done') return { value: undefined };
+      if (boogy === 'sso_cancelled') return { error: new BoogyError('consent_denied', 'The user cancelled the sign-in.') };
+      return null;
+    },
+  });
+}
+
+describe('awaitPopup', () => {
   let fakePopup: { closed: boolean; close: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -90,61 +109,5 @@ describe('runAuthFlow — popup mode', () => {
       'boogy_sso',
       expect.stringContaining('popup'),
     );
-  });
-});
-
-describe('runAuthFlow — redirect mode', () => {
-  afterEach(() => {
-    sessionStorage.clear();
-  });
-
-  it('persists pending state to sessionStorage and navigates', () => {
-    // We can't easily test location.assign in happy-dom; just verify sessionStorage is set
-    // and that the function is called without throwing.
-    const assignSpy = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
-
-    runAuthFlow({ authorizeUrl: AUTH_URL, appOrigin: APP_ORIGIN, mode: 'redirect' });
-
-    const raw = sessionStorage.getItem('boogy_sso_pending');
-    expect(raw).not.toBeNull();
-    const stored = JSON.parse(raw!);
-    expect(stored).toHaveProperty('returnTo');
-    expect(assignSpy).toHaveBeenCalledWith(AUTH_URL);
-  });
-
-  it('returns a never-resolving promise (the page navigates away)', async () => {
-    vi.spyOn(window.location, 'assign').mockImplementation(() => {});
-
-    const flowPromise = runAuthFlow({
-      authorizeUrl: AUTH_URL,
-      appOrigin: APP_ORIGIN,
-      mode: 'redirect',
-    });
-
-    // The redirect-flow promise must stay pending: racing it against an
-    // already-resolved sentinel must yield the sentinel, never the flow.
-    const winner = await Promise.race([flowPromise, Promise.resolve('x')]);
-    expect(winner).toBe('x');
-  });
-});
-
-describe('resumeRedirect', () => {
-  afterEach(() => {
-    sessionStorage.clear();
-  });
-
-  it('returns false when no pending state exists', async () => {
-    const { resumeRedirect } = await import('./popup');
-    expect(resumeRedirect()).toBe(false);
-  });
-
-  it('returns true and clears sessionStorage when pending state exists', async () => {
-    const { resumeRedirect } = await import('./popup');
-    sessionStorage.setItem(
-      'boogy_sso_pending',
-      JSON.stringify({ returnTo: 'https://alice.boogy.ai/app' }),
-    );
-    expect(resumeRedirect()).toBe(true);
-    expect(sessionStorage.getItem('boogy_sso_pending')).toBeNull();
   });
 });

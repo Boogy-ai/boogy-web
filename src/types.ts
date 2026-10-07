@@ -1,25 +1,11 @@
 /** Options passed to the `Boogy` constructor. */
 export interface BoogyOptions {
   /**
-   * How the SDK drives the sign-in and consent flows.
-   * Defaults to `'popup'`.
+   * How the SDK drives the install flow (`install`): in a popup window, or by
+   * navigating the whole page. Defaults to `'popup'`. Sign-in is always the
+   * platform's, so it does not read this.
    */
   authMode?: 'popup' | 'redirect';
-
-  /**
-   * Extra app audiences to include when `Boogy.fetch` silently re-authorizes
-   * after a `401`, alongside the audience of the app whose request failed.
-   *
-   * Called fresh on every renewal attempt, so a caller whose set of open
-   * apps changes over time (e.g. panes added or removed on a multi-app page)
-   * stays covered without going stale — one consent round-trip renews every
-   * app that's currently in play, instead of prompting once per app as each
-   * one's session happens to expire.
-   *
-   * Omit this for a single-app page: the failing app's own audience is
-   * always included regardless.
-   */
-  renewAudiences?: () => readonly string[];
 }
 
 /** The end-user currently authenticated on the given app. */
@@ -31,8 +17,6 @@ export interface CurrentUser {
    * server omits it when the underlying grant record is unavailable.
    */
   connectedAt?: string;
-  /** The services this origin's session covers, as ids under the app's owner. */
-  services: string[];
   /**
    * The name to show for the person: the profile name they chose to share with
    * this app, else their handle when this app is entitled to it (always for the

@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { boogyVite } from './preset.js';
 
-const dev = { owner: 'me', service: 'app', mount: '/app', users: [] };
+const dev = { owner: 'me', service: 'app', users: [] };
 
 describe('boogyVite', () => {
-  it('sets relative asset paths, so the platform can serve the build at any mount', async () => {
+  it('sets relative asset paths, so the platform can serve the build wherever it is served', async () => {
     const root = mkdtempSync(join(tmpdir(), 'boogy-preset-'));
     const cfg = await resolveConfig({ root, plugins: [...boogyVite(dev)] }, 'build');
     expect(cfg.base).toBe('./');

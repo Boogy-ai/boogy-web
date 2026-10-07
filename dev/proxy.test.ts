@@ -5,7 +5,7 @@ import { createServer, type ViteDevServer } from 'vite';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { boogyDev } from './plugin.js';
+import { boogyDev, type BoogyDevOptions } from './plugin.js';
 
 // The proxy must present the TENANT host to the platform: the host resolves the
 // owner from the Host header, so a proxied request carrying the dev server's
@@ -32,7 +32,7 @@ beforeAll(async () => {
   vite = await createServer({
     root, logLevel: 'silent', server: { port: 0 },
     plugins: [boogyDev({
-      owner: 'tester', service: 'boards', mount: '/boards', users: [],
+      owner: 'tester', service: 'boards', users: [],
       api: { mode: 'proxy', target: `http://127.0.0.1:${port}`, host: 'boards.local.boogy.app', token: 'tok' },
     })],
   });
@@ -46,23 +46,24 @@ afterAll(async () => {
 });
 
 describe('proxy mode', () => {
-  it('presents the tenant host, the bearer, and the path under the deployed mount', async () => {
+  it('presents the tenant host, the bearer, and the path the app sent, at the root of its address', async () => {
     const r = await fetch(`${base}/api/boards?x=1`);
     expect(await r.json()).toEqual({ ok: true });
     expect(seen.host).toBe('boards.local.boogy.app');
     expect(seen.auth).toBe('Bearer tok');
-    expect(seen.url).toBe('/boards/api/boards?x=1');
+    expect(seen.url).toBe('/api/boards?x=1');
   });
 
-  it('maps a root mount to the bare API path (a reserved-label app)', async () => {
+  // There is no mount to configure: every app is served at the root of its
+  // own address. A config written before that, which still names one, is not
+  // obeyed — the request goes upstream at the path the app sent.
+  it('takes no mount: an old config naming one still sends the path the app sent', async () => {
     const root = mkdtempSync(join(tmpdir(), 'boogy-proxy-root-'));
     writeFileSync(join(root, 'index.html'), '<!doctype html><html><body></body></html>');
     const port = (upstream.address() as { port: number }).port;
-    const v = await createServer({
-      root, logLevel: 'silent', server: { port: 0 },
-      plugins: [boogyDev({ owner: 'tester', service: 'boards', mount: '/', users: [],
-        api: { mode: 'proxy', target: `http://127.0.0.1:${port}`, host: 'boards.local.boogy.app' } })],
-    });
+    const legacy = { owner: 'tester', service: 'boards', mount: '/boards', users: [],
+      api: { mode: 'proxy', target: `http://127.0.0.1:${port}`, host: 'boards.local.boogy.app' } } as unknown as BoogyDevOptions;
+    const v = await createServer({ root, logLevel: 'silent', server: { port: 0 }, plugins: [boogyDev(legacy)] });
     await v.listen();
     const b = `http://localhost:${(v.httpServer!.address() as { port: number }).port}`;
     await fetch(`${b}/api/boards`);

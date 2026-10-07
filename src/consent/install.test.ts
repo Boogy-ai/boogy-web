@@ -8,15 +8,15 @@ const base: InstallData = {
   listing: { capabilities: ['store'], needs_setup: false, charges: false, max_charge_usd: null },
   suggestedServiceId: 'wordle', appOrigin: 'https://boards.local.boogy.app', redirect: null, mode: 'popup',
   handle: 'tester', state: 'st-1',
-  tenantOrigin: 'https://tester.local.boogy.app', defaultPath: '/wordle',
-  taken: [{ serviceId: 'squad', path: '/chats' }],
 };
+/** Where the platform says the new app opens: an address of its own. */
+const OPENS_AT = 'https://wordle-k3v9.local.boogy.app';
 
 function mount(over: Partial<InstallData> = {}, deps: Partial<InstallDeps> = {}) {
   const root = document.createElement('div');
   document.body.appendChild(root);
   const d: InstallDeps = {
-    post: vi.fn(async () => ({ ok: true as const, service_id: 'wordle', url: 'https://tester.local.boogy.app/wordle' })),
+    post: vi.fn(async () => ({ ok: true as const, service_id: 'wordle', url: OPENS_AT })),
     notify: vi.fn(() => true),
     navigate: vi.fn(),
     close: vi.fn(),
@@ -27,12 +27,11 @@ function mount(over: Partial<InstallData> = {}, deps: Partial<InstallDeps> = {})
   const $ = <T extends Element = HTMLElement>(s: string) => root.querySelector(s) as T | null;
   const button = (label: string) => [...root.querySelectorAll('button')].find((b) => b.textContent === label) as HTMLButtonElement | undefined;
   const name = () => $<HTMLInputElement>('input[name="service_id"]')!;
-  const path = () => $<HTMLInputElement>('input[name="mount_path"]')!;
   const fieldOf = (input: HTMLInputElement) => input.closest('[data-boogy="field"]') as HTMLElement;
   const messageOf = (input: HTMLInputElement) => fieldOf(input).querySelector('[data-slot="message"]')!.textContent ?? '';
   const type = (input: HTMLInputElement, value: string) => { input.value = value; input.dispatchEvent(new Event('input')); };
   const text = () => root.textContent ?? '';
-  return { root, d, $, button, name, path, fieldOf, messageOf, type, text, install: () => button('Install') };
+  return { root, d, $, button, name, fieldOf, messageOf, type, text, install: () => button('Install') };
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async () => { await tick(); await tick(); };
@@ -43,7 +42,7 @@ describe('the page is built from the SDK', () => {
     const sheet = $('[data-boogy="sheet"]')!;
     expect(sheet.querySelector('[data-slot="head"]')!.textContent).toBe('Install wordle');
     expect(sheet.querySelector('[data-slot="foot"]')!.querySelectorAll('[data-boogy="button"]')).toHaveLength(2);
-    expect(sheet.querySelectorAll('[data-slot="body"] [data-boogy="field"]')).toHaveLength(2);
+    expect(sheet.querySelectorAll('[data-slot="body"] [data-boogy="field"]')).toHaveLength(1);
   });
 });
 
@@ -66,85 +65,38 @@ describe('what it shows', () => {
     expect(text()).toContain('tester');
   });
 
-  it('the full web address it will open at: the site, then a path that can be changed', () => {
-    const { path, fieldOf } = mount();
-    expect(fieldOf(path()).querySelector('[data-slot="prefix"]')!.textContent).toBe('https://tester.local.boogy.app');
-    expect(path().value).toBe('/wordle');
+  // The platform gives every app an address of its own, so there is none to
+  // choose here: the page asks for a name alone, and says where the app opens
+  // once it is installed.
+  it('no address to choose: a name alone', () => {
+    const { $, root } = mount();
+    expect($('input[name="mount_path"]')).toBeNull();
+    expect(root.querySelector('[data-slot="prefix"]')).toBeNull();
+    expect(root.querySelectorAll('input')).toHaveLength(1);
   });
 });
 
-describe('the name and the address', () => {
-  it('a name already in use is refused before anything is sent, naming it', () => {
+describe('the name', () => {
+  it('refuses a reserved or malformed name, in words, before anything is sent', () => {
     const { name, type, messageOf, fieldOf, install } = mount();
-    type(name(), 'squad');
-    expect(messageOf(name())).toMatch(/already have an app named “squad”/);
-    expect(fieldOf(name()).dataset.invalid).toBe('true');
-    expect(install()!.disabled).toBe(true);
-  });
-
-  it('an address already in use says which of your apps has it', () => {
-    const { path, type, messageOf, install } = mount();
-    type(path(), '/chats');
-    expect(messageOf(path())).toMatch(/already used by your app “squad”/);
-    expect(install()!.disabled).toBe(true);
-  });
-
-  it('an address inside another app’s address is also taken', () => {
-    const { path, type, messageOf } = mount();
-    type(path(), '/chats/room');
-    expect(messageOf(path())).toMatch(/“squad”/);
-  });
-
-  it('when the usual address is taken, it starts at one named after the app instead', () => {
-    const { path, messageOf } = mount({ defaultPath: '/chats' });
-    expect(path().value).toBe('/wordle');
-    expect(messageOf(path())).toBe('');
-  });
-
-  it('when the host could not tell the site or the usual path, it still works: address from the name, no prefix', () => {
-    const { path, fieldOf } = mount({ tenantOrigin: undefined, defaultPath: undefined });
-    expect(path().value).toBe('/wordle');
-    expect(fieldOf(path()).querySelector('[data-slot="prefix"]')).toBeNull();
-  });
-
-  it('opens ready to install: a taken name and address become the first free ones, not an error', () => {
-    const { name, path, messageOf, install } = mount({
-      taken: [{ serviceId: 'wordle', path: '/wordle' }, { serviceId: 'wordle-2', path: '/wordle-2' }],
-    });
-    expect(name().value).toBe('wordle-3');
-    expect(path().value).toBe('/wordle-3');
-    expect(messageOf(name())).toBe('');
-    expect(messageOf(path())).toBe('');
-    expect(install()!.disabled).toBe(false);
-  });
-
-  it('the address follows the name until the person changes the address themselves', () => {
-    const { name, path, type } = mount();
-    type(name(), 'words');
-    expect(path().value).toBe('/words');
-    type(path(), '/play');
-    type(name(), 'words2');
-    expect(path().value).toBe('/play');
-  });
-
-  it('refuses a reserved or malformed name or address, in words', () => {
-    const { name, path, type, messageOf } = mount();
     type(name(), 'boogy');
     expect(messageOf(name())).toMatch(/reserved/);
+    expect(fieldOf(name()).dataset.invalid).toBe('true');
+    expect(install()!.disabled).toBe(true);
+    type(name(), 'two words');
+    expect(messageOf(name())).toMatch(/letters, digits/);
     type(name(), 'wordle');
-    type(path(), '/boogy');
-    expect(messageOf(path())).toMatch(/reserved/);
-    type(path(), 'play');
-    expect(messageOf(path())).toMatch(/start with \//);
+    expect(messageOf(name())).toBe('');
+    expect(install()!.disabled).toBe(false);
   });
 });
 
 describe('installing', () => {
-  it('sends exactly the record shown, with the name and the address', async () => {
+  it('sends exactly the record shown, with the name and no address', async () => {
     const { install, d } = mount();
     install()!.click();
     await tick();
-    expect(d.post).toHaveBeenCalledWith({ owner: 'wordleapp', name: 'wordle', version: '0.1.9', service_id: 'wordle', mount_path: '/wordle', state: 'st-1' });
+    expect(d.post).toHaveBeenCalledWith({ owner: 'wordleapp', name: 'wordle', version: '0.1.9', service_id: 'wordle', state: 'st-1' });
   });
 
   it('arms Install only after a pause, and again whenever the window regains focus', async () => {
@@ -169,13 +121,6 @@ describe('installing', () => {
     install()!.click();
     await settle();
     expect(messageOf(name())).toMatch(/already have an app named “wordle”/);
-  });
-
-  it('an address the platform says is taken lands on the address field', async () => {
-    const { install, path, messageOf } = mount({}, { post: vi.fn(async () => ({ ok: false as const, error: 'mount_path_in_use', message: 'x' })) });
-    install()!.click();
-    await settle();
-    expect(messageOf(path())).toMatch(/already in use/);
   });
 
   for (const [error, words] of [
@@ -203,7 +148,7 @@ describe('installing', () => {
     const { install, d } = mount();
     install()!.click();
     await settle();
-    expect(d.notify).toHaveBeenCalledWith({ boogy: 'install_done', serviceId: 'wordle', url: 'https://tester.local.boogy.app/wordle' }, 'https://boards.local.boogy.app');
+    expect(d.notify).toHaveBeenCalledWith({ boogy: 'install_done', serviceId: 'wordle', url: OPENS_AT }, 'https://boards.local.boogy.app');
     expect(d.close).toHaveBeenCalled();
   });
 
@@ -212,7 +157,7 @@ describe('installing', () => {
     install()!.click();
     await settle();
     expect(text()).toMatch(/Installed/);
-    expect(text()).toContain('https://tester.local.boogy.app/wordle');
+    expect(text()).toContain(OPENS_AT);
   });
 
   it('after installing with no window to tell, Close only closes: it never reports a cancel', async () => {
@@ -263,7 +208,7 @@ describe('bootInstallConsent', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/install');
     expect(init.credentials).toBe('same-origin');
-    expect(JSON.parse(init.body as string).mount_path).toBe('/wordle');
+    expect(JSON.parse(init.body as string)).not.toHaveProperty('mount_path');
     expect(root.textContent).toContain('limit');
     vi.unstubAllGlobals();
   });

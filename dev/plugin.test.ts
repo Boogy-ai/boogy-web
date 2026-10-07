@@ -18,7 +18,7 @@ beforeAll(async () => {
     server: { port: 0 },
     plugins: [
       boogyDev({
-        owner: 'tester', service: 'boards', mount: '/boards', apiPrefix: '/api',
+        owner: 'tester', service: 'boards', apiPrefix: '/api',
         users: [{ id: 'alice' }],
         api: { mode: 'mock', handlers: { 'GET /boards': ({ user }) => ({ body: { who: user?.id ?? null } }) } },
       }),
@@ -40,7 +40,7 @@ describe('boogyDev plugin', () => {
   });
 
   // The dev server serves the app at its root, so the app's relative `./api/...`
-  // calls arrive at `/api/...` whatever the deployed mount is.
+  // calls arrive at `/api/...`, exactly as at the root of the app's address.
   it('routes the app API to mock handlers with the picked user', async () => {
     const anon = await fetch(`${base}/api/boards`);
     expect(await anon.json()).toEqual({ who: null });

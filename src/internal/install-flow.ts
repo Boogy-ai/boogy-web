@@ -1,7 +1,6 @@
 import { BoogyError } from '../errors';
 import { awaitPopup } from './popup';
-import { appOrigin, authOrigin } from './urls';
-import { platformConfig } from './platform-config';
+import { authOrigin } from './urls';
 
 /** A published module version, as the registry names it. */
 export interface ModuleRef {
@@ -29,7 +28,9 @@ export function installUrl(o: InstallModuleOptions, mode: 'popup' | 'redirect', 
   const m = o.module;
   url.searchParams.set('module', `boogy://${m.owner}/modules/${m.name}@${m.version}`);
   if (o.serviceId) url.searchParams.set('service_id', o.serviceId);
-  url.searchParams.set('app_origin', appOrigin(platformConfig().owner));
+  // The asking page's own origin: where the answer is sent, and where a
+  // redirect-mode install comes back to.
+  url.searchParams.set('app_origin', location.origin);
   url.searchParams.set('mode', mode);
   if (redirect !== null) url.searchParams.set('redirect', redirect);
   return url.toString();

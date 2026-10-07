@@ -1,5 +1,5 @@
 import { BoogyError } from '../errors';
-import { OWNER_PLACEHOLDER, platformConfig } from './platform-config';
+import { platformConfig } from './platform-config';
 
 /**
  * Parse an `owner/service` app identifier.
@@ -29,54 +29,46 @@ export function baseFromHost(host: string): string {
 }
 
 /**
- * Build the origin that serves the given owner's apps.
+ * The origin that serves `owner/service`, as seen from this page.
  *
- * Split by whether `owner` is THIS origin's own owner
- * (`platformConfig().owner`) — the two cases genuinely differ, not just in
- * implementation but in what's correct:
+ * Every service is served at the root of its own address, a label the
+ * platform allocates when it is deployed (`notes-k3v9` in
+ * `https://notes-k3v9.boogy.app`). The label is not derived from anything this
+ * page knows — a service's owner and id do not name it — so this page can only
+ * name an origin it is on:
  *
- * - **Own owner** (every pane on a board, and any single-app page): returns
- *   the page's OWN origin (`location.origin`), never a constructed one. This
- *   is correct in production too — a tenant page genuinely IS at
- *   `https://<handle>.<base>` — so it's strictly better than reconstructing
- *   the same origin from parts, and it's what makes this work under any edge
- *   (a local dev fake platform included), because it names no domain at all.
- *
- * - **A different owner** is UNSUPPORTED and throws. `Boogy.fetch`/
- *   `currentUser`/`signOut(app)` may in principle name a service owned by
- *   someone else — a frontend-only pane talking to another owner's backend
- *   — but the page's own origin is wrong there, and `platformConfig()` does
- *   not carry a tenant BASE domain to construct one from: it returns only
- *   `owner`, `authOrigin` and `shellOrigins`. Reconstructing a base domain by
- *   stripping a label off `authOrigin`'s host is not a safe derivation —
- *   the host resolves `authOrigin` from `BOOGY_AUTH_ORIGIN`, which accepts
- *   any absolute origin an operator sets, so that string is not guaranteed
- *   to be `auth.<base>` at all. Guessing it anyway is exactly the
- *   derive-instead-of-be-told defect this module exists to remove, and it
- *   would ship untested: the local dev fake platform this wiring targets
- *   serves same-owner sign-in only, so a wrong guess in this branch would
- *   never fail in dev.
- *
- *   **Required host-side follow-up**: `/boogy/config` needs an explicit
- *   tenant base-domain field before a cross-owner `appOrigin` can be
- *   supported. Nothing exercises this path today (every board pane and
- *   every squad call is same-owner), so throwing costs no working behaviour.
+ * - **On a service's own label** (the platform config names its one service),
+ *   that service's origin is this page's own, and no other app is served here.
+ * - **Any other app** throws `BoogyError('app_not_found')`, naming it, rather
+ *   than addressing a request to this origin, where it would reach this
+ *   origin's own service instead, or composing an address it cannot know. An
+ *   origin that names no service serves none, so every app is refused there.
  *
  * Throws (via `platformConfig()`) if config was never loaded — there is no
- * hostname-derived fallback for the own-owner branch either.
+ * hostname-derived fallback.
  */
-export function appOrigin(owner: string): string {
+export function appOrigin(owner: string, service: string): string {
   const config = platformConfig();
-  if (owner === config.owner) {
-    return location.origin;
-  }
+  const here = config.owner === owner && config.service === service;
+  if (here) return location.origin;
   throw new BoogyError(
-    'config_unavailable',
-    `appOrigin("${owner}") was asked for a DIFFERENT owner than this origin serves ` +
-      `("${config.owner}"). The platform config does not carry a tenant base domain, so a ` +
-      `cross-owner origin cannot be constructed — this needs a host-side addition to ` +
-      `/boogy/config (an explicit base-domain field), not a guess made here.`,
+    'app_not_found',
+    `"${owner}/${service}" is not served here: ` +
+      (config.service === undefined
+        ? 'this origin names no service.'
+        : `this origin serves only "${config.owner}/${config.service}".`) +
+      ' Another app is at an address of its own, which the platform allocates and this page cannot work out.',
+    `${owner}/${service}`,
   );
+}
+
+/**
+ * Where `owner/service`'s routes start, as seen from this page: its origin,
+ * since every service is served at the root of its own address — never a path
+ * under it. Refused as `appOrigin` refuses.
+ */
+export function appBaseUrl(owner: string, service: string): string {
+  return appOrigin(owner, service);
 }
 
 /**
@@ -84,212 +76,13 @@ export function appOrigin(owner: string): string {
  *
  * Read from `platformConfig().authOrigin`, never derived from this page's
  * own hostname: the auth origin lives on a different registrable domain than
- * a tenant subdomain in production, and guessing it from the URL bar is
+ * a service's own address in production, and guessing it from the URL bar is
  * exactly the defect `platformConfig()` exists to remove. Throws if config
- * was never loaded or failed to load — there is no fallback. In particular,
- * a verified custom domain has no `/boogy/*` surface at all, so
- * `loadPlatformConfig()` there rejects and this throws too; that is the
- * intended, honest failure (decision 3), not a bug to work around with a
- * hostname-derived guess.
+ * was never loaded or failed to load — there is no fallback. On an origin
+ * where the platform has no config to give (`/boogy/config` answers 404),
+ * `loadPlatformConfig()` rejects and this throws too; that is the intended,
+ * honest failure, not a bug to work around with a hostname-derived guess.
  */
 export function authOrigin(): string {
   return platformConfig().authOrigin;
-}
-
-/**
- * Build the full `/authorize` URL on the auth subdomain.
- *
- * Query parameters: aud (one per entry in `services`, repeated — NOT a
- * comma-joined single value and NOT last-wins), app_origin, redirect, state,
- * code_challenge, mode.
- */
-export function authorizeUrl(p: {
-  owner: string;
-  services: readonly string[];
-  redirect: string;
-  state: string;
-  codeChallenge: string;
-  mode: 'popup' | 'redirect';
-}): string {
-  const url = new URL(`${authOrigin()}/authorize`);
-  for (const service of p.services) {
-    url.searchParams.append('aud', `boogy://${p.owner}/services/${service}`);
-  }
-  url.searchParams.set('app_origin', appOrigin(p.owner));
-  url.searchParams.set('redirect', p.redirect);
-  url.searchParams.set('state', p.state);
-  url.searchParams.set('code_challenge', p.codeChallenge);
-  url.searchParams.set('mode', p.mode);
-  return url.toString();
-}
-
-/**
- * Where a board sends the page to sign in the apps' SITE for `services`, then
- * come back to `returnTo`.
- *
- * `site` is the apps' origin (`https://<handle>.<base>`), as the board already
- * knows it from its panes' addresses — not [`appOrigin`], which on the board is
- * the board's own origin. The site makes the PKCE verifier itself, on the server
- * (it has to be a cookie on that site), which is why a page on another site can
- * start this at all. Only `site`'s origin is used.
- *
- * Every service is named under the SITE's owner ([`siteOwner`]), because the
- * site refuses an audience of any other owner. That is deliberately not
- * `platformConfig().owner`: on a board that is the board's own owner, and the
- * apps a person frames on it are usually their own, on their own site.
- */
-export function siteSignInUrl(p: {
-  site: string;
-  services: readonly string[];
-  returnTo: string;
-}): string {
-  const owner = siteOwner(p.site);
-  const url = new URL('/boogy/signin', new URL(p.site).origin);
-  for (const service of p.services) {
-    url.searchParams.append('aud', `boogy://${owner}/services/${service}`);
-  }
-  url.searchParams.set('redirect', p.returnTo);
-  return url.toString();
-}
-
-/**
- * The owner handle whose apps `site` serves, read off the platform's own
- * `appOriginTemplate` — one owner's origin is that template with the handle in
- * place of `{owner}`, so the handle is what sits there in `site`'s origin.
- *
- * Throws `config_unavailable` when the platform published no template, and
- * `app_not_found` when `site` is not an origin the template produces (another
- * scheme or port, a host outside the base, more than one label where a handle
- * goes). Both refuse rather than guess: the only alternative is naming an
- * owner the site does not serve, which it refuses after a full page trip.
- */
-export function siteOwner(site: string): string {
-  const template = platformConfig().appOriginTemplate;
-  if (!template) {
-    throw new BoogyError(
-      'config_unavailable',
-      'the platform config names no appOriginTemplate, so the owner of an app site cannot be read',
-    );
-  }
-  const parts = templateParts(template);
-  let origin: string | null = null;
-  try {
-    origin = new URL(site).origin;
-  } catch {
-    origin = null;
-  }
-  if (parts && origin) {
-    const [prefix, suffix] = parts;
-    if (origin.length > prefix.length + suffix.length && origin.startsWith(prefix) && origin.endsWith(suffix)) {
-      const owner = origin.slice(prefix.length, origin.length - suffix.length);
-      if (/^[a-z0-9-]+$/.test(owner)) return owner;
-    }
-  }
-  throw new BoogyError('app_not_found', `"${site}" is not an app origin of this platform (${template})`);
-}
-
-/** A handle-shaped stand-in, so the template parses as a URL and its origin
- *  comes out normalised exactly as `site`'s does (case, default port). */
-const OWNER_STAND_IN = 'boogy-owner-stand-in';
-
-/** The template's normalised origin, split at the owner: `[before, after]`. */
-function templateParts(template: string): [string, string] | null {
-  try {
-    const parts = new URL(template.replace(OWNER_PLACEHOLDER, OWNER_STAND_IN)).origin.split(OWNER_STAND_IN);
-    return parts.length === 2 ? [parts[0], parts[1]] : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Where a board POSTs a top-level form to sign the apps' site out too, then come
- * back to `returnTo` (which the platform accepts only on the boards origin).
- */
-export function siteSignOutUrl(p: { site: string; returnTo: string }): string {
-  const url = new URL('/boogy/logout', new URL(p.site).origin);
-  url.searchParams.set('redirect', p.returnTo);
-  return url.toString();
-}
-
-/**
- * How many audiences the platform accepts on a single authorization request.
- *
- * Mirrors the host's `sso::MAX_AUDS`, whose own doc comment carries the
- * derivation: each (audience, subject) pair costs ~136 bytes of token, so 32
- * panes is ~4.9 KB against the 8 KB single-header line a proxy commonly caps a
- * request at, with real headroom, while 64 would be ~9.2 KB and back over that
- * line. It is not a consent-readability figure (that rationale applied before
- * self-owned audiences skipped the consent screen entirely) — it is derived
- * from the header budget, and `parseApps` refuses a batch over it rather than
- * silently sending fewer than the caller asked for.
- */
-export const MAX_AUDIENCES = 32;
-
-/**
- * Parse one or more `owner/service` app identifiers destined for a single
- * `/authorize` request, and validate them as a batch — the shape a batch
- * connect (e.g. every pane of a board, signed in with one consent
- * round-trip) needs that a single app never does:
- *
- * - A bare string is normalised to a one-app batch.
- * - The batch must be non-empty.
- * - Every entry must resolve to the same owner. A single authorization
- *   request may only span one owner's services; a batch that mixes owners
- *   is refused here, naming the entry that doesn't match, rather than sent
- *   and refused anonymously.
- * - A repeated app is silently collapsed to one — the same audience is
- *   never sent twice.
- * - The platform accepts at most `MAX_AUDIENCES` distinct audiences per
- *   authorization request. A larger batch is refused here, naming the count
- *   and the limit, rather than sent and refused anonymously.
- */
-export function parseApps(apps: string | readonly string[]): {
-  owner: string;
-  services: string[];
-} {
-  const list = typeof apps === 'string' ? [apps] : apps;
-  if (list.length === 0) {
-    throw new BoogyError('invalid_audience_batch', 'connectApp requires at least one app.');
-  }
-
-  const parsedApps = list.map(parseApp);
-  const owner = parsedApps[0].owner;
-  const seen = new Set<string>();
-  const services: string[] = [];
-
-  for (const { owner: entryOwner, service } of parsedApps) {
-    if (entryOwner !== owner) {
-      throw new BoogyError(
-        'invalid_audience_batch',
-        `"${entryOwner}/${service}" belongs to owner "${entryOwner}", but this batch is for ` +
-          `owner "${owner}". A single authorization request may only span one owner's services.`,
-        `${entryOwner}/${service}`,
-      );
-    }
-    const audience = `boogy://${entryOwner}/services/${service}`;
-    if (!seen.has(audience)) {
-      seen.add(audience);
-      services.push(service);
-    }
-  }
-
-  if (services.length > MAX_AUDIENCES) {
-    // Report the DISTINCT count — that's the number actually checked against
-    // the cap — and additionally name the raw count when it differs, so a
-    // caller whose duplicates collapsed isn't left thinking the SDK miscounted.
-    const rawCount = list.length;
-    const distinctCount = services.length;
-    const countPhrase =
-      rawCount === distinctCount
-        ? `${distinctCount} distinct apps`
-        : `${rawCount} apps, ${distinctCount} of them distinct`;
-    throw new BoogyError(
-      'invalid_audience_batch',
-      `connectApp was given ${countPhrase}, but the platform accepts at most ` +
-        `${MAX_AUDIENCES} audiences per authorization request.`,
-    );
-  }
-
-  return { owner, services };
 }

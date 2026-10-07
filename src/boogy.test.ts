@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeAll, beforeEach } from 'vitest';
 import { Boogy } from './boogy';
-import { MAX_AUDIENCES } from './internal/urls';
 import { loadPlatformConfig } from './internal/platform-config';
 
 // Every test in this file constructs `new Boogy()` with no options (the
@@ -16,7 +15,7 @@ import { loadPlatformConfig } from './internal/platform-config';
 beforeAll(async () => {
   vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
     new Response(
-      JSON.stringify({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', shellOrigins: [] }),
+      JSON.stringify({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', shellOrigins: [], service: 'notes' }),
       { status: 200 },
     ),
   );
@@ -50,6 +49,21 @@ describe('Boogy.fetch', () => {
     vi.restoreAllMocks();
   });
 
+  // `path` is joined onto the app's origin, and the request carries its
+  // cookies: a path that does not start with exactly one `/` could change the
+  // host or the port the request goes to. Refused, sending nothing.
+  it('refuses a path that would leave the app\'s origin, and sends nothing', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok', { status: 200 }));
+    const boogy = new Boogy();
+    for (const path of ['.evil.example/x', ':8443/x', '//evil.example/x', '/\\evil.example/x', 'api/x', '@evil.example/x', '']) {
+      await expect(boogy.fetch('alice/notes', path), JSON.stringify(path)).rejects.toMatchObject({ code: 'url_not_allowed', app: 'alice/notes' });
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const res = await boogy.fetch('alice/notes', '/api/x?y=1#z');
+    expect(res.status).toBe(200);
+    expect(fetchSpy.mock.calls[0][0]).toBe('https://alice.boogy.ai/api/x?y=1#z');
+  });
+
   it('retries once after a 401 by calling connectApp, then returns the second response', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -71,7 +85,7 @@ describe('Boogy.fetch', () => {
     expect(connectSpy).toHaveBeenCalledTimes(1);
     expect(connectSpy).toHaveBeenCalledWith('alice/notes');
     const retriedUrl = fetchSpy.mock.calls[2][0] as string;
-    expect(retriedUrl).toBe('https://alice.boogy.ai/notes/api/x');
+    expect(retriedUrl).toBe('https://alice.boogy.ai/api/x');
   });
 
   it('does NOT throw on a 404 from the app — returns the Response', async () => {
@@ -228,19 +242,10 @@ describe('Boogy.fetch — silent renewal is guarded', () => {
   });
 });
 
-// Regression tests for a review finding on the `renewAudiences` seam (item
-// 5 of the original task). Renewal is an optimisation layered on top of an
-// ordinary 401, so a caller-supplied `renewAudiences` must never turn that
-// 401 into an uncaught rejection — a provider that throws, or a batch that
-// is invalid for any reason (spanning owners, or over the platform's
-// per-request audience cap), degrades to the original 401 response.
-//
-// There used to be a truncation path here for an over-cap batch: the failing
-// app plus as many of `renewAudiences`'s apps as fit, with the remainder
-// silently dropped and reported via a console warning. That's gone —
-// signing into a board means signing into the board, not a subset — so an
-// over-cap combined batch is refused exactly like one spanning owners.
-describe('Boogy.fetch — a broken or over-cap renewAudiences degrades gracefully', () => {
+// Renewal is an optimisation layered on top of an ordinary 401, so a renewal
+// that fails must never turn that 401 into an uncaught rejection — it degrades
+// to the original 401 response.
+describe('Boogy.fetch — a failed renewal degrades gracefully', () => {
   // These exercise the ROUND TRIP, which runs only when silent renewal could
   // not help (no renewal cookie on this site). Stated once, here, rather than
   // by threading an extra `/boogy/renew` response through every call count.
@@ -261,71 +266,24 @@ describe('Boogy.fetch — a broken or over-cap renewAudiences degrades gracefull
     vi.spyOn(Boogy.prototype, 'refreshSession').mockResolvedValue(false);
   }
 
-  it('does not reject when renewAudiences throws — resolves with the original 401', async () => {
-    const boogy = new Boogy({
-      renewAudiences: () => {
-        throw new Error('pane registry not ready');
-      },
-    });
+  it('does not reject when the renewal fails — resolves with the original 401', async () => {
+    const boogy = new Boogy();
     await armSession(boogy);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }));
-    const connectSpy = vi.spyOn(boogy, 'connectApp').mockResolvedValue(undefined);
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const res = await boogy.fetch('alice/notes', '/api/x');
-
-    expect(res.status).toBe(401);
-    expect(connectSpy).not.toHaveBeenCalled(); // never reached — renewAudiences threw first
-    expect(fetchSpy).toHaveBeenCalledTimes(1); // no retry attempted
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not reject when the combined batch is over the cap — resolves with the original 401, no panes signed in', async () => {
-    // MAX_AUDIENCES candidate panes, none of them the failing app itself, so
-    // the combined batch (failing app + candidates) is one over the cap.
-    const paneAudiences = Array.from({ length: MAX_AUDIENCES }, (_, i) => `alice/pane${i}`);
-    const boogy = new Boogy({
-      renewAudiences: () => paneAudiences,
-    });
-    await armSession(boogy);
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }));
-    const connectSpy = vi.spyOn(boogy, 'connectApp'); // real implementation, real validation
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const res = await boogy.fetch('alice/notes', '/api/x');
-
-    // No truncated send — the whole batch is refused, so the original 401
-    // comes back exactly as if renewal had never been attempted.
-    expect(res.status).toBe(401);
-    expect(connectSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy).toHaveBeenCalledTimes(1); // no retry attempted
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not reject when the batch spans owners — resolves with the original 401', async () => {
-    const boogy = new Boogy({
-      renewAudiences: () => ['bob/other'],
-    });
-    await armSession(boogy);
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }));
-    const connectSpy = vi.spyOn(boogy, 'connectApp'); // real implementation, real validation
+    const connectSpy = vi.spyOn(boogy, 'connectApp').mockRejectedValue(new Error('popup blocked'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const res = await boogy.fetch('alice/notes', '/api/x');
 
     expect(res.status).toBe(401);
     expect(connectSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // no retry attempted
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('regression: a working renewAudiences still renews the whole batch and retries exactly as before', async () => {
-    const boogy = new Boogy({
-      renewAudiences: () => ['alice/todos'],
-    });
+  it('a working renewal re-authorizes the failing app alone and retries once', async () => {
+    const boogy = new Boogy();
     await armSession(boogy);
 
     const fetchSpy = vi
@@ -338,7 +296,7 @@ describe('Boogy.fetch — a broken or over-cap renewAudiences degrades gracefull
     const res = await boogy.fetch('alice/notes', '/api/x');
 
     expect(res.status).toBe(200);
-    expect(connectSpy).toHaveBeenCalledWith(['alice/notes', 'alice/todos']);
+    expect(connectSpy).toHaveBeenCalledWith('alice/notes');
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(warnSpy).not.toHaveBeenCalled();
   });
@@ -388,7 +346,7 @@ describe('Boogy.currentUser', () => {
     expect(user).toBeNull();
   });
 
-  it('hits the correct /boogy/me endpoint with credentials:include', async () => {
+  it('hits the correct /boogy/me endpoint with credentials:same-origin', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('null', { status: 200 }),
     );
@@ -397,8 +355,8 @@ describe('Boogy.currentUser', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe('https://alice.boogy.ai/boogy/me?service=notes');
-    expect((init as RequestInit).credentials).toBe('include');
+    expect(url).toBe('https://alice.boogy.ai/boogy/me');
+    expect((init as RequestInit).credentials).toBe('same-origin');
   });
 });
 
@@ -500,7 +458,7 @@ describe('Boogy.signOut', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe('https://alice.boogy.ai/boogy/logout?service=notes');
+    expect(url).toBe('https://alice.boogy.ai/boogy/logout');
     expect((init as RequestInit).method).toBe('POST');
     expect((init as RequestInit).credentials).toBe('include');
   });
@@ -538,66 +496,6 @@ describe('Boogy.signOut', () => {
   });
 });
 
-describe('Boogy.connectApp', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('opens /authorize with exactly one aud param for a single app — the regression guard', async () => {
-    const fakePopup = { closed: false, close: vi.fn() };
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakePopup as unknown as Window);
-
-    const boogy = new Boogy();
-    const p = boogy.connectApp('alice/notes');
-
-    await vi.waitFor(() => expect(openSpy).toHaveBeenCalled());
-    const openedUrl = new URL(openSpy.mock.calls[0][0] as string);
-    expect(openedUrl.searchParams.getAll('aud')).toEqual(['boogy://alice/services/notes']);
-
-    window.dispatchEvent(
-      new MessageEvent('message', { origin: 'https://alice.boogy.ai', data: { boogy: 'sso_done' } }),
-    );
-    await p;
-  });
-
-  it('opens /authorize with one aud param per app for a batch — this is the fan-out the feature exists for', async () => {
-    const fakePopup = { closed: false, close: vi.fn() };
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakePopup as unknown as Window);
-
-    const boogy = new Boogy();
-    const p = boogy.connectApp(['alice/notes', 'alice/todos']);
-
-    await vi.waitFor(() => expect(openSpy).toHaveBeenCalled());
-    const openedUrl = new URL(openSpy.mock.calls[0][0] as string);
-    expect(openedUrl.searchParams.getAll('aud')).toEqual([
-      'boogy://alice/services/notes',
-      'boogy://alice/services/todos',
-    ]);
-
-    window.dispatchEvent(
-      new MessageEvent('message', { origin: 'https://alice.boogy.ai', data: { boogy: 'sso_done' } }),
-    );
-    await p;
-  });
-
-  it('rejects a batch spanning owners before ever calling window.open', async () => {
-    const openSpy = vi.spyOn(window, 'open');
-    const boogy = new Boogy();
-
-    await expect(boogy.connectApp(['alice/notes', 'bob/todos'])).rejects.toThrow(/bob\/todos/);
-    expect(openSpy).not.toHaveBeenCalled();
-  });
-
-  it('rejects a batch over the cap before ever calling window.open', async () => {
-    const openSpy = vi.spyOn(window, 'open');
-    const boogy = new Boogy();
-    const apps = Array.from({ length: MAX_AUDIENCES + 1 }, (_, i) => `alice/svc${i}`);
-
-    await expect(boogy.connectApp(apps)).rejects.toThrow(new RegExp(String(MAX_AUDIENCES + 1)));
-    expect(openSpy).not.toHaveBeenCalled();
-  });
-});
-
 describe('Boogy.fetch — silent renewal first', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -621,9 +519,9 @@ describe('Boogy.fetch — silent renewal first', () => {
     expect(res.status).toBe(200);
     expect(connect).not.toHaveBeenCalled();
     expect(calls).toEqual([
-      'https://alice.boogy.ai/notes/api/x',
+      'https://alice.boogy.ai/api/x',
       'https://alice.boogy.ai/boogy/renew',
-      'https://alice.boogy.ai/notes/api/x',
+      'https://alice.boogy.ai/api/x',
     ]);
   });
 

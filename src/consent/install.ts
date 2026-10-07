@@ -40,12 +40,6 @@ export interface InstallListing {
   max_charge_usd: string | null;
 }
 
-/** One of the person's apps, and the address it holds. */
-export interface TakenApp {
-  serviceId: string;
-  path: string;
-}
-
 export interface InstallData {
   owner: string;
   name: string;
@@ -63,13 +57,6 @@ export interface InstallData {
   handle: string;
   /** Single-use token the platform issued with this page; echoed on the POST, never read. */
   state: string;
-  /** Where the person's apps are served, e.g. `https://tester.boogy.app`. The new app opens at this plus its path.
-   *  Omitted when the platform cannot say; the address field then shows the path alone. */
-  tenantOrigin?: string;
-  /** The path the module declares for itself. Omitted when the platform cannot read it. */
-  defaultPath?: string;
-  /** The person's apps: the names and addresses already in use. */
-  taken: TakenApp[];
   /** Where to finish installing a module that needs setup, if the platform has one. */
   setupUrl?: string;
 }
@@ -79,7 +66,6 @@ export interface InstallRequest {
   name: string;
   version: string;
   service_id: string;
-  mount_path: string;
   state: string;
 }
 
@@ -126,7 +112,6 @@ const PLAIN: Record<string, string> = {
 };
 
 const NAME_RE = /^[A-Za-z0-9_-]+$/;
-const PATH_RE = /^\/[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*$/;
 
 /** Why a name cannot be used, or null. */
 export function serviceIdProblem(id: string): string | null {
@@ -134,19 +119,6 @@ export function serviceIdProblem(id: string): string | null {
   if (!NAME_RE.test(id)) return 'Use letters, digits, - and _ only.';
   if (id.toLowerCase() === 'boogy') return '“boogy” is reserved.';
   return null;
-}
-
-/** Why an address path cannot be used, or null. */
-export function mountPathProblem(path: string): string | null {
-  if (!path.startsWith('/')) return 'The address must start with /.';
-  if (path === '/boogy' || path.startsWith('/boogy/')) return '/boogy is reserved.';
-  if (!PATH_RE.test(path)) return 'Use letters, digits, - and _, with / between parts.';
-  return null;
-}
-
-/** Two addresses collide when one is the other or lies inside it. */
-function overlaps(a: string, b: string): boolean {
-  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
 type Child = Node | string | null | false;
@@ -182,15 +154,12 @@ interface Field {
   set(problem: string | null): void;
 }
 
-function makeField(label: string, name: string, prefix?: string): Field {
+function makeField(label: string, name: string): Field {
   const id = `boogy-install-${name}`;
   const input = el('input', { id, name, 'data-slot': 'control', autocomplete: 'off', spellcheck: 'false' });
   const message = el('small', { 'data-slot': 'message', id: `${id}-message`, 'aria-live': 'polite' });
   input.setAttribute('aria-describedby', message.id);
-  const control = prefix
-    ? el('div', { 'data-slot': 'group' }, el('span', { 'data-slot': 'prefix' }, prefix), input)
-    : input;
-  const node = el('div', { ...field() }, el('label', { 'data-slot': 'label', for: id }, label), control, message);
+  const node = el('div', { ...field() }, el('label', { 'data-slot': 'label', for: id }, label), input, message);
   return {
     node, input, message,
     set(problem) {
@@ -211,63 +180,29 @@ export function mountInstallConsent(root: HTMLElement, data: InstallData, deps: 
   const armDelay = deps.armDelayMs ?? 800;
   const listing = data.listing;
   const oneClick = listing !== null && !listing.needs_setup;
-  const taken = data.taken ?? [];
 
   let armed = false;
   let busy = false;
   let armTimer: ReturnType<typeof setTimeout> | undefined;
-  // The address follows the name until the person edits the address.
-  let pathFollowsName = true;
-  // Refusals the platform returned, until the field they concern is edited.
+  // A refusal the platform returned, until the name is edited.
   let nameRefused: string | null = null;
-  let pathRefused: string | null = null;
   // Installed, with no window to tell: the remaining button only closes.
   let installed = false;
 
-  const isTaken = (p: string) => taken.some((t) => overlaps(t.path, p));
-  const nameTaken = (n: string) => taken.some((t) => t.serviceId.toLowerCase() === n.toLowerCase());
-  // Open ready to install: the app's suggestion is a preference, and the first
-  // free name (and an address free with it) is what the page starts on.
-  const firstFree = (base: string): string => {
-    const free = (n: string) => !nameTaken(n) && !isTaken(`/${n}`);
-    if (free(base)) return base;
-    for (let i = 2; ; i++) if (free(`${base}-${i}`)) return `${base}-${i}`;
-  };
-  const startName = nameTaken(data.suggestedServiceId) ? firstFree(data.suggestedServiceId) : data.suggestedServiceId;
+  // No address is chosen here: the platform gives the new app one of its own,
+  // and the page says where it opens once it is installed.
   const nameField = makeField('Name', 'service_id');
-  nameField.input.value = startName;
-  const pathField = makeField('Web address', 'mount_path', data.tenantOrigin);
-  pathField.input.value = data.defaultPath && !isTaken(data.defaultPath)
-    ? data.defaultPath
-    : `/${isTaken(`/${startName}`) ? firstFree(startName) : startName}`;
+  nameField.input.value = data.suggestedServiceId;
 
   const status = el('p', { 'data-install': 'status', role: 'status' });
   const installBtn = oneClick ? el('button', { type: 'button', ...button({ variant: 'solid' }) }, 'Install') : null;
   const cancelBtn = el('button', { type: 'button', ...button({ variant: 'quiet' }) }, 'Cancel');
 
-  const nameProblem = (): string | null => {
-    const n = nameField.input.value;
-    const own = serviceIdProblem(n);
-    if (own) return own;
-    if (nameTaken(n)) {
-      return `You already have an app named “${n}”. Choose another name.`;
-    }
-    return nameRefused;
-  };
-  const pathProblem = (): string | null => {
-    const p = pathField.input.value;
-    const own = mountPathProblem(p);
-    if (own) return own;
-    const holder = taken.find((t) => overlaps(t.path, p));
-    if (holder) return `This address is already used by your app “${holder.serviceId}”.`;
-    return pathRefused;
-  };
+  const nameProblem = (): string | null => serviceIdProblem(nameField.input.value) ?? nameRefused;
   const sync = () => {
     const n = nameProblem();
-    const p = pathProblem();
     nameField.set(n);
-    pathField.set(p);
-    if (installBtn) installBtn.disabled = !armed || busy || n !== null || p !== null;
+    if (installBtn) installBtn.disabled = !armed || busy || n !== null;
   };
   const arm = () => {
     armed = false;
@@ -300,7 +235,7 @@ export function mountInstallConsent(root: HTMLElement, data: InstallData, deps: 
     status.textContent = 'Installing…';
     const req: InstallRequest = {
       owner: data.owner, name: data.name, version: data.version,
-      service_id: nameField.input.value, mount_path: pathField.input.value, state: data.state,
+      service_id: nameField.input.value, state: data.state,
     };
     let out: InstallResult;
     try {
@@ -317,8 +252,6 @@ export function mountInstallConsent(root: HTMLElement, data: InstallData, deps: 
     status.textContent = '';
     if (out.error === 'service_exists') {
       nameRefused = `You already have an app named “${req.service_id}”. Choose another name.`;
-    } else if (out.error === 'mount_path_in_use') {
-      pathRefused = 'This address is already in use. Choose another.';
     } else {
       status.textContent = PLAIN[out.error] ?? out.message;
     }
@@ -337,12 +270,6 @@ export function mountInstallConsent(root: HTMLElement, data: InstallData, deps: 
 
   nameField.input.addEventListener('input', () => {
     nameRefused = null;
-    if (pathFollowsName) { pathField.input.value = `/${nameField.input.value}`; pathRefused = null; }
-    sync();
-  });
-  pathField.input.addEventListener('input', () => {
-    pathFollowsName = false;
-    pathRefused = null;
     sync();
   });
   installBtn?.addEventListener('click', () => { void install(); });
@@ -377,7 +304,6 @@ export function mountInstallConsent(root: HTMLElement, data: InstallData, deps: 
       capabilities,
       charges,
       oneClick ? nameField.node : null,
-      oneClick ? pathField.node : null,
       setup,
       status,
       el('p', { 'data-install': 'note' }, `Asked by ${new URL(data.appOrigin).host}. It will be added to ${data.handle}’s apps.`),

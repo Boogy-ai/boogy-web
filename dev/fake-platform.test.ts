@@ -35,6 +35,7 @@ describe('fake platform', () => {
     const cfg = parsePlatformConfig(json(r!));
     expect(cfg.owner).toBe('tester');
     expect(cfg.authOrigin.startsWith(ORIGIN)).toBe(true);
+    expect(json(r!).boardShell).toBe(false);
   });
 
   it('carries consoleOrigin only when one is configured, as the platform does', async () => {
@@ -67,7 +68,7 @@ describe('fake platform', () => {
     const session = cookies.find((c) => c.startsWith(`${SESSION_COOKIE}=`))!;
     expect(cookies.some((c) => c.startsWith('boogy_pkce=;') && c.includes('Max-Age=0'))).toBe(true);
     const me = await p.handle(req('GET', '/boogy/me', { cookie: session.split(';')[0] }));
-    expect(json(me!)).toMatchObject({ pairwiseId: 'dev-alice', services: ['boards'], displayName: 'Alice', avatarUrl: null });
+    expect(json(me!)).toMatchObject({ pairwiseId: 'dev-alice', displayName: 'Alice', avatarUrl: null });
   });
 
   it('still accepts the __Host- verifier, as served over https', async () => {
@@ -104,7 +105,8 @@ describe('fake platform', () => {
 
   it('signs out of the origin with the host shape', async () => {
     const r = await fake().handle(req('POST', '/boogy/logout'));
-    expect(json(r!)).toEqual({ signedOut: 'origin' });
+    expect(r!.status).toBe(204);
+    expect(r!.body).toBe('');
     expect(String(r!.headers['set-cookie'])).toContain('Max-Age=0');
   });
 

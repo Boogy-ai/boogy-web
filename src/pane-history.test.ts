@@ -33,7 +33,7 @@ async function connected(parent: { postMessage: ReturnType<typeof vi.fn> }, onNa
   const pane = connectPane({ service: 'notes', onNavigate });
   window.dispatchEvent(new MessageEvent('message', {
     origin: SHELL, source: parent as unknown as MessageEventSource,
-    data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL } },
+    data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL, host: 'board' } },
   }));
   await vi.waitFor(() => expect(parent.postMessage.mock.calls.some((c) => c[0].type === 'ready')).toBe(true));
   parent.postMessage.mockClear();
@@ -110,7 +110,7 @@ describe('in-pane history', () => {
     pane.navigate('/notes/1');
     window.dispatchEvent(new MessageEvent('message', {
       origin: SHELL, source: parent as unknown as MessageEventSource,
-      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n9', payload: { shellOrigin: SHELL } },
+      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n9', payload: { shellOrigin: SHELL, host: 'board' } },
     }));
     await vi.waitFor(() => expect(sent(parent, 'history-state')).toMatchObject([{ canBack: true, canForward: false }]));
     pane.disconnect();
@@ -153,7 +153,7 @@ describe('in-pane history', () => {
     const pane = connectPane({ service: 'notes' });
     window.dispatchEvent(new MessageEvent('message', {
       origin: SHELL, source: parent as unknown as MessageEventSource,
-      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL } },
+      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL, host: 'board' } },
     }));
     await vi.waitFor(() => expect(parent.postMessage.mock.calls.some((c) => c[0].type === 'ready')).toBe(true));
     pane.navigate('/notes/1');
@@ -200,7 +200,7 @@ describe('in-pane history', () => {
     const pane = connectPane({ service: 'notes', onNavigate });
     window.dispatchEvent(new MessageEvent('message', {
       origin: SHELL, source: parent as unknown as MessageEventSource,
-      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL, history: { entries: ['/notes', '/notes/1', '/notes/2'], index: 2 } } },
+      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL, host: 'board', history: { entries: ['/notes', '/notes/1', '/notes/2'], index: 2 } } },
     }));
     await vi.waitFor(() => expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: true, canForward: false, entries: ['/notes', '/notes/1', '/notes/2'], index: 2 }));
     fromBoard(parent, -1);
@@ -214,7 +214,7 @@ describe('in-pane history', () => {
     const pane = connectPane({ service: 'notes', onNavigate: () => {} });
     window.dispatchEvent(new MessageEvent('message', {
       origin: SHELL, source: parent as unknown as MessageEventSource,
-      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL, history: { entries: ['/notes', '/notes/9'], index: 1 } } },
+      data: { boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n1', payload: { shellOrigin: SHELL, host: 'board', history: { entries: ['/notes', '/notes/9'], index: 1 } } },
     }));
     await vi.waitFor(() => expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: false, canForward: false, entries: ['/notes'], index: 0 }));
     pane.disconnect();

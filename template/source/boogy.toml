@@ -5,7 +5,9 @@ version = "0.1.0"
 description = "Describe what {{name}} does, in the words someone would search for."
 
 [routing]
-path = "/{{name}}"
+# "/" for every service: it is served at the root of its own address, and
+# this base never appears in a URL.
+path = "/"
 methods = ["GET"]
 
 [ingress]

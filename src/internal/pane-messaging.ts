@@ -4,8 +4,10 @@
 // 1. An exact target origin. `ExactOrigin` is a branded type produced only by
 //    `exactOrigin`, which throws on `'*'` — so a wildcard has no expression at
 //    a call site rather than being a discouraged argument.
-// 2. Matching `event.source`. All of one tenant's modules are served from one
-//    origin, so `event.origin` names the owner and cannot say which pane spoke.
+// 2. Matching `event.source`. Each app runs on an origin of its own, but one
+//    app can be shown in more than one frame at once (the same app in two
+//    panes of a board), so `event.origin` names the app and cannot say which
+//    frame spoke.
 
 import { parseFrame, type Frame } from './pane-protocol';
 

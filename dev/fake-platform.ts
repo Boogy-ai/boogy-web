@@ -64,7 +64,9 @@ export function createFakePlatform(opts: FakePlatformOptions): FakePlatform {
       return {
         key: 'config',
         run: () => jsonRes(200, {
-          authOrigin: auth, owner: opts.owner, shellOrigins: [],
+          // The dev server is never the board shell, as no origin but the
+          // platform's boards origin is.
+          authOrigin: auth, owner: opts.owner, shellOrigins: [], boardShell: false,
           ...(opts.consoleOrigin ? { consoleOrigin: opts.consoleOrigin } : {}),
         }),
       };
@@ -74,12 +76,12 @@ export function createFakePlatform(opts: FakePlatformOptions): FakePlatform {
         key: 'me',
         run: () => {
           const u = currentUser(req);
-          return jsonRes(200, u ? { pairwiseId: `dev-${u.id}`, services: [opts.service], connectedAt, displayName: u.displayName ?? u.id, avatarUrl: null } : null);
+          return jsonRes(200, u ? { pairwiseId: `dev-${u.id}`, connectedAt, displayName: u.displayName ?? u.id, avatarUrl: null } : null);
         },
       };
     }
     if (req.method === 'POST' && path === '/boogy/logout') {
-      return { key: 'logout', run: () => jsonRes(200, { signedOut: 'origin' }, { 'set-cookie': clearSession }) };
+      return { key: 'logout', run: () => ({ status: 204, headers: { 'set-cookie': clearSession }, body: '' }) };
     }
     if (req.method === 'GET' && path === `${AUTH_PREFIX}/authorize`) {
       return {

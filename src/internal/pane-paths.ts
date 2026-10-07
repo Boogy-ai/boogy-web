@@ -11,7 +11,7 @@ const PROBE = 'https://pane.invalid';
 /** The longest location a board saves; a platform board refuses longer ones. */
 const MAX_PATH = 2048;
 
-export function isRestorablePath(path: string, mount: string): boolean {
+export function isRestorablePath(path: string): boolean {
   if (path.length > MAX_PATH) return false;
   if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\')) return false;
   let url: URL;
@@ -25,6 +25,5 @@ export function isRestorablePath(path: string, mount: string): boolean {
   // characters) is refused rather than normalised.
   if (`${url.pathname}${url.search}${url.hash}` !== path) return false;
   if (url.pathname.split('/').some((seg) => /^(\.|%2e){1,2}$/i.test(seg))) return false;
-  const base = mount.endsWith('/') ? mount.slice(0, -1) : mount;
-  return url.pathname === base || url.pathname.startsWith(`${base}/`);
+  return true;
 }

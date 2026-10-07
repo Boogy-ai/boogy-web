@@ -7,7 +7,10 @@
 // connects: every report is then a no-op, so the module works exactly as it
 // does on its own.
 
-import { MAX_HISTORY, PANE_PROTOCOL, parseFrame, type Frame } from './internal/pane-protocol';
+import {
+  MAX_HISTORY, PANE_PROTOCOL, fromResultPayload, parseFrame,
+  type Frame, type PaneHost, type PaneLastSignIn, type PaneSignInResult,
+} from './internal/pane-protocol';
 import { exactOrigin, sendFrame, type ExactOrigin } from './internal/pane-messaging';
 import { loadPlatformConfig } from './internal/platform-config';
 import { setHostZoom, clearHostZoom } from './layout/zoom';
@@ -31,6 +34,31 @@ export interface PaneHandle {
    *  `{ reset: true }` the pane's history starts afresh at `path` — for a
    *  sign-out, say, after which back must not lead to a signed-in page. */
   navigate(path: string, options?: { reset?: boolean }): void;
+  /** Ask the page framing this app to sign it in — call it when the person
+   *  chooses to sign in, after reporting signed out (`reportAuthState(false)`):
+   *  the page asks nothing of an app that has not said, and tells one that
+   *  said it is signed in `'already_signed_in'`. In a frame an app never
+   *  signs itself in: the sign-in page refuses to be framed, and the trip must
+   *  start and end on the boards origin. So the board framing it makes the
+   *  trip, and answers:
+   *  - `'leaving'`: it is leaving for sign-in now;
+   *  - `'already_signed_in'`: this app last reported itself signed in;
+   *  - `{ busy: ms }`: a sign-in went too recently; ask again in `ms`;
+   *  - `'unavailable'`: no page framing this app is connected, none answered
+   *    within `SIGN_IN_REPLY_TIMEOUT_MS`, or it does not sign apps in.
+   *  A request is not kept for later, and asking again before an answer is
+   *  the same request. */
+  requestSignIn(): Promise<PaneSignInResult>;
+  /** Where this app is shown: `'board'`, or `null` until a page framing it
+   *  connects, when the page that did said nothing this version knows, or when
+   *  it is not framed at all (shown alone, at its own address). */
+  readonly host: PaneHost | null;
+  /** How the last sign-in the page framing this app made for it ended, when
+   *  it came back without signing it in: `'cancelled'` (the person cancelled
+   *  it) or `'failed'`; `null` otherwise. A board does not sign an app in
+   *  again by itself after such a trip, so an app shows its own "Sign in"
+   *  with this beside it. */
+  readonly lastSignIn: PaneLastSignIn | null;
   /** Stop listening and reporting. */
   disconnect(): void;
 }
@@ -42,12 +70,70 @@ export interface ConnectPaneOptions {
    *  shows it; render it. Only called for history made with `navigate`, and
    *  only an app that passes this is offered back and forward by the board. */
   onNavigate?(path: string): void;
+  /** A page framing this app connected, saying where the app is shown (`null`
+   *  when it did not say) and how its last sign-in for the app ended when that
+   *  did not sign it in (see `PaneHandle.lastSignIn`). Called again whenever
+   *  the frame's page connects anew. */
+  onConnect?(info: { host: PaneHost | null; lastSignIn: PaneLastSignIn | null }): void;
 }
 
-type Report = Exclude<Frame, { type: 'hello' | 'connect' | 'ready' | 'history' | 'zoom' }>;
+/** How long a sign-in request waits for the page framing the app to answer
+ *  before it counts as `'unavailable'`. That page decides at once, or after one
+ *  hash of a fresh key, so this only ever runs out on a page that does not
+ *  answer at all — and a person who pressed "Sign in" should not wait longer
+ *  than this to be told. */
+export const SIGN_IN_REPLY_TIMEOUT_MS = 3_000;
+
+type Report = Exclude<
+  Frame,
+  { type: 'hello' | 'connect' | 'ready' | 'history' | 'zoom' | 'sign-in' | 'sign-in-result' }
+>;
+
+/** One pane connection per window. The platform's automatic reporter and the
+ *  app's own `connectPane` share this slot, and the app's always wins. */
+const PANE_SLOT = Symbol.for('boogy.pane/v1');
+interface PaneSlot {
+  kind: 'auto' | 'app';
+  disconnect(): void;
+  requestSignIn(): Promise<PaneSignInResult>;
+  reportAuthState(signedIn: boolean): void;
+}
+type SlotHolder = { [PANE_SLOT]?: PaneSlot };
+const holder = (): SlotHolder => globalThis as unknown as SlotHolder;
+
+/** Ask the page framing this window to sign its app in, through whichever
+ *  pane connection this window has, first telling it the app is signed out
+ *  (the caller has just found that it is). `'unavailable'` when this window has
+ *  no pane connection, or the one in the shared slot is not one this SDK can
+ *  ask (another copy of it, older or newer, may hold the slot). */
+export function requestSignInFromFramer(): Promise<PaneSignInResult> {
+  const slot = holder()[PANE_SLOT] as Partial<PaneSlot> | undefined;
+  if (typeof slot?.requestSignIn !== 'function' || typeof slot.reportAuthState !== 'function') {
+    return Promise.resolve('unavailable');
+  }
+  slot.reportAuthState(false);
+  return slot.requestSignIn();
+}
+
+/** Connect the automatic reporter's pane, unless this window already has one.
+ *  For the platform's own page script; an app calls `connectPane`. */
+export function connectAutoPane(opts: ConnectPaneOptions): PaneHandle | null {
+  if (holder()[PANE_SLOT]) return null;
+  return connectPaneAs('auto', opts);
+}
 
 export function connectPane(opts: ConnectPaneOptions): PaneHandle {
-  let shell: { origin: ExactOrigin; nonce: string } | null = null;
+  const held = holder()[PANE_SLOT];
+  // The app's own connection replaces the automatic one, which stops answering.
+  if (held?.kind === 'auto') held.disconnect();
+  return connectPaneAs('app', opts);
+}
+
+function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHandle {
+  let shell: { origin: ExactOrigin; nonce: string; host: PaneHost | null; lastSignIn: PaneLastSignIn | null } | null = null;
+  // The sign-in request waiting for its answer, if any: one at a time. `ask`
+  // sends it to the shell connected now, with a fresh wait for the answer.
+  let pending: { promise: Promise<PaneSignInResult>; settle(r: PaneSignInResult): void; ask(): void } | null = null;
   let live = true;
   // The latest of each report, so a board that connects after the module has
   // already set its title or moved still learns them.
@@ -105,13 +191,20 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
           setHostZoom(frame.payload.factor);
           return;
         }
+        if (frame.type === 'sign-in-result') {
+          pending?.settle(fromResultPayload(frame.payload));
+          return;
+        }
       }
     }
-    const data = event.data as { boogy?: unknown; type?: unknown; nonce?: unknown; payload?: { shellOrigin?: unknown } } | null;
-    if (!data || data.boogy !== PANE_PROTOCOL || data.type !== 'connect') return;
-    const offered = data.payload?.shellOrigin;
-    if (typeof offered !== 'string' || offered !== event.origin) return;
-    if (typeof data.nonce !== 'string' || data.nonce === '') return;
+    // A connect is admitted exactly when the one validator reads it as one,
+    // and only what it kept is used: an optional field it could not read (a
+    // host this version does not know — never assumed to be a board — or a
+    // size out of bounds) is simply absent, and costs the rest nothing.
+    const connect = parseFrame(event.data);
+    if (connect?.type !== 'connect') return;
+    const offered = connect.payload.shellOrigin;
+    if (offered !== event.origin) return;
 
     let allowed: string[];
     try {
@@ -121,26 +214,29 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
     }
     if (!live || !allowed.includes(offered)) return;
 
-    shell = { origin: exactOrigin(offered), nonce: data.nonce };
+    const { host = null, lastSignIn = null, history: handed, zoom } = connect.payload;
+    shell = { origin: exactOrigin(offered), nonce: connect.nonce, host, lastSignIn };
     // A history the board hands back (this pane's content moved to this
     // frame): adopted only if this page is its current page, so it can never
     // describe somewhere the pane is not.
-    const parsed = parseFrame(data);
-    const connectPayload = parsed?.type === 'connect' ? parsed.payload : undefined;
-    const handed = connectPayload?.history;
     if (keepsHistory && handed && handed.entries[handed.index] === here()) {
       stack.splice(0, stack.length, ...handed.entries);
       index = handed.index;
       reportHistory();
     }
     // The size this board draws the pane at; a board that sends none (or one
-    // out of bounds, which fails the frame check) leaves it at 1.
-    if (connectPayload?.zoom !== undefined) setHostZoom(connectPayload.zoom);
+    // out of bounds, which the validator drops) leaves it at 1.
+    if (zoom !== undefined) setHostZoom(zoom);
     else clearHostZoom();
     sendFrame(window.parent, shell.origin, {
       boogy: PANE_PROTOCOL, type: 'ready', nonce: shell.nonce, payload: { service: opts.service },
     });
     for (const [type, payload] of latest) send(type, payload);
+    // A request still waiting was asked of the connection this one replaces,
+    // whose answer would carry a nonce no longer heard: ask again here, after
+    // the page's state, so the page has heard it first.
+    pending?.ask();
+    opts.onConnect?.({ host, lastSignIn });
   };
 
   window.addEventListener('message', onMessage);
@@ -148,10 +244,11 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
   // A board connects a frame when it loads, and an app that starts listening
   // after that would never hear it. So say hello to each board the platform
   // names: the one actually framing this page answers with a fresh connect,
-  // and a message aimed at any other origin is dropped by the browser.
+  // and a message aimed at any other origin is dropped by the browser. A page
+  // that is not framed has no board to greet, so it says nothing.
   void loadPlatformConfig().then(
     (config) => {
-      if (!live) return;
+      if (!live || !framed) return;
       for (const origin of config.shellOrigins) {
         try {
           sendFrame(window.parent, exactOrigin(origin), {
@@ -165,7 +262,35 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
     () => {},
   );
 
-  return {
+  const handle: PaneHandle = {
+    get host() {
+      return shell?.host ?? null;
+    },
+    get lastSignIn() {
+      return shell?.lastSignIn ?? null;
+    },
+    requestSignIn: () => {
+      if (pending) return pending.promise;
+      if (!shell) return Promise.resolve('unavailable');
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let resolve: (r: PaneSignInResult) => void = () => {};
+      const promise = new Promise<PaneSignInResult>((r) => { resolve = r; });
+      const settle = (r: PaneSignInResult) => {
+        clearTimeout(timer);
+        if (pending?.promise === promise) pending = null;
+        resolve(r);
+      };
+      // Asked of the shell connected now, which has this long to answer.
+      const ask = () => {
+        if (!shell) return;
+        clearTimeout(timer);
+        timer = setTimeout(() => settle('unavailable'), SIGN_IN_REPLY_TIMEOUT_MS);
+        sendFrame(window.parent, shell.origin, { boogy: PANE_PROTOCOL, type: 'sign-in', nonce: shell.nonce, payload: {} });
+      };
+      pending = { promise, settle, ask };
+      ask();
+      return promise;
+    },
     reportAuthState: (signedIn) => report('auth-state', { signedIn }),
     reportTitle: (text) => report('title', { text }),
     reportLocation: (path) => report('location', { path }),
@@ -194,8 +319,19 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
     disconnect: () => {
       live = false;
       shell = null;
+      pending?.settle('unavailable');
       clearHostZoom();
       window.removeEventListener('message', onMessage);
+      if (holder()[PANE_SLOT] === slot) delete holder()[PANE_SLOT];
     },
   };
+
+  const slot: PaneSlot = {
+    kind,
+    disconnect: () => handle.disconnect(),
+    requestSignIn: () => handle.requestSignIn(),
+    reportAuthState: (signedIn) => handle.reportAuthState(signedIn),
+  };
+  holder()[PANE_SLOT] = slot;
+  return handle;
 }

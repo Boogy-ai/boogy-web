@@ -13,7 +13,22 @@ describe('parsePlatformConfig', () => {
       authOrigin: 'https://auth.boogy.ai',
       owner: 'alice',
       shellOrigins: ['https://boards.boogy.app'],
+      boardShell: false,
     });
+  });
+
+  // The platform says whether this origin is its board shell, the boards
+  // origin, where a board signs its apps in. Only a literal `true` is a yes:
+  // anything else, or nothing, is no, so a page never runs a board's sign-in
+  // where the platform did not say it may.
+  it('reads boardShell: only a literal true is the board shell', async () => {
+    const { parsePlatformConfig } = await import('./platform-config');
+    const base = { authOrigin: 'https://auth.boogy.app', owner: 'tester', shellOrigins: [], service: 'boards' };
+    expect(parsePlatformConfig({ ...base, boardShell: true }).boardShell).toBe(true);
+    expect(parsePlatformConfig({ ...base, boardShell: false }).boardShell).toBe(false);
+    expect(parsePlatformConfig(base).boardShell).toBe(false);
+    expect(parsePlatformConfig({ ...base, boardShell: 'true' }).boardShell).toBe(false);
+    expect(parsePlatformConfig({ ...base, boardShell: 1 }).boardShell).toBe(false);
   });
 
   it('strips a trailing slash from authOrigin', async () => {
@@ -31,35 +46,6 @@ describe('parsePlatformConfig', () => {
     ).toEqual([]);
   });
 
-  it('carries appOriginTemplate — how a page names ANOTHER owner\'s app origin', async () => {
-    const { parsePlatformConfig } = await import('./platform-config');
-    expect(
-      parsePlatformConfig({
-        authOrigin: 'https://auth.boogy.ai',
-        owner: 'alice',
-        appOriginTemplate: 'https://{owner}.local.boogy.app:8443',
-      }).appOriginTemplate,
-    ).toBe('https://{owner}.local.boogy.app:8443');
-  });
-
-  it('drops an appOriginTemplate it could not substitute exactly once into an absolute origin', async () => {
-    const { parsePlatformConfig } = await import('./platform-config');
-    for (const appOriginTemplate of [
-      undefined,
-      42,
-      'https://local.boogy.app', // no placeholder
-      'https://{owner}.{owner}.boogy.app', // two
-      '{owner}.boogy.app', // not absolute
-      'javascript:{owner}', // not http(s)
-    ]) {
-      expect(
-        parsePlatformConfig({ authOrigin: 'https://auth.boogy.ai', owner: 'alice', appOriginTemplate })
-          .appOriginTemplate,
-        String(appOriginTemplate),
-      ).toBeUndefined();
-    }
-  });
-
   it('rejects a non-object body', async () => {
     const { parsePlatformConfig } = await import('./platform-config');
     expect(() => parsePlatformConfig(null)).toThrow();
@@ -74,6 +60,29 @@ describe('parsePlatformConfig', () => {
   it('rejects a body with no absolute authOrigin', async () => {
     const { parsePlatformConfig } = await import('./platform-config');
     expect(() => parsePlatformConfig({ owner: 'alice', authOrigin: 'auth.boogy.ai' })).toThrow();
+  });
+
+  it('keeps a module origin\'s service, and drops a non-string one', async () => {
+    const { parsePlatformConfig } = await import('./platform-config');
+    const base = { authOrigin: 'https://auth.example', owner: 'dave', shellOrigins: [] };
+    expect(parsePlatformConfig({ ...base, service: 'chats' })).toMatchObject({ service: 'chats' });
+    expect(parsePlatformConfig({ ...base, service: 7 }).service).toBeUndefined();
+    // A service has one address, its root: a body naming a mount is read as if it did not.
+    expect(parsePlatformConfig({ ...base, service: 'chats', mount: '/' })).not.toHaveProperty('mount');
+  });
+
+  // Every service is served at its own address, which the platform allocates:
+  // no template composes another app's origin from an owner, and there is no
+  // second address to send someone to. A body that still carries either field
+  // is read as if it did not.
+  it('reads no app-origin template, no second address and no mount: a service has one address, its own', async () => {
+    const { parsePlatformConfig } = await import('./platform-config');
+    const config = parsePlatformConfig({
+      authOrigin: 'https://auth.boogy.app', owner: 'dave', shellOrigins: [], service: 'chats', mount: '/',
+      appOriginTemplate: 'https://{owner}.boogy.app', // owner-subdomain-ok: the retired field this test proves unread
+      address: 'https://dave.boogy.app/chats/', // owner-subdomain-ok: the retired field this test proves unread
+    });
+    expect(config).toEqual({ authOrigin: 'https://auth.boogy.app', owner: 'dave', shellOrigins: [], boardShell: false, service: 'chats' });
   });
 });
 

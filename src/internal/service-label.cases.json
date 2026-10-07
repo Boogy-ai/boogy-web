@@ -1,0 +1,32 @@
+{
+  "about": "Service-label shape cases shared by every implementation of the check: a service label is lowercase letters and digits in hyphen-separated words, ending in a 3-6 character suffix, at most 63 characters, never containing two hyphens in a row. `security-txt` is a platform label with this shape; the platform never allocates it to a service, which no shape check can see.",
+  "labels": [
+    "notes-7k3q",
+    "my-api-ab12cd",
+    "svc-dev",
+    "notes-dev2",
+    "a-b-c-xyz",
+    "chats-k3v9",
+    "security-txt",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-7k3q"
+  ],
+  "not_labels": [
+    "notes",
+    "boards",
+    "auth",
+    "k3v9xq2m7a",
+    "notes--x7k3",
+    "-notes-7k3q",
+    "notes-7k3q-",
+    "notes-ab",
+    "notes-abcdefg",
+    "Notes-7k3q",
+    "NOTES-7K3Q",
+    "notes-7k3q.boogy.app",
+    "notes_x-7k3q",
+    "",
+    "-",
+    "xn--abc",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-7k3q"
+  ]
+}
