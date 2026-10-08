@@ -71,8 +71,10 @@ export interface PaneRegistration {
 }
 
 export interface ShellEvents {
-  /** The pane speaks the protocol, and names the service it believes it is. */
-  onReady(id: string, service: string): void;
+  /** The pane speaks the protocol, and names the service it believes it is,
+   *  and whether its app signs people in (`ConnectPaneOptions.signsIn`; only a
+   *  plain `true` counts). */
+  onReady(id: string, service: string, info: { signsIn: boolean }): void;
   /** A pane reported a service other than the one registered for it. The
    *  frame is not that app: nothing more from that page is acted on, until
    *  its frame loads another page. */
@@ -198,7 +200,7 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
           return;
         }
         entry.ready = true;
-        events.onReady?.(pane.id, frame.payload.service);
+        events.onReady?.(pane.id, frame.payload.service, { signsIn: frame.payload.signsIn === true });
         return;
       case 'sign-in':
         answerSignIn(entry);

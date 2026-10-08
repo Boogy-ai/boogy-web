@@ -66,6 +66,13 @@ export interface PaneHandle {
 export interface ConnectPaneOptions {
   /** This module's service id. */
   service: string;
+  /** This app signs people in and tells the board whether it is signed in
+   *  (`reportAuthState`). A board then keeps the pane covered until the app
+   *  reports signed in, signing it in meanwhile, so the person never sees the
+   *  app's own signed-out view while the board is about to sign it in. The
+   *  board shows the app as it is only when it cannot sign it in. Leave it out
+   *  for an app that does not sign anyone in. */
+  signsIn?: boolean;
   /** The board moved this pane back or forward to `path`. The address already
    *  shows it; render it. Only called for history made with `navigate`, and
    *  only an app that passes this is offered back and forward by the board. */
@@ -229,7 +236,8 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     if (zoom !== undefined) setHostZoom(zoom);
     else clearHostZoom();
     sendFrame(window.parent, shell.origin, {
-      boogy: PANE_PROTOCOL, type: 'ready', nonce: shell.nonce, payload: { service: opts.service },
+      boogy: PANE_PROTOCOL, type: 'ready', nonce: shell.nonce,
+      payload: opts.signsIn ? { service: opts.service, signsIn: true } : { service: opts.service },
     });
     for (const [type, payload] of latest) send(type, payload);
     // A request still waiting was asked of the connection this one replaces,

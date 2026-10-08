@@ -87,6 +87,10 @@ export interface ConnectPayload {
 /** `hello` (pane → board: "I am listening now") and `ready` both name the service. */
 export interface ReadyPayload {
   service: string;
+  /** `ready` only: the app signs people in, so a board keeps its pane covered
+   *  until it reports signed in (see `ConnectPaneOptions.signsIn`). Absent is
+   *  no. */
+  signsIn?: boolean;
 }
 export interface AuthStatePayload {
   signedIn: boolean;

@@ -118,11 +118,25 @@ describe('createShell', () => {
     const a = fakeFrame();
     shell.registerPane(a.el, reg('p1', 'squad'));
     deliver(a.win, frame('ready', a.nonce(), { service: 'squad' }));
-    expect(onReady).toHaveBeenCalledWith('p1', 'squad');
+    expect(onReady).toHaveBeenCalledWith('p1', 'squad', { signsIn: false });
 
     const stranger = fakeFrame();
     deliver(stranger.win, frame('ready', a.nonce(), { service: 'squad' }));
     expect(onReady).toHaveBeenCalledTimes(1);
+    shell.destroy();
+  });
+
+  it("tells the board whether the pane's app signs people in, believing only a plain true", () => {
+    const onReady = vi.fn();
+    const shell = createShell({ onReady });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    deliver(a.win, frame('ready', a.nonce(), { service: 'squad', signsIn: true }));
+    deliver(a.win, frame('ready', a.nonce(), { service: 'squad', signsIn: 'yes' }));
+    expect(onReady.mock.calls).toEqual([
+      ['p1', 'squad', { signsIn: true }],
+      ['p1', 'squad', { signsIn: false }],
+    ]);
     shell.destroy();
   });
 
@@ -347,7 +361,7 @@ describe('createShell', () => {
     a.load();
     expect(a.connects()).toHaveLength(connectsBefore + 1);
     deliver(a.win, frame('ready', a.nonce(), { service: 'probe' }));
-    expect(onReady).toHaveBeenCalledWith('p1', 'probe');
+    expect(onReady).toHaveBeenCalledWith('p1', 'probe', { signsIn: false });
     shell.destroy();
   });
 

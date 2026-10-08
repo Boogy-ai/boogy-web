@@ -66,6 +66,26 @@ describe('connectPane', () => {
     pane.disconnect();
   });
 
+  it("says in its ready that the app signs people in, when the app said so", async () => {
+    const post = spyPost();
+    const pane = connectPane({ service: 'squad', signsIn: true });
+    await vi.waitFor(() => expect(post).toHaveBeenCalled());
+    post.mockClear();
+    connectFrom(SHELL);
+    await vi.waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0][0]).toMatchObject({ type: 'ready', payload: { service: 'squad', signsIn: true } });
+    pane.disconnect();
+  });
+
+  it("says nothing about signing in when the app did not say", async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    connectFrom(SHELL);
+    await vi.waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0][0].payload).toEqual({ service: 'squad' });
+    pane.disconnect();
+  });
+
   it('ignores a connect from an origin the platform does not name', async () => {
     const post = spyPost();
     const pane = await started(post);

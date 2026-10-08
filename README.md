@@ -675,12 +675,21 @@ otherwise.
 
 ### Signing in from a pane
 
-In a frame your app never signs itself in. The board framing it does. Report
-that nobody is signed in, then ask it when the person chooses to sign in:
+In a frame your app never signs itself in. The board framing it does. Say that
+your app signs people in (`signsIn: true`), report whether anyone is signed in,
+and ask the board when the person chooses to sign in:
 
 ```ts
 const pane = connectPane({
   service: 'notes',
+  // Your app signs people in. A board keeps your pane covered until you report
+  // signed in, signing your app in meanwhile, so the person never sees your
+  // signed-out view while the board is about to sign them in. It shows your
+  // app signed out only when it cannot sign it in, so your sign-in button is
+  // there exactly when it is needed. Connect when your page starts, before it
+  // finishes loading: the board covers your pane from the hello your
+  // connection sends, so one made later may show your signed-out view first.
+  signsIn: true,
   // A page framing your app connected, saying where your app is shown, and
   // how its last sign-in for your app ended when that did not sign it in.
   onConnect: ({ host, lastSignIn }) => renderSignIn(host, lastSignIn),
