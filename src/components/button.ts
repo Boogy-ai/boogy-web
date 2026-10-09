@@ -6,7 +6,7 @@
 
 export const BUTTON_VARIANTS = ['solid', 'quiet', 'danger', 'outline'] as const;
 export const BUTTON_SHAPES = ['text', 'icon'] as const;
-export const BUTTON_SIZES = ['sm', 'md'] as const;
+export const BUTTON_SIZES = ['sm', 'md', 'lg'] as const;
 
 /** `solid`: the accent, for the primary action. `quiet`: no ground until
  *  hovered, for toolbar and icon buttons. `danger`: destructive actions.
@@ -15,7 +15,8 @@ export const BUTTON_SIZES = ['sm', 'md'] as const;
 export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
 /** `icon`: square, for an icon-only button (which needs an accessible label). */
 export type ButtonShape = (typeof BUTTON_SHAPES)[number];
-/** `md`: 2 units tall. `sm`: 1.5 units, for dense chrome such as a title bar. */
+/** `md`: 2 units tall. `sm`: 1.5 units, for dense chrome such as a title bar.
+ *  `lg`: 2.5 units, its text a step up, for the one main action of a surface. */
 export type ButtonSize = (typeof BUTTON_SIZES)[number];
 
 export interface ButtonOptions {

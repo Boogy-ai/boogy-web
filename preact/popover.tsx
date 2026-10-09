@@ -112,6 +112,13 @@ export function Popover({
     const trigger = triggerRef.current;
     if (!isOpen || !el) return;
 
+    // A NAME for the dialog: the title or an aria-label when given, else the
+    // trigger's own text. The trigger gets an id to be named by if it has none.
+    if (!el.hasAttribute('aria-label') && !el.hasAttribute('aria-labelledby') && trigger) {
+      if (!trigger.id) trigger.id = `${id.current}-trigger`;
+      el.setAttribute('aria-labelledby', trigger.id);
+    }
+
     // PLACEMENT (anchored only): measure, place, write — no render per frame.
     const position = () => {
       if (mode !== 'anchored') return;

@@ -185,6 +185,42 @@ describe('openStream', () => {
     expect(onEvent).not.toHaveBeenCalled();
   });
 
+  it('close() while the socket is still connecting lets it connect, then closes it, subscribing to nothing', async () => {
+    // Closing a websocket that is still connecting is a console error in
+    // some engines; one that has connected closes quietly.
+    const f = fakeIo();
+    const mint = vi.fn(async () => ticket());
+    const s = openStream({ io: f.io, mint, onEvent: () => {}, origin: 'x' });
+    s.close();
+    expect(f.isDisconnected()).toBe(false);
+    f.fire('connect');
+    await flush();
+    expect(f.isDisconnected()).toBe(true);
+    expect(mint).not.toHaveBeenCalled();
+    expect(f.emits).toHaveLength(0);
+  });
+
+  it('close() while connecting, then the connection fails: it closes there, so nothing retries', async () => {
+    const f = fakeIo();
+    const s = openStream({ io: f.io, mint: async () => ticket(), onEvent: () => {}, origin: 'x' });
+    s.close();
+    expect(f.isDisconnected()).toBe(false);
+    f.fire('connect_error', new Error('refused'));
+    expect(f.isDisconnected()).toBe(true);
+  });
+
+  it('close() after the server ended the connection, before it is back, closes once it reconnects', async () => {
+    const f = fakeIo();
+    const s = openStream({ io: f.io, mint: async () => ticket(), onEvent: () => {}, origin: 'x' });
+    f.fire('connect');
+    await flush();
+    f.fire('disconnect', 'transport close');
+    s.close();
+    expect(f.isDisconnected()).toBe(false);
+    f.fire('connect');
+    expect(f.isDisconnected()).toBe(true);
+  });
+
   it('a failed mint goes offline and retries', async () => {
     const f = fakeIo();
     let calls = 0;

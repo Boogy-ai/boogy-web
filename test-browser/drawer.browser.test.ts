@@ -60,10 +60,18 @@ describe('docked (container at or above the breakpoint, md = 48rem)', () => {
     expect((await rect('#lbl')).w).toBeGreaterThan(0);
   });
 
-  it('collapsed: an icon strip, the label kept for screen readers but not shown', async () => {
+  it('collapsed: an icon strip, one entry tile with the padding either side and the edge beyond it, the label kept for screen readers but not shown', async () => {
     await layout(1000, { 'data-expanded': 'false' });
-    expect((await rect('#D')).w).toBeCloseTo(52, 0); // 3.25 units
-    expect((await rect('#M')).x).toBeCloseTo(52, 0);
+    const strip = await rect('#D');
+    const tile = await rect('#I');
+    // The drawer is border-box: its 1px edge is inside its width, so the
+    // strip is a large mark (2.25 units) and the padding (0.5 units) either
+    // side, plus the edge. One pixel less leaves the tile off-centre.
+    expect(tile.w).toBeCloseTo(36, 0);
+    expect(strip.w).toBeCloseTo(36 + 2 * 8 + 1, 0);
+    expect(tile.x - strip.x).toBeCloseTo(8, 1);
+    expect(strip.x + strip.w - 1 - (tile.x + tile.w)).toBeCloseTo(8, 1);
+    expect((await rect('#M')).x).toBeCloseTo(strip.w, 0);
     expect((await rect('#lbl')).w).toBeLessThanOrEqual(1);
     expect(await page.$eval('#lbl', (el) => el.textContent)).toBe('Scratchpad');
   });
@@ -110,17 +118,20 @@ describe('overlay (container below the breakpoint)', () => {
 });
 
 describe('the title entry', () => {
-  it('is larger than an ordinary entry, label and mark', async () => {
+  // Every entry's mark is the large mark, the title's included: the title
+  // is larger in its label, its mark's letters and its row, not its tile.
+  it("is larger than an ordinary entry: its label, its mark's letters and its row, on the same tile", async () => {
     await layout(1000, { 'data-expanded': 'true' });
-    expect(parseFloat(await css('#tlbl', 'font-size'))).toBeGreaterThan(parseFloat(await css('#lbl', 'font-size')));
-    expect((await rect('#tmark')).w).toBeGreaterThan((await rect('#imark')).w);
+    const px = async (id: string) => parseFloat(await css(id, 'font-size'));
+    expect(await px('#tlbl')).toBeGreaterThan(await px('#lbl'));
+    expect(await px('#tmark')).toBeGreaterThan(await px('#imark'));
+    expect((await rect('#T')).h).toBeGreaterThanOrEqual((await rect('#I')).h);
+    expect((await rect('#tmark')).w).toBeCloseTo((await rect('#imark')).w, 1);
   });
 
-  it('still fits the collapsed icon strip', async () => {
+  it('is not drawn on the collapsed strip, whose head is the toggle', async () => {
     await layout(1000, { 'data-expanded': 'false' });
-    const strip = await rect('#D');
-    const mark = await rect('#tmark');
-    expect(mark.x).toBeGreaterThanOrEqual(strip.x);
-    expect(mark.x + mark.w).toBeLessThanOrEqual(strip.x + strip.w - 1); // inside, clear of the border
+    expect(await css('#T', 'display')).toBe('none');
+    expect((await rect('#tmark')).w).toBe(0);
   });
 });

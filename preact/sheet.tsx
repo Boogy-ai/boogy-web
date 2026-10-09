@@ -16,6 +16,9 @@ export type SheetProps = {
   backLabel?: string;
   /** A bar of controls at the end of the head. */
   end?: ComponentChildren;
+  /** A head of the caller's own (a bar of its own, say), in place of the
+   *  title, the Back and the end: it keeps the head's frame. */
+  head?: ComponentChildren;
   /** The page's actions (OK / Cancel, say), held at the bottom. No foot
    *  without it. */
   foot?: ComponentChildren;
@@ -23,10 +26,11 @@ export type SheetProps = {
   children?: ComponentChildren;
 } & Omit<JSX.HTMLAttributes<HTMLDivElement>, 'title'>;
 
-export function Sheet({ title, start, onBack, backLabel, end, foot, children, ...rest }: SheetProps) {
+export function Sheet({ title, start, onBack, backLabel, end, head, foot, children, ...rest }: SheetProps) {
   return (
     <div {...rest} {...sheet()}>
-      {title !== undefined && (
+      {head !== undefined && <header data-slot="head" data-head="own">{head}</header>}
+      {head === undefined && title !== undefined && (
         <header data-slot="head">
           {onBack && <BackButton label={backLabel} onClick={onBack} />}
           {start}

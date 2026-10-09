@@ -40,8 +40,8 @@ export type { ButtonVariant, ButtonShape, ButtonSize, ButtonOptions, ButtonAttrs
 export { FONTS_CSS, FONT_FILES, FONTS_PATH } from './layout/fonts-css';
 export { place, parsePlacement, popover } from './components/popover';
 export type { PopoverSide, PopoverAlign, PopoverPlacement, PopoverMode, PlaceOptions, Placed, PopoverAttrs } from './components/popover';
-export { menuItem, moveFocus, typeahead, MENU_ITEM_VARIANTS } from './components/menu';
-export type { MenuSelectionMode, MenuItemVariant, MenuItemAttrs } from './components/menu';
+export { menuItem, menuItemText, moveFocus, typeahead, typeaheadSearch, MENU_ITEM_VARIANTS, TYPEAHEAD_RESET_MS } from './components/menu';
+export type { MenuSelectionMode, MenuItemVariant, MenuItemAttrs, TypeaheadSearch } from './components/menu';
 export {
   mountInstallConsent,
   bootInstallConsent,
@@ -97,3 +97,26 @@ export { PANE_PROTOCOL } from './internal/pane-protocol';
 export type { PaneHost, PaneLastSignIn, PaneSignInResult } from './internal/pane-protocol';
 export { openStream, parseEnvelope, REMINT_AT } from './stream';
 export type { StreamTicket, StreamEnvelope, StreamStatus, StreamSocket, StreamConnect, StreamOptions } from './stream';
+export { runRounds, flushRounds, setFrameScheduler, observeSize, resolveLength, measurePadding, measureContentBox } from './components/measure';
+export type { RoundJob } from './components/measure';
+export { fitText, fitTextVars, fitStart, fitProbe, fitNext, fitResult, attachFitText, FIT_ROUNDS } from './components/fit-text';
+export type { FitTextAttrs, FitState, FitHandle, FitTextOptions } from './components/fit-text';
+export { fillGrid, fillGridShape, attachFillGrid } from './components/fill-grid';
+export type { FillGridAttrs, GridShape, MinCell, FillGridOptions } from './components/fill-grid';
+export { segmentTotal, segmentShares, segmentText } from './components/segments';
+export type { Segment, SegmentPattern } from './components/segments';
+export { meter } from './components/meter';
+export type { MeterAttrs } from './components/meter';
+export { switchControl } from './components/switch';
+export type { SwitchAttrs } from './components/switch';
+export { choiceGroup } from './components/choice-group';
+export type { ChoiceGroupAttrs } from './components/choice-group';
+export { withRenewal, sessionOrRenewed } from './renewal';
+export { dataTable, sortState, visibleColumns } from './components/data-table';
+export type { DataTableAttrs, ColumnFit } from './components/data-table';
+export { stat } from './components/stat';
+export type { StatAttrs } from './components/stat';
+export { topBar, fitTopBar, menuRows, moveInRows } from './components/top-bar';
+export type { TopBarAttrs, TopBarPlace, BarItemFit, RowMove } from './components/top-bar';
+export { columnChart, columnHeights, columnTable } from './components/column-chart';
+export type { ColumnChartAttrs, ChartColumn } from './components/column-chart';

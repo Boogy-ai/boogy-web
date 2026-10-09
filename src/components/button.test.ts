@@ -22,12 +22,16 @@ describe('button', () => {
   it('carries the outline variant', () => {
     expect(button({ variant: 'outline' })['data-variant']).toBe('outline');
   });
+  it('has a large size, for the one main action of a surface', () => {
+    expect(button({ variant: 'solid', size: 'lg' })).toMatchObject({ 'data-size': 'lg' });
+  });
+
   it('refuses values it has no styles for', () => {
     // @ts-expect-error — not a ButtonVariant
     expect(() => button({ variant: 'primary' })).toThrow(/solid, quiet, danger, outline/);
     // @ts-expect-error — not a ButtonShape
     expect(() => button({ shape: 'circle' })).toThrow(/text, icon/);
     // @ts-expect-error — not a ButtonSize
-    expect(() => button({ size: 'xl' })).toThrow(/sm, md/);
+    expect(() => button({ size: 'xl' })).toThrow(/sm, md, lg/);
   });
 });

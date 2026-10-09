@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { menuItem, moveFocus, typeahead } from './menu';
+import { menuItem, menuItemText, moveFocus, typeahead, typeaheadSearch, TYPEAHEAD_RESET_MS } from './menu';
 
 describe('menuItem()', () => {
   it('takes the role its selection mode calls for, as React Aria does', () => {
@@ -77,5 +77,58 @@ describe('typeahead', () => {
   it('returns null when nothing matches', () => {
     expect(typeahead(labels, 'z', 0)).toBeNull();
     expect(typeahead(labels, '', 0)).toBeNull();
+  });
+});
+
+describe('typeaheadSearch', () => {
+  const press = (key: string, more: Partial<KeyboardEventInit> = {}, target: EventTarget | null = null) =>
+    ({ key, ctrlKey: false, metaKey: false, altKey: false, target, ...more });
+  const none = { text: '', at: 0 };
+
+  it('a typed character starts a search, and the next one in quick succession adds to it', () => {
+    const a = typeaheadSearch(none, press('d'), 5000);
+    expect(a).toEqual({ text: 'd', at: 5000 });
+    expect(typeaheadSearch(a!, press('e'), 5000 + TYPEAHEAD_RESET_MS)).toEqual({ text: 'de', at: 5000 + TYPEAHEAD_RESET_MS });
+  });
+
+  it('a pause starts a new search', () => {
+    expect(typeaheadSearch({ text: 'de', at: 5000 }, press('p'), 5001 + TYPEAHEAD_RESET_MS)).toEqual({ text: 'p', at: 5001 + TYPEAHEAD_RESET_MS });
+  });
+
+  it('a space continues a running search, and otherwise is no part of one: it presses the item', () => {
+    expect(typeaheadSearch(none, press(' '), 5000)).toBeNull();
+    expect(typeaheadSearch({ text: 'invite', at: 5000 }, press(' '), 5100)).toEqual({ text: 'invite ', at: 5100 });
+    expect(typeaheadSearch({ text: 'invite', at: 5000 }, press(' '), 5001 + TYPEAHEAD_RESET_MS)).toBeNull();
+  });
+
+  it('a key that types nothing, or one with a modifier, is no part of a search', () => {
+    expect(typeaheadSearch(none, press('ArrowDown'), 5000)).toBeNull();
+    expect(typeaheadSearch(none, press('c', { ctrlKey: true }), 5000)).toBeNull();
+    expect(typeaheadSearch(none, press('c', { metaKey: true }), 5000)).toBeNull();
+    expect(typeaheadSearch(none, press('c', { altKey: true }), 5000)).toBeNull();
+  });
+
+  it('typing in a field is the field\'s', () => {
+    for (const tag of ['input', 'textarea', 'select']) {
+      expect(typeaheadSearch(none, press('c', {}, document.createElement(tag)), 5000)).toBeNull();
+    }
+    const editable = document.createElement('div');
+    editable.contentEditable = 'true';
+    expect(typeaheadSearch(none, press('c', {}, editable), 5000)).toBeNull();
+    expect(typeaheadSearch(none, press('c', {}, document.createElement('button')), 5000)).toEqual({ text: 'c', at: 5000 });
+  });
+});
+
+describe('menuItemText', () => {
+  it('is the text the item gives for typeahead, else its label, else all its text', () => {
+    const item = (html: string, textValue?: string) => {
+      const el = document.createElement('div');
+      el.innerHTML = html;
+      if (textValue) el.dataset.textValue = textValue;
+      return el;
+    };
+    expect(menuItemText(item('<span data-slot="label">Delete</span><span data-slot="description">Cannot be undone</span>', 'Remove'))).toBe('Remove');
+    expect(menuItemText(item('<span data-slot="label">Delete</span><span data-slot="description">Cannot be undone</span>'))).toBe('Delete');
+    expect(menuItemText(item('Copy'))).toBe('Copy');
   });
 });

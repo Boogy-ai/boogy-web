@@ -19,7 +19,9 @@ describe('sheet', () => {
   });
   it('carries the document baseline an SDK page needs: ground, ink and the body font', () => {
     const r = ruleFor('[data-boogy="sheet"]') ?? '';
-    expect(r).toMatch(/background:\s*var\(--ground\)/);
+    // The page's own ground, translucent by default (a board shows through
+    // it); a page that wants it opaque sets --sheet-ground.
+    expect(r).toMatch(/background:\s*var\(--sheet-ground, var\(--ground\)\)/);
     expect(r).toMatch(/font-family:\s*var\(--font-body\)/);
   });
 });

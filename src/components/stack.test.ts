@@ -27,7 +27,7 @@ describe('the stylesheet has a block for every part', () => {
     ['[data-boogy="thumbnail"]', /overflow:\s*hidden/],
     ['[data-boogy="thumbnail"][data-size="md"]', /width:\s*var\(--thumb-md\)/],
     ['[data-boogy="notice"]', /font-size:\s*var\(--fs-caption\)/],
-    ['[data-boogy="notice"][data-tone="warning"]', /color:\s*var\(--warn\)/],
+    ['[data-boogy="notice"][data-tone="warning"]', /color:\s*var\(--text-1\)[^}]*border-inline-start:[^;]*var\(--warn\)/],
     ['[data-boogy="info-list"]', /grid-template-columns/],
     ['[data-boogy="detail-header"]', /container-type:\s*inline-size/],
   ])('%s', (sel, prop) => {

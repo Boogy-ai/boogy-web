@@ -125,6 +125,73 @@ describe('drawer strip width', () => {
   });
 });
 
+describe('top bar', () => {
+  it('its title takes what is left, down to a minimum, on one line ending in an ellipsis', () => {
+    expect(ruleFor('[data-boogy="top-bar"] > [data-slot="heading"]')).toMatch(/min-inline-size:\s*var\(--top-bar-title-min\)/);
+    const title = ruleFor('[data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]')!;
+    expect(title).toMatch(/text-overflow:\s*ellipsis/);
+    expect(title).toMatch(/white-space:\s*nowrap/);
+  });
+  it('measures in a box of no size, so the measuring adds no overflow', () => {
+    const m = ruleFor('[data-boogy="top-bar"] > [data-slot="measure"]')!;
+    expect(m).toMatch(/inline-size:\s*0/);
+    expect(m).toMatch(/overflow:\s*hidden/);
+    expect(m).toMatch(/visibility:\s*hidden/);
+  });
+  it("a widget's row in the menu is its label and its controls on one line", () => {
+    expect(ruleFor('[data-boogy="menu-row"]')).toMatch(/display:\s*flex/);
+  });
+  it("a widget's row and a menu item share one rule for their size, padding and ink", () => {
+    const shared = ruleFor('[data-boogy="menu-row"], [data-boogy="menu-item"]')!;
+    for (const d of ['min-height', 'padding', 'border-radius', 'color', 'font-size']) expect(shared).toMatch(new RegExp(`${d}:`));
+    expect(ruleFor('[data-boogy="menu-row"]')).not.toMatch(/min-height:|border-radius:/);
+  });
+  it("reaches its items as children, never into a widget's own content", () => {
+    expect(CODE).not.toMatch(/\[data-boogy="top-bar"\] \[data-item\]/);
+    expect(ruleFor('[data-boogy="top-bar"] > [data-slot="measure"] > div > [data-item]')).toMatch(/flex:\s*none/);
+    // A relative selector (starting with >) inside :is() or :where() is invalid there, and drops the rule.
+    expect(CODE).not.toMatch(/:(is|where)\(\s*>/);
+  });
+});
+
+describe('a multi-line field and a large one', () => {
+  it('a textarea control grows with its text and shows at least its rows', () => {
+    const area = ruleFor('[data-boogy="field"] > textarea[data-slot="control"]')!;
+    expect(area).toMatch(/field-sizing:\s*content/);
+    expect(area).toMatch(/min-block-size:\s*calc\(var\(--field-rows, 2\) \* 1lh/);
+  });
+  it('lg: a taller control at title size, its label at body size', () => {
+    expect(ruleFor('[data-boogy="field"][data-size="lg"] > [data-slot="control"]')).toMatch(/font-size:\s*var\(--fs-title\)/);
+    // Its taller minimum is a one-line input's: a multi-line control keeps its rows.
+    expect(ruleFor('[data-boogy="field"][data-size="lg"] > [data-slot="control"]')).not.toMatch(/min-height/);
+    expect(ruleFor('[data-boogy="field"][data-size="lg"] > input[data-slot="control"]')).toMatch(/min-height:\s*var\(--control-lg\)/);
+    expect(ruleFor('[data-boogy="field"][data-size="lg"] > [data-slot="label"]')).toMatch(/font-size:\s*var\(--fs-body\)/);
+  });
+});
+
+describe('a sheet with a head of its own', () => {
+  it("keeps the head's frame (its edge and padding), and none of the title's type", () => {
+    expect(ruleFor('[data-boogy="sheet"] > [data-slot="head"][data-head="own"]')).toMatch(/font-size:\s*var\(--fs-body\)/);
+    expect(ruleFor('[data-boogy="sheet"] > [data-slot="head"][data-head="own"] > *')).toMatch(/flex:\s*1 1 auto/);
+  });
+});
+
+describe('sheet stacking', () => {
+  it('stacks over what the components stack in a page, and under a drawer overlay', () => {
+    const z = Number(/z-index:\s*(\d+)/.exec(ruleFor('[data-boogy="sheet"]')!)?.[1]);
+    expect(z).toBeGreaterThan(1);
+    expect(z).toBeLessThan(19);
+  });
+});
+
+describe('button sizes', () => {
+  it('lg is the large control, its text a step up from the body', () => {
+    const lg = ruleFor('[data-boogy="button"][data-size="lg"]')!;
+    expect(lg).toMatch(/--_h:\s*var\(--control-lg\)/);
+    expect(lg).toMatch(/font-size:\s*var\(--fs-body\)/);
+  });
+});
+
 describe('button outline variant', () => {
   it('is a faint edge on no fill; hover lights the fill and brightens edge and text', () => {
     const rest = ruleFor('[data-boogy="button"][data-variant="outline"]')!;
@@ -153,11 +220,15 @@ describe('popover styles', () => {
     expect(CODE).toMatch(/@starting-style\s*\{\s*\[data-boogy="popover"\]\s*\{[^}]*opacity:\s*0/);
     expect(CODE).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\[data-boogy="popover"\]\s*\{\s*transition:\s*none/);
   });
+  it('sets no size of its own over its content\'s, so a size given to it wins; a page is the whole screen', () => {
+    expect(CODE).not.toContain('[data-boogy="popover"][popover]');
+    const page = ruleFor('[data-boogy="popover"][data-mode="page"]')!;
+    expect(page).toMatch(/width:\s*100%/);
+    expect(page).toMatch(/height:\s*100%/);
+  });
   it('page: the whole screen, a head and a scrolling body', () => {
     const page = ruleFor('[data-boogy="popover"][data-mode="page"]')!;
     expect(page).toMatch(/inset:\s*0/);
-    expect(page).toMatch(/width:\s*100%/);
-    expect(page).toMatch(/height:\s*100%/);
     expect(page).toMatch(/border-radius:\s*0/);
     expect(ruleFor('[data-boogy="popover"] > [data-slot="body"]')).toMatch(/overflow:\s*auto/);
     expect(ruleFor('[data-boogy="popover"] > [data-slot="head"]')).toMatch(/display:\s*flex/);
@@ -343,5 +414,146 @@ describe('a list item squeezed narrow', () => {
     const title = ruleFor('[data-boogy="list-item"] [data-slot="heading"] > [data-slot="title"]');
     expect(title).toMatch(/flex: 1 0 auto/);
     expect(title).toMatch(/max-width: 100%/);
+  });
+});
+
+describe('fit-text', () => {
+  it('sizes the font between its bounds by the fitted factor, with every word whole', () => {
+    const rule = ruleFor('[data-boogy="fit-text"]')!;
+    expect(rule).toContain('font-size: calc(var(--fit-min) + (var(--fit-max) - var(--fit-min)) * var(--fit, 1))');
+    expect(rule).toContain('overflow-wrap: normal');
+  });
+
+  it('breaks a word only once the text overflows even at its minimum', () => {
+    expect(ruleFor('[data-boogy="fit-text"][data-overflow="true"]')).toContain('overflow-wrap: anywhere');
+  });
+
+  it('is a block whatever its tag: an inline box has no size to fit within', () => {
+    expect(ruleFor('[data-boogy="fit-text"]')).toContain('display: block');
+  });
+});
+
+describe('fill-grid', () => {
+  it('wraps its children centred, each cell a share of the box by --cols and --rows', () => {
+    expect(ruleFor('[data-boogy="fill-grid"]')).toMatch(/flex-wrap:\s*wrap/);
+    // Its cells: never a popover shown among them, at one attribute's weight.
+    const cell = ruleFor('[data-boogy="fill-grid"] > :where(:not([popover]))')!;
+    expect(cell).toContain('var(--cols, 1)');
+    expect(cell).toContain('var(--rows, 1)');
+  });
+
+  it('falls back to one scrolling column at the minimum cell height', () => {
+    expect(ruleFor('[data-boogy="fill-grid"][data-fallback="true"]')).toMatch(/overflow-y:\s*auto/);
+    expect(ruleFor('[data-boogy="fill-grid"][data-fallback="true"] > :where(:not([popover]))')).toContain('block-size: var(--fill-min-block)');
+  });
+});
+
+describe('segments (meter and column chart share them)', () => {
+  it('fills a segment from --segment-color, and stripes it at 45° when asked', () => {
+    expect(ruleFor('[data-slot="segment"]')).toContain('background: var(--segment-color)');
+    const stripes = ruleFor('[data-slot="segment"][data-pattern="stripes"]')!;
+    // One tiled 45° square, never a repeating gradient: an engine can draw a
+    // repeating gradient with oklch() stops as stray lines (the browser test
+    // reads the pixels).
+    expect(stripes).toContain('linear-gradient(45deg');
+    expect(stripes).not.toContain('repeating-linear-gradient');
+    expect(stripes).toMatch(/background-size:\s*var\(--space-\d\) var\(--space-\d\)/);
+  });
+});
+
+describe('meter', () => {
+  it('is a rounded track its segments fill from the start', () => {
+    const rule = ruleFor('[data-boogy="meter"]')!;
+    expect(rule).toMatch(/display:\s*flex/);
+    expect(rule).toContain('border-radius: var(--radius-full)');
+    expect(rule).toMatch(/overflow:\s*hidden/);
+  });
+});
+
+describe('switch', () => {
+  it('has a track whose thumb moves to the end when on', () => {
+    expect(ruleFor('[data-boogy="switch"] [data-slot="track"]')).toBeTruthy();
+    expect(ruleFor('[data-boogy="switch"][aria-checked="true"] [data-slot="thumb"]')).toMatch(/translate/);
+  });
+});
+
+describe('switch, disabled', () => {
+  it('shows it cannot be pressed: dimmed, with no pointer cursor', () => {
+    const r = ruleFor('[data-boogy="switch"]:disabled')!;
+    expect(r).toMatch(/opacity:\s*0\.45/);
+    expect(r).toMatch(/cursor:\s*default/);
+  });
+});
+
+describe('choice-group radios', () => {
+  it('are drawn in the accent, at a size from the icon tokens', () => {
+    const r = ruleFor('[data-boogy="choice-group"] [data-slot="choice"] > input')!;
+    expect(r).toContain('accent-color: var(--accent)');
+    expect(r).toMatch(/inline-size:\s*var\(--icon-sm\)/);
+    expect(r).toMatch(/block-size:\s*var\(--icon-sm\)/);
+  });
+  it('a disabled choice is dimmed and not clickable-looking', () => {
+    expect(ruleFor('[data-boogy="choice-group"]:disabled')).toMatch(/opacity:\s*0\.45/);
+  });
+});
+
+describe('choice-group', () => {
+  it('stacks its choices, each a radio beside its label and description', () => {
+    expect(ruleFor('[data-boogy="choice-group"]')).toMatch(/display:\s*grid/);
+    expect(ruleFor('[data-boogy="choice-group"] [data-slot="choice"]')).toMatch(/display:\s*grid/);
+  });
+});
+
+describe('data-table', () => {
+  it('has a sticky header and right-aligns numeric columns in tabular figures', () => {
+    expect(ruleFor('[data-boogy="data-table"] thead th')).toMatch(/position:\s*sticky/);
+    const numeric = ruleFor('[data-boogy="data-table"] [data-numeric="true"]')!;
+    expect(numeric).toMatch(/text-align:\s*end/);
+    expect(numeric).toContain('font-variant-numeric: tabular-nums');
+  });
+
+  it('lets a control in the title cell cover the whole row, through the shared generator', () => {
+    expect(ruleFor('[data-boogy="data-table"] tbody tr:has([data-slot="title"] > :is(button, a))')).toMatch(/position:\s*relative/);
+  });
+});
+
+describe('stat', () => {
+  it('stacks the value over its label and caption', () => {
+    expect(ruleFor('[data-boogy="stat"]')).toMatch(/display:\s*grid/);
+    // Packed to the top: stretched beside a stat with a caption, one without
+    // keeps its label under its value.
+    expect(ruleFor('[data-boogy="stat"]')).toMatch(/align-content:\s*start/);
+  });
+  it('sets the value in tabular figures of the body face, semibold, so a live value never changes width as its digits change', () => {
+    const value = ruleFor('[data-boogy="stat"] > [data-slot="value"]');
+    expect(value).toContain('font-variant-numeric: tabular-nums');
+    expect(value).toContain('font-weight: 600');
+    expect(value).not.toMatch(/font-family/);
+  });
+  it('keeps the value on one line: with no height to bound it, a wrapped value would always fit, and never shrink', () => {
+    expect(ruleFor('[data-boogy="stat"] > [data-slot="value"]')).toContain('white-space: nowrap');
+  });
+});
+
+describe('column-chart', () => {
+  it('lays columns side by side, each stacking its segments from the bottom', () => {
+    expect(ruleFor('[data-boogy="column-chart"] [data-slot="columns"]')).toMatch(/display:\s*flex/);
+    expect(ruleFor('[data-boogy="column-chart"] [data-slot="column"]')).toMatch(/flex-direction:\s*column-reverse/);
+  });
+  it('clips what it holds, falling back to hidden where clip is not supported', () => {
+    // Declared in this order, an engine without `clip` keeps `hidden`.
+    expect(ruleFor('[data-boogy="column-chart"]')).toMatch(/overflow:\s*hidden;\s*overflow:\s*clip;/);
+  });
+  it('spells the gap between a column\'s segments once, as a custom property the heights are computed with', () => {
+    expect(ruleFor('[data-boogy="column-chart"]')).toMatch(/--chart-segment-gap:\s*var\(--space-0\);/);
+    expect(ruleFor('[data-boogy="column-chart"] [data-slot="column"]')).toMatch(/(?:^|[;\s])gap:\s*var\(--chart-segment-gap\);/);
+  });
+});
+
+describe('visually hidden', () => {
+  it('keeps content for assistive technology while drawing nothing', () => {
+    const rule = ruleFor('[data-visually-hidden]')!;
+    expect(rule).toContain('clip-path: inset(50%)');
+    expect(rule).toMatch(/position:\s*absolute/);
   });
 });

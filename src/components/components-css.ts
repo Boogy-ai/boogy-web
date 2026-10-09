@@ -63,6 +63,7 @@ const BUTTON_CSS = `
     transition: background-color var(--dur-fast) ease-out, color var(--dur-fast) ease-out;
   }
   [data-boogy="button"][data-size="sm"] { --_h: var(--control-sm); padding: 0 var(--space-2); }
+  [data-boogy="button"][data-size="lg"] { --_h: var(--control-lg); padding: 0 var(--space-4); font-size: var(--fs-body); }
   [data-boogy="button"][data-shape="icon"] { width: var(--_h); padding: 0; }
   [data-boogy="button"][data-rounded="true"] { border-radius: var(--radius-full); }
   [data-boogy="button"]:focus-visible {
@@ -477,17 +478,21 @@ const MENU_CSS = `
     padding: var(--space-1);
     outline: none;
   }
+  /* A menu's row, a plain item or a row of controls (a top bar's widget):
+     one size, padding and ink. */
+  [data-boogy="menu-row"], [data-boogy="menu-item"] {
+    min-height: var(--control-md);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-1);
+    color: var(--text-1);
+    font-size: var(--fs-detail);
+  }
   [data-boogy="menu-item"] {
     display: grid;
     grid-template-columns: 1fr auto auto;
     grid-template-areas: "label kbd indicator" "description kbd indicator";
     align-items: center;
     column-gap: var(--space-3);
-    min-height: var(--control-md);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-1);
-    color: var(--text-1);
-    font-size: var(--fs-detail);
     cursor: default;
     outline: none;
     user-select: none;
@@ -545,8 +550,16 @@ const SHEET_CSS = `
     flex-direction: column;
     position: fixed;
     inset: 0;
+    /* Over the page it covers: nothing in it paints through, not even what
+       the components stack within it (a table's sticky header, a card's
+       covering title, at 1). Under a drawer's overlay and its backdrop (20,
+       19), which open over whatever page is showing. */
+    z-index: 10;
     overflow: hidden;
-    background: var(--ground);
+    /* The page's own ground, translucent, so whatever frames the page shows
+       through it as it does through the page. A page that wants it opaque
+       sets --sheet-ground (to --ground-solid, say). */
+    background: var(--sheet-ground, var(--ground));
     color: var(--text-1);
     font-family: var(--font-body);
     font-size: var(--fs-body);
@@ -581,6 +594,10 @@ const SHEET_CSS = `
     font-size: var(--fs-body);
     font-weight: 400;
   }
+  /* A head of the caller's own: the head's frame (its edge and padding), and
+     none of the title's type. What it holds takes the head's width. */
+  [data-boogy="sheet"] > [data-slot="head"][data-head="own"] { font-size: var(--fs-body); font-weight: 400; }
+  [data-boogy="sheet"] > [data-slot="head"][data-head="own"] > * { flex: 1 1 auto; min-width: 0; }
   [data-boogy="sheet"] > [data-slot="body"] {
     flex: 1 1 auto;
     min-height: 0;
@@ -676,6 +693,20 @@ const FIELD_CSS = `
     outline-offset: 1px;
   }
   [data-boogy="field"] > [data-slot="control"]:disabled { opacity: 0.45; }
+  /* A multi-line control on its own (TextArea): it grows with its text, and
+     shows at least its rows (--field-rows) whatever the text, where a
+     content-sized field would shrink to one line. */
+  [data-boogy="field"] > textarea[data-slot="control"] {
+    padding-block: var(--space-2);
+    resize: vertical;
+    field-sizing: content;
+    min-block-size: calc(var(--field-rows, 2) * 1lh + 2 * var(--space-2));
+  }
+  /* LG on its own control: at title size, its label at body size; a one-line
+     input is taller too (a multi-line one keeps its rows, above). */
+  [data-boogy="field"][data-size="lg"] > [data-slot="control"] { font-size: var(--fs-title); }
+  [data-boogy="field"][data-size="lg"] > input[data-slot="control"] { min-height: var(--control-lg); }
+  [data-boogy="field"][data-size="lg"] > [data-slot="label"] { font-size: var(--fs-body); }
   /* One clear button: the field's own, never the browser's beside it. */
   [data-boogy="field"] [data-slot="control"]::-webkit-search-cancel-button { display: none; }
   /* A fixed prefix inside the control's frame (a site address before an
@@ -1056,10 +1087,18 @@ ${titleControlCovers('[data-boogy="list-item"]')}
 `;
 
 // Notice: a quiet one-line explanation; the warning tone is for something the
-// person should know went wrong.
+// person should know went wrong. Its words meet 4.5:1 on every ground in both
+// schemes, so the neutral tone is the secondary text colour: the muted caption
+// colour falls under that on a sunken ground.
 const NOTICE_CSS = `
-  [data-boogy="notice"] { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
-  [data-boogy="notice"][data-tone="warning"] { color: var(--warn); }
+  [data-boogy="notice"] { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
+  /* The warning hue is not dark enough to be words on every ground, so its words
+     take the primary text colour and the hue stands in an edge beside them. */
+  [data-boogy="notice"][data-tone="warning"] {
+    color: var(--text-1);
+    padding-inline-start: var(--space-2);
+    border-inline-start: var(--space-1) solid var(--warn);
+  }
   [data-boogy="notice"][data-tone="danger"] { color: var(--danger); }
 `;
 
@@ -1407,9 +1446,373 @@ const TABS_CSS = `
   [data-boogy="tabs"] > [data-slot="panel"] { outline: none; }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, TABS_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS };
+// --- FitText (see fit-text.ts) ---
+// The size runs from --fit-min to --fit-max by the fitted factor; before the
+// first fit, the factor is 1. Words are whole while it is fitted, so a word
+// wider than the box reads as not fitting and the text shrinks; only text that
+// overflows even at its minimum (data-overflow) breaks a word, rather than
+// spilling sideways. The element is a block whatever its tag:
+// an inline box has no size to fit within, so its text would always "fit".
+const FIT_TEXT_CSS = `
+  [data-boogy="fit-text"] {
+    display: block;
+    font-size: calc(var(--fit-min) + (var(--fit-max) - var(--fit-min)) * var(--fit, 1));
+    overflow-wrap: normal;
+  }
+  [data-boogy="fit-text"][data-overflow="true"] { overflow-wrap: anywhere; }
+`;
 
-export const COMPONENTS_CSS = `
+// --- FillGrid (see fill-grid.ts) ---
+// Wrapping rows, centred, so a short last row sits in the middle. Each cell is
+// a --cols-th of the width and a --rows-th of the height, less the gaps.
+// Fallback: one scrolling column of full-width cells at the minimum height.
+//
+// The gap is REGISTERED, so it is resolved once, on the grid, and its cells
+// inherit that length. Cells are sized to fill a row exactly, so the gap they
+// subtract and the gap the grid lays out with must be one length: unregistered,
+// a gap in container units is resolved again on each cell, and an engine that
+// re-resolves the cells but not the grid (Firefox, when a zoom moves the
+// container's padding but not its size) leaves cells a fraction of a pixel too
+// wide, and the last one in each row wraps.
+const FILL_GRID_PROPERTIES = `
+@property --_fill-gap { syntax: '<length-percentage>'; inherits: true; initial-value: 0px; }
+`;
+const FILL_GRID_CSS = `
+  [data-boogy="fill-grid"] {
+    --_fill-gap: var(--fill-gap, var(--space-2));
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    gap: var(--_fill-gap);
+    min-block-size: 0;
+  }
+  /* Its cells, never a popover rendered among them: the top layer takes a
+     popover out of the grid's layout, but a rule for the grid's children
+     would still match it and size it from the viewport. :where() keeps the
+     rule's weight at one attribute, so a cell's own rules still win. */
+  [data-boogy="fill-grid"] > :where(:not([popover])) {
+    box-sizing: border-box;
+    flex: 0 0 calc((100% - (var(--cols, 1) - 1) * var(--_fill-gap)) / var(--cols, 1));
+    block-size: calc((100% - (var(--rows, 1) - 1) * var(--_fill-gap)) / var(--rows, 1));
+    min-inline-size: 0;
+  }
+  [data-boogy="fill-grid"][data-fallback="true"] {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-y: auto;
+  }
+  [data-boogy="fill-grid"][data-fallback="true"] > :where(:not([popover])) {
+    flex: none;
+    inline-size: 100%;
+    block-size: var(--fill-min-block);
+  }
+`;
+
+// --- Segments (see segments.ts): one definition for Meter and ColumnChart ---
+// A segment is its token colour. Stripes are that colour and a paler mix of it
+// at 45°, so two segments of one hue read apart without colour vision. They are
+// one tiled square of a plain gradient, not a repeating gradient: an engine can
+// draw a repeating gradient with oklch() stops as a few stray lines on a flat
+// ground.
+const SEGMENT_CSS = `
+  [data-slot="segment"] {
+    display: block;
+    flex: none;
+    background: var(--segment-color);
+  }
+  [data-slot="segment"][data-pattern="stripes"] {
+    background-color: color-mix(in oklch, var(--segment-color) 40%, transparent);
+    background-image: linear-gradient(45deg,
+      var(--segment-color) 25%, transparent 25% 50%,
+      var(--segment-color) 50% 75%, transparent 75%);
+    background-size: var(--space-3) var(--space-3);
+  }
+`;
+
+// --- Meter (see meter.ts) ---
+const METER_CSS = `
+  [data-boogy="meter"] {
+    display: flex;
+    inline-size: 100%;
+    block-size: var(--space-3);
+    border-radius: var(--radius-full);
+    background: var(--fill-hover);
+    overflow: hidden;
+  }
+  [data-boogy="meter"] > [data-slot="segment"] { block-size: 100%; }
+`;
+
+// --- Switch (see switch.ts) ---
+const SWITCH_CSS = `
+  [data-boogy="switch"] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-block-size: var(--touch-min);
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  [data-boogy="switch"]:disabled { opacity: 0.45; cursor: default; }
+  [data-boogy="switch"] [data-slot="track"] {
+    position: relative;
+    flex: none;
+    inline-size: var(--control-lg);
+    block-size: var(--control-sm);
+    border-radius: var(--radius-full);
+    background: var(--fill-selected);
+    transition: background-color var(--dur-fast) ease-out;
+  }
+  [data-boogy="switch"] [data-slot="thumb"] {
+    position: absolute;
+    inset-block-start: var(--space-0);
+    inset-inline-start: var(--space-0);
+    inline-size: calc(var(--control-sm) - 2 * var(--space-0));
+    block-size: calc(var(--control-sm) - 2 * var(--space-0));
+    border-radius: 50%;
+    background: var(--ground-solid);
+    transition-property: translate;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: ease-out;
+  }
+  [data-boogy="switch"][aria-checked="true"] [data-slot="track"] { background: var(--accent); }
+  [data-boogy="switch"][aria-checked="true"] [data-slot="thumb"] {
+    translate: calc(var(--control-lg) - var(--control-sm)) 0;
+  }
+  [data-boogy="switch"]:focus-visible [data-slot="track"] {
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: var(--ring);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-boogy="switch"] [data-slot="track"],
+    [data-boogy="switch"] [data-slot="thumb"] { transition: none; }
+  }
+`;
+
+// --- ChoiceGroup (see choice-group.ts) ---
+const CHOICE_GROUP_CSS = `
+  [data-boogy="choice-group"] {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: none;
+  }
+  [data-boogy="choice-group"] > legend { padding: 0; margin-block-end: var(--space-2); }
+  [data-boogy="choice-group"] [data-slot="choice"] {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--space-2);
+    align-items: start;
+  }
+  [data-boogy="choice-group"] [data-slot="choice"] > input,
+  [data-boogy="choice-group"] [data-slot="choice-label"],
+  [data-boogy="choice-group"] [data-slot="choice-description"] { cursor: pointer; }
+  [data-boogy="choice-group"]:disabled { opacity: 0.45; }
+  [data-boogy="choice-group"]:disabled [data-slot="choice"] > input,
+  [data-boogy="choice-group"]:disabled [data-slot="choice-label"],
+  [data-boogy="choice-group"]:disabled [data-slot="choice-description"] { cursor: default; }
+  [data-boogy="choice-group"] [data-slot="choice"] > input {
+    grid-row: span 2;
+    margin: var(--space-0) 0 0;
+    accent-color: var(--accent);
+    inline-size: var(--icon-sm);
+    block-size: var(--icon-sm);
+  }
+  [data-boogy="choice-group"] [data-slot="choice-label"] { grid-column: 2; }
+  [data-boogy="choice-group"] [data-slot="choice-description"] { grid-column: 2; color: var(--text-3); font-size: var(--fs-caption); }
+`;
+
+// --- Visually hidden: present for assistive technology, never drawn ---
+// A table ignores the 1px box and is laid out at full size, so whatever holds
+// a hidden table clips it (ColumnChart's figure does), or the table's unseen
+// rows lengthen the scroll of the surface around it.
+const VISUALLY_HIDDEN_CSS = `
+  [data-visually-hidden] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+`;
+
+// --- DataTable (see data-table.ts) ---
+// The header row stays opaque over the rows scrolling beneath it
+// (--table-head-ground, solid by default). The title cell takes the width the
+// other columns leave and ends in an ellipsis. The sortable header shows its
+// direction with an arrow, pointing down while descending; it keeps its place
+// while unsorted, so the label never moves when the sort is set. A focused
+// row's ring is drawn inside it: a row spans the scrolling box, which would
+// clip a ring drawn outside.
+const DATA_TABLE_CSS = `
+  [data-boogy="data-table"] { overflow: auto; min-block-size: 0; }
+  [data-boogy="data-table"] > table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-detail);
+    table-layout: auto;
+  }
+  [data-boogy="data-table"] thead th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    background: var(--table-head-ground, var(--ground-solid));
+    color: var(--text-2);
+    font-weight: 500;
+    text-align: start;
+    white-space: nowrap;
+    border-block-end: 1px solid var(--edge);
+  }
+  [data-boogy="data-table"] :is(th, td) {
+    block-size: var(--control-md);
+    padding: 0 var(--space-2);
+    white-space: nowrap;
+  }
+  [data-boogy="data-table"] tbody tr + tr { border-block-start: 1px solid var(--edge); }
+  [data-boogy="data-table"] tbody th { font-weight: inherit; text-align: start; max-inline-size: 0; inline-size: 100%; }
+  [data-boogy="data-table"] [data-numeric="true"] { text-align: end; font-variant-numeric: tabular-nums; }
+  [data-boogy="data-table"] thead button {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    cursor: pointer;
+  }
+  [data-boogy="data-table"] thead button:hover { color: var(--text-1); }
+  [data-boogy="data-table"] thead button:focus-visible { outline: var(--ring) solid var(--ring-color); }
+  [data-boogy="data-table"] [aria-sort="ascending"] [data-slot="sort"] { scale: 1 -1; }
+  [data-boogy="data-table"] [aria-sort="none"] [data-slot="sort"] { visibility: hidden; }
+${titleControlCovers('[data-boogy="data-table"] tbody tr')}
+  [data-boogy="data-table"] tbody tr:has([data-slot="title"] > :focus-visible) { outline-offset: calc(var(--ring) * -1); }
+`;
+
+// --- Stat (see stat.ts) ---
+// The value is set in tabular figures of the body face, so a value that
+// updates live keeps its width as its digits change. It stays on one line:
+// with no height to bound it, a wrapped value would always fit, and never
+// shrink to its width. Its line is the font's own height (`normal`): a tighter
+// one lets the glyphs spill past the line box, which the fit reads as
+// overflow, so the value would shrink however much room it had. As a grid
+// item on one line it would widen to that line, so its minimum width is 0:
+// the stat's width is the one it fits. Its rows
+// pack to the top, so a stat with no caption, stretched beside one that has
+// one, keeps its label under its value.
+const STAT_CSS = `
+  [data-boogy="stat"] { display: grid; align-content: start; gap: var(--space-1); min-inline-size: 0; }
+  [data-boogy="stat"] > [data-slot="value"] { margin: 0; min-inline-size: 0; line-height: normal; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+  [data-boogy="stat"] > [data-slot="label"] { margin: 0; color: var(--text-2); }
+  [data-boogy="stat"] > [data-slot="caption"] { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
+`;
+
+// --- ColumnChart (see column-chart.ts) ---
+// Columns grow from one baseline and are capped in width, so a short series
+// spreads across the axis rather than filling it with slabs. The segments of
+// a column stand --chart-segment-gap apart, and the top one rounds its data
+// end; the baseline end stays square. That one property both draws the gaps
+// and is taken off the height the segments are scaled into, so the two never
+// disagree. The figure clips, so the hidden table of values never adds scroll
+// to the surface around it; `hidden` is declared first, for an engine without
+// `clip`.
+const COLUMN_CHART_CSS = `
+  [data-boogy="column-chart"] {
+    --chart-segment-gap: var(--space-0);
+    display: grid; gap: var(--space-1); margin: 0; position: relative; overflow: hidden; overflow: clip;
+  }
+  [data-boogy="column-chart"] [data-slot="columns"] {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: var(--space-0);
+    block-size: var(--chart-height, var(--space-8));
+    border-block-end: 1px solid var(--edge-strong);
+  }
+  [data-boogy="column-chart"] [data-slot="column"] {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column-reverse;
+    gap: var(--chart-segment-gap);
+    min-inline-size: 0;
+    max-inline-size: var(--space-5);
+  }
+  [data-boogy="column-chart"] [data-slot="column"] > [data-slot="segment"] { flex: 0 1 auto; }
+  [data-boogy="column-chart"] [data-slot="column"] > [data-slot="segment"]:last-child {
+    border-start-start-radius: var(--radius-1);
+    border-start-end-radius: var(--radius-1);
+  }
+  [data-boogy="column-chart"] [data-slot="axis"] {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-3);
+    font-size: var(--fs-caption);
+    font-variant-numeric: tabular-nums;
+  }
+`;
+
+// --- TopBar (see top-bar.ts) ---
+// The title area takes what the end side leaves, down to --top-bar-title-min,
+// and its title and the line under it end in an ellipsis. The end side holds
+// what fits; the measuring row lays out every item the bar may show in a
+// box of no size, so it is measured but adds no overflow. In the More menu, a
+// widget's row is its label and its controls, on one line.
+const TOP_BAR_CSS = `
+  [data-boogy="top-bar"] {
+    --top-bar-title-min: var(--tile-min);
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-block-size: var(--control-lg);
+    min-inline-size: 0;
+  }
+  [data-boogy="top-bar"] > [data-slot="leading"] { display: flex; flex: none; align-items: center; }
+  [data-boogy="top-bar"] > [data-slot="heading"] { display: grid; flex: 1 1 0; min-inline-size: var(--top-bar-title-min); }
+  [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"] {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-title);
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="subtitle"] {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-2);
+    font-size: var(--fs-caption);
+  }
+  [data-boogy="top-bar"] > [data-slot="actions"] { display: flex; flex: none; align-items: center; gap: var(--space-1); }
+  /* Two plain selectors: a relative one (starting with >) is invalid inside
+     :is(), whose forgiving list drops it, and the rule then matches nothing. */
+  [data-boogy="top-bar"] > [data-slot="actions"] > [data-item],
+  [data-boogy="top-bar"] > [data-slot="measure"] > div > [data-item] { display: flex; flex: none; align-items: center; }
+  [data-boogy="top-bar"] > [data-slot="measure"] {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    inline-size: 0;
+    block-size: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+  [data-boogy="top-bar"] > [data-slot="measure"] > div { display: flex; inline-size: max-content; gap: var(--space-1); }
+  [data-boogy="menu-row"] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+  [data-boogy="menu-row"]:focus-within { background: var(--fill-hover); }
+  [data-boogy="menu-row"] > [data-slot="widget"] { display: flex; align-items: center; }
+`;
+
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, TABS_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
+
+export const COMPONENTS_CSS = `${FILL_GRID_PROPERTIES}
 @layer boogy.components {
 ${PILL_CSS}
 ${BUTTON_CSS}
@@ -1435,5 +1838,16 @@ ${DETAIL_HEADER_CSS}
 ${STACK_CSS}
 ${CARD_CSS}
 ${CAROUSEL_CSS}
+${FIT_TEXT_CSS}
+${FILL_GRID_CSS}
+${SEGMENT_CSS}
+${METER_CSS}
+${SWITCH_CSS}
+${CHOICE_GROUP_CSS}
+${VISUALLY_HIDDEN_CSS}
+${DATA_TABLE_CSS}
+${STAT_CSS}
+${COLUMN_CHART_CSS}
+${TOP_BAR_CSS}
 }
 `;

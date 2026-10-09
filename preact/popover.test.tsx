@@ -79,6 +79,26 @@ describe('<Popover> anchored', () => {
     expect(q('[data-slot="head"]')).toBeNull();
   });
 
+  it('without a title or aria-label, is named by its trigger', () => {
+    const { q } = mount({ title: undefined });
+    const p = q('[data-boogy="popover"]')!;
+    expect(p.hasAttribute('aria-label')).toBe(false);
+    expect(p.getAttribute('aria-labelledby')).toBe('trigger');
+  });
+
+  it('gives an id-less trigger one to be named by', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    function App() {
+      const ref = useRef<HTMLButtonElement>(null);
+      return <div><button ref={ref}>Filter</button><Popover triggerRef={ref} isOpen onOpenChange={() => {}}><input /></Popover></div>;
+    }
+    act(() => render(<App />, root));
+    const id = document.querySelector('button')!.id;
+    expect(id).not.toBe('');
+    expect(document.querySelector('[data-boogy="popover"]')!.getAttribute('aria-labelledby')).toBe(id);
+  });
+
   it('measures its natural width, not the width squeezed by where it last sat', () => {
     // Shrink-to-fit: the popup is only as wide as the room right of its left edge.
     triggerRect = { left: 950, top: 100, width: 60, height: 40 };

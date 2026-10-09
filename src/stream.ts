@@ -94,6 +94,8 @@ export function parseEnvelope(raw: unknown): StreamEnvelope | null {
 export function openStream(opts: StreamOptions): { close(): void } {
   let closed = false;
   let connectedBefore = false;
+  /** Whether the socket is connected now. */
+  let connected = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const seen = new Set<number>();
   const order: number[] = [];
@@ -149,6 +151,12 @@ export function openStream(opts: StreamOptions): { close(): void } {
   }
 
   socket.on('connect', () => {
+    connected = true;
+    // Closed while it was still connecting: closed now that it is open.
+    if (closed) {
+      socket.disconnect();
+      return;
+    }
     const again = connectedBefore;
     connectedBefore = true;
     // A fresh connection: what was seen before it says nothing about what
@@ -162,7 +170,13 @@ export function openStream(opts: StreamOptions): { close(): void } {
       if (again && !closed) opts.onResync?.();
     });
   });
+  // Closed while connecting, and this attempt failed: closing now stops the
+  // client's retries.
+  socket.on('connect_error', () => {
+    if (closed) socket.disconnect();
+  });
   socket.on('disconnect', (reason?: string) => {
+    connected = false;
     status('offline');
     // The client library reconnects by itself after a lost transport, but not
     // when the server ended the connection (an eviction, say) — that one is ours.
@@ -181,7 +195,10 @@ export function openStream(opts: StreamOptions): { close(): void } {
     close() {
       closed = true;
       clearTimeout(timer);
-      socket.disconnect();
+      // A socket still connecting is closed once it connects, or once the
+      // attempt fails: closing a websocket mid-handshake is a console error
+      // in some engines, and the page did nothing wrong.
+      if (connected) socket.disconnect();
     },
   };
 }

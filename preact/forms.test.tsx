@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
-import { EmptyState, Sheet, TextField } from './index';
+import { EmptyState, Sheet, TextArea, TextField } from './index';
 
 afterEach(() => { document.body.replaceChildren(); });
 function mount(node: preact.ComponentChild) {
@@ -60,5 +60,51 @@ describe('<TextField>', () => {
     const input = r.querySelector<HTMLInputElement>('input')!;
     expect(input.placeholder).toBe('alice');
     expect(input.getAttribute('autocomplete')).toBe('off');
+  });
+});
+
+describe('<TextField> size', () => {
+  it('lg: the field that is the main thing on its surface', () => {
+    const r = mount(<TextField label="How many" size="lg" value="1" onValueChange={() => {}} />);
+    expect(r.querySelector('[data-boogy="field"]')!.getAttribute('data-size')).toBe('lg');
+  });
+});
+
+describe('<TextArea>', () => {
+  it('is a labelled multi-line field: label, control, message, as a TextField is', () => {
+    const onValueChange = vi.fn();
+    const r = mount(<TextArea label="Names" value="" onValueChange={onValueChange} message="One per line" />);
+    const label = r.querySelector('label')!;
+    const area = label.control as HTMLTextAreaElement;
+    expect(area.tagName).toBe('TEXTAREA');
+    expect(area.dataset.slot).toBe('control');
+    expect(area.getAttribute('aria-describedby')).toBe(r.querySelector('[data-slot="message"]')!.id);
+    act(() => { area.value = 'a\nb'; area.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(onValueChange).toHaveBeenCalledWith('a\nb');
+  });
+
+  it('shows at least its rows, however short its text', () => {
+    const r = mount(<TextArea label="Names" rows={4} value="" onValueChange={() => {}} />);
+    const area = r.querySelector('textarea')!;
+    expect(area.getAttribute('rows')).toBe('4');
+    expect(area.style.getPropertyValue('--field-rows')).toBe('4');
+  });
+
+  it('newlines={false}: one paragraph however it wraps, so Enter makes no line break', () => {
+    const r = mount(<TextArea label="Title" newlines={false} value="" onValueChange={() => {}} />);
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    r.querySelector('textarea')!.dispatchEvent(enter);
+    expect(enter.defaultPrevented).toBe(true);
+    const open = mount(<TextArea label="Notes" value="" onValueChange={() => {}} />);
+    const again = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    open.querySelector('textarea')!.dispatchEvent(again);
+    expect(again.defaultPrevented).toBe(false);
+  });
+
+  it('invalid marks the control and the field; size lg as a TextField', () => {
+    const r = mount(<TextArea label="Q" size="lg" invalid value="" onValueChange={() => {}} />);
+    expect(r.querySelector('[data-boogy="field"]')!.getAttribute('data-size')).toBe('lg');
+    expect(r.querySelector('[data-boogy="field"]')!.getAttribute('data-invalid')).toBe('true');
+    expect(r.querySelector('textarea')!.getAttribute('aria-invalid')).toBe('true');
   });
 });

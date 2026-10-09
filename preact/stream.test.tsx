@@ -45,10 +45,21 @@ describe('useStream', () => {
     expect(root.textContent).toBe('live');
   });
 
-  it('closes the stream when it unmounts', () => {
+  it('closes the stream when it unmounts', async () => {
+    const f = fakeIo();
+    const root = mount(<Probe io={f.io} />);
+    f.fire('connect');
+    await flush();
+    act(() => render(null, root));
+    expect(f.disconnects()).toBe(1);
+  });
+
+  it('unmounted while still connecting, it closes the stream once the socket connects', () => {
     const f = fakeIo();
     const root = mount(<Probe io={f.io} />);
     act(() => render(null, root));
+    expect(f.disconnects()).toBe(0);
+    f.fire('connect');
     expect(f.disconnects()).toBe(1);
   });
 

@@ -32,8 +32,13 @@ export interface PaneHandle {
    *  `history.pushState`. Reports the new location either way. The board shows
    *  back and forward only for an app that passes `onNavigate`. With
    *  `{ reset: true }` the pane's history starts afresh at `path` — for a
-   *  sign-out, say, after which back must not lead to a signed-in page. */
-  navigate(path: string, options?: { reset?: boolean }): void;
+   *  sign-out, say, after which back must not lead to a signed-in page. With
+   *  `{ replace: true }` `path` takes the current entry instead of adding one
+   *  — for a step that finishes a page (a form saved, or closed), after which
+   *  back must not lead to it. In a board, a replace that lands on the page
+   *  next to it merges into that page, so back and forward never step to the
+   *  page already shown; outside a board it is `history.replaceState`. */
+  navigate(path: string, options?: { reset?: boolean; replace?: boolean }): void;
   /** Ask the page framing this app to sign it in — call it when the person
    *  chooses to sign in, after reporting signed out (`reportAuthState(false)`):
    *  the page asks nothing of an app that has not said, and tells one that
@@ -304,7 +309,8 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     reportLocation: (path) => report('location', { path }),
     navigate: (path, options) => {
       if (!framed) {
-        history.pushState({}, '', path);
+        if (options?.replace) history.replaceState(history.state, '', path);
+        else history.pushState({}, '', path);
         report('location', { path: here() });
         return;
       }
@@ -315,6 +321,14 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
       if (options?.reset) {
         stack.splice(0, stack.length, now);
         index = 0;
+      } else if (options?.replace) {
+        stack[index] = now;
+        // Never the same page twice in a row: a step between them shows nothing.
+        if (stack[index + 1] === now) stack.splice(index + 1, 1);
+        if (index > 0 && stack[index - 1] === now) {
+          stack.splice(index, 1);
+          index -= 1;
+        }
       } else if (stack[index] !== now) {
         stack.splice(index + 1, stack.length, now);
         // Bounded: the oldest page goes first.

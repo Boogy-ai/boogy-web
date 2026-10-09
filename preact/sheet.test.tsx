@@ -41,3 +41,15 @@ describe('<Sheet> head', () => {
     expect([...head(el).children].map((k) => k.getAttribute('data-slot'))).toEqual(['title']);
   });
 });
+
+describe('<Sheet> head of its own', () => {
+  it('head: the head is what the caller gives (a bar of its own), in place of the title, Back and end', () => {
+    const el = mount(<Sheet head={<div id="mine">bar</div>} foot={<button>OK</button>}>body</Sheet>);
+    const h = head(el);
+    expect(h.getAttribute('data-head')).toBe('own');
+    expect(h.querySelector('#mine')).toBeTruthy();
+    expect(h.querySelector('[data-slot="title"]')).toBeNull();
+    expect(el.querySelector(':scope > [data-slot="body"]')!.textContent).toBe('body');
+    expect(el.querySelector(':scope > [data-slot="foot"] button')).toBeTruthy();
+  });
+});

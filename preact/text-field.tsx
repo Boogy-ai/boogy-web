@@ -14,9 +14,11 @@ export type TextFieldProps = {
   message?: ComponentChildren;
   invalid?: boolean;
   autoFocus?: boolean;
-} & Omit<JSX.InputHTMLAttributes<HTMLInputElement>, 'label' | 'value' | 'onInput' | 'autoFocus'>;
+  /** `lg`: the field that is the main thing on its surface. */
+  size?: 'md' | 'lg';
+} & Omit<JSX.InputHTMLAttributes<HTMLInputElement>, 'label' | 'value' | 'onInput' | 'autoFocus' | 'size'>;
 
-export function TextField({ label, value, onValueChange, message, invalid, autoFocus, ...rest }: TextFieldProps) {
+export function TextField({ label, value, onValueChange, message, invalid, autoFocus, size, ...rest }: TextFieldProps) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   // Focused ON MOUNT, by an effect: the `autofocus` attribute is honoured once
@@ -24,7 +26,7 @@ export function TextField({ label, value, onValueChange, message, invalid, autoF
   useEffect(() => { if (autoFocus) input.current?.focus(); }, []);
   const messageId = `${id}-message`;
   return (
-    <div {...field({ invalid })}>
+    <div {...field({ invalid, size })}>
       <label data-slot="label" for={id}>{label}</label>
       <input
         type="text"

@@ -22,9 +22,10 @@
 // freely.
 import { cloneElement, createContext, toChildArray, type ComponentChildren, type JSX, type VNode } from 'preact';
 import { useContext, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { menuItem, moveFocus, typeahead, type MenuItemVariant, type MenuSelectionMode } from '@boogy/web';
+import { menuItem, menuItemText, moveFocus, type MenuItemVariant, type MenuSelectionMode } from '@boogy/web';
 import { Popover, type PopoverProps } from './popover';
 import { useId } from './use-id';
+import { useTypeahead } from './use-typeahead';
 
 type FocusStrategy = 'first' | 'last' | null;
 
@@ -129,7 +130,6 @@ export type DropdownMenuProps = {
 } & Omit<JSX.HTMLAttributes<HTMLDivElement>, 'onSelect'>;
 
 const ITEMS = '[data-boogy="menu-item"]:not([data-disabled])';
-const TYPEAHEAD_RESET_MS = 1000;
 
 function DropdownMenu({
   onAction, selectionMode = 'none', selectedKeys, defaultSelectedKeys, onSelectionChange,
@@ -139,7 +139,7 @@ function DropdownMenu({
   const ref = useRef<HTMLDivElement>(null);
   const [own, setOwn] = useState(() => s.kept.current ?? new Set(defaultSelectedKeys ?? []));
   const selected = selectedKeys ? new Set(selectedKeys) : own;
-  const search = useRef({ text: '', at: 0 });
+  const typed = useTypeahead();
 
   // On open: the key that opened it chose the item; a press focuses the menu.
   useLayoutEffect(() => {
@@ -176,14 +176,10 @@ function DropdownMenu({
     const to = moveFocus(e.key, index, items.length, shouldFocusWrap);
     if (to !== null) { e.preventDefault(); items[to].focus(); return; }
     if (e.key === 'Tab') { e.preventDefault(); s.setOpen(false); return; }
-    const typing = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
-    const now = Date.now();
-    if (typing && !(e.key === ' ' && (search.current.text === '' || now - search.current.at > TYPEAHEAD_RESET_MS))) {
+    const search = typed(e, () => items.map(menuItemText), index);
+    if (search) {
       e.preventDefault();
-      search.current = { text: (now - search.current.at > TYPEAHEAD_RESET_MS ? '' : search.current.text) + e.key, at: now };
-      const labels = items.map((el) => el.dataset.textValue ?? el.querySelector('[data-slot="label"]')?.textContent ?? el.textContent ?? '');
-      const hit = typeahead(labels, search.current.text, index);
-      if (hit !== null) items[hit].focus();
+      if (search.hit !== null) items[search.hit].focus();
       return;
     }
     if ((e.key === 'Enter' || e.key === ' ') && index >= 0) { e.preventDefault(); items[index].click(); }

@@ -630,7 +630,14 @@ const pane = connectPane({
 
 pane.navigate('/notes/42');   // instead of history.pushState(…)
 pane.navigate('/', { reset: true });   // after sign-out: back must not lead into the old session
+pane.navigate('/notes/43', { replace: true });   // a form saved: back must not lead to the form
 ```
+
+`{ replace: true }` takes the current entry instead of adding one, for a step
+that finishes a page (a form saved, or closed). In a board, a replace that
+lands on the page beside it merges into that page, so closing a form you
+opened from `/notes` leaves one `/notes`, not two. Outside a board it is
+`history.replaceState`.
 
 A pane reports its whole history (at most 50 pages) to the board, so when the
 board moves your app to another frame it can hand the history back; your app
@@ -800,6 +807,11 @@ value is remembered in this browser under your app's mount; `rememberZoom(key)`
 changes where. Pass `value` and `onValueChange` to step a value of your own
 instead. In a board, the page is drawn at the board's zoom times its own (see
 the shell's `setZoom` below).
+
+`<TopBar>` builds this control in: it sits in the bar's More menu by default
+(`zoom="menu"`), or in the bar itself (`zoom="bar"`). An app that renders its
+own size control elsewhere should pass `zoom={false}`, or the control appears
+twice.
 
 ### Building a board
 
@@ -1028,6 +1040,41 @@ if (user === null) {
 }
 ```
 
+### Renew on a 401
+
+An app on its own address holds a short-lived session and a renewal cookie.
+`withRenewal` runs a request, renews once on an unauthenticated failure, and
+retries once. `sessionOrRenewed` does the same for a session read.
+
+```ts
+import { sessionOrRenewed, withRenewal } from '@boogy/web';
+
+class Unauthenticated extends Error {}
+
+// A request function that throws `Unauthenticated` on a 401.
+async function getJson(path: string): Promise<unknown> {
+  const res = await fetch(path, { credentials: 'same-origin' });
+  if (res.status === 401) throw new Unauthenticated();
+  if (!res.ok) throw new Error(`request failed: ${res.status}`);
+  return res.json();
+}
+
+// A session read that answers null when signed out.
+async function readMe(): Promise<{ pairwiseId: string } | null> {
+  const res = await fetch('/boogy/me', { credentials: 'same-origin' });
+  if (res.status === 401) return null;
+  return res.ok ? res.json() : null;
+}
+
+const renew = async () => (await fetch('/boogy/renew', { method: 'POST', credentials: 'same-origin' })).ok;
+
+const me = await sessionOrRenewed(readMe, renew);
+const data = await withRenewal(() => getJson('/api/things'), renew, (e) => e instanceof Unauthenticated);
+```
+
+The predicate you pass must match what your request function throws: here,
+`Unauthenticated` for a 401 and nothing else.
+
 ### Make an authenticated request and handle app errors
 
 ```ts
@@ -1074,6 +1121,15 @@ async function renderGrants() {
 ```
 
 ---
+
+## Component notes
+
+**`Stat`.** A stat's value is fitted to its width, so its rules
+changed for every consumer of it: the value never wraps (`white-space: nowrap`) and
+its `line-height` is `normal`, not inherited. A stat whose number used to wrap
+onto a second line, or sit in a tall inherited line box, now stays on one line
+at a size between the `min` and `max` you give it. Give a row of stats one
+`group` name and they share one size.
 
 ## Pitfalls
 

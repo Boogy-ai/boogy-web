@@ -5,7 +5,8 @@
 //     `menuitemradio` (single), `menuitemcheckbox` (multiple).
 //   * Arrow keys move focus, stopping at the ends unless the menu wraps
 //     (React Aria's `shouldFocusWrap`, default off); Home/End jump to the ends;
-//     typing jumps to the next item whose text starts with what was typed.
+//     typing jumps to the next item whose text starts with what was typed
+//     (`typeaheadSearch`, then `typeahead`).
 //   * Disabled items are skipped by every one of these.
 
 export type MenuSelectionMode = 'none' | 'single' | 'multiple';
@@ -78,4 +79,41 @@ export function typeahead(labels: readonly string[], query: string, from: number
     if (labels[at].toLowerCase().startsWith(q)) return at;
   }
   return null;
+}
+
+/** How long a pause in typing ends a typeahead search. */
+export const TYPEAHEAD_RESET_MS = 1000;
+
+/** What has been typed into a menu's typeahead, and when last. */
+export interface TypeaheadSearch {
+  text: string;
+  at: number;
+}
+
+/** Whether `target` takes typed text itself. */
+function isField(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return !!el && typeof el.matches === 'function' && (el.isContentEditable || el.matches('input, textarea, select'));
+}
+
+/** The search a key press at `now` leaves, or null when the key is no part of
+ *  one: it types no character, or it has a modifier, or it is typed in a field
+ *  (the field's own). A space continues a search already running, and
+ *  otherwise presses the focused item, so it starts none. A pause longer than
+ *  TYPEAHEAD_RESET_MS starts a new search. Find its item with `typeahead`. */
+export function typeaheadSearch(
+  search: TypeaheadSearch,
+  e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'target'>,
+  now: number,
+): TypeaheadSearch | null {
+  if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey || isField(e.target)) return null;
+  const fresh = search.text === '' || now - search.at > TYPEAHEAD_RESET_MS;
+  if (e.key === ' ' && fresh) return null;
+  return { text: (fresh ? '' : search.text) + e.key, at: now };
+}
+
+/** An item's text for typeahead: the text it gives (`data-text-value`), else
+ *  its label slot's, else all of its own. */
+export function menuItemText(el: HTMLElement): string {
+  return el.dataset.textValue ?? el.querySelector('[data-slot="label"]')?.textContent ?? el.textContent ?? '';
 }

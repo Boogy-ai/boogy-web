@@ -182,6 +182,46 @@ describe('in-pane history', () => {
     pane.disconnect();
   });
 
+  // A step that finishes a page (a form saved, a dialog page closed): back
+  // must not lead to the finished page.
+  it('navigate with replace takes the current entry, adding nothing', async () => {
+    history.replaceState(null, '', '/notes');
+    const parent = framed();
+    const { pane } = await connected(parent);
+    pane.navigate('/notes/new');
+    const before = history.length;
+    pane.navigate('/notes/7', { replace: true });
+    expect(location.pathname).toBe('/notes/7');
+    expect(history.length).toBe(before);
+    expect(sent(parent, 'location').at(-1)).toEqual({ path: '/notes/7' });
+    expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: true, canForward: false, entries: ['/notes', '/notes/7'], index: 1 });
+    pane.disconnect();
+  });
+
+  it('a replace that lands on the page before it merges into that page, so back has no dead step', async () => {
+    history.replaceState(null, '', '/notes');
+    const parent = framed();
+    const { pane, onNavigate } = await connected(parent);
+    pane.navigate('/notes/new');
+    pane.navigate('/notes', { replace: true });
+    expect(location.pathname).toBe('/notes');
+    expect(sent(parent, 'history-state').at(-1)).toEqual({ canBack: false, canForward: false, entries: ['/notes'], index: 0 });
+    fromBoard(parent, -1);
+    expect(onNavigate).not.toHaveBeenCalled();
+    pane.disconnect();
+  });
+
+  it('not in a frame, navigate with replace replaces the browser entry', async () => {
+    history.replaceState(null, '', '/notes');
+    const pane = connectPane({ service: 'notes' });
+    pane.navigate('/notes/new');
+    const before = history.length;
+    pane.navigate('/notes/7', { replace: true });
+    expect(location.pathname).toBe('/notes/7');
+    expect(history.length).toBe(before);
+    pane.disconnect();
+  });
+
   it('reports its whole history, so a board can keep it', async () => {
     history.replaceState(null, '', '/notes');
     const parent = framed();

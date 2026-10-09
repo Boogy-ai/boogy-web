@@ -75,7 +75,7 @@ export const FOUNDATION_CSS = `
     /* text */
     --text-1: light-dark(oklch(0.22 var(--tint) var(--hue)), oklch(0.93 var(--tint) var(--hue)));
     --text-2: light-dark(oklch(0.42 var(--tint) var(--hue)), oklch(0.72 var(--tint) var(--hue)));
-    --text-3: light-dark(oklch(0.56 var(--tint) var(--hue)), oklch(0.58 var(--tint) var(--hue)));
+    --text-3: light-dark(oklch(0.53 var(--tint) var(--hue)), oklch(0.58 var(--tint) var(--hue)));
 
     /* edges: a translucent share of the ink, so over an opaque ground they
        are close to an opaque mix of the two, and over a translucent one they
