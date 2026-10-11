@@ -26,10 +26,26 @@ export interface TopBarAttrs {
   'data-boogy': 'top-bar';
   /** It casts a shadow below it, over what scrolls under it. */
   'data-shadow'?: '';
+  /** It runs edge to edge of its surface, so it pads its ends. */
+  'data-inset'?: '';
 }
 
-export function topBar({ shadow = false }: { shadow?: boolean } = {}): TopBarAttrs {
-  return shadow ? { 'data-boogy': 'top-bar', 'data-shadow': '' } : { 'data-boogy': 'top-bar' };
+export function topBar({ shadow = false, inset = false }: { shadow?: boolean; inset?: boolean } = {}): TopBarAttrs {
+  const attrs: TopBarAttrs = { 'data-boogy': 'top-bar' };
+  if (shadow) attrs['data-shadow'] = '';
+  if (inset) attrs['data-inset'] = '';
+  return attrs;
+}
+
+/** A bar with a row below it (a row of tabs, say): the two as one unit, which
+ *  casts the shadow below the row rather than between them. */
+export interface TopBarStackAttrs {
+  'data-boogy': 'top-bar-stack';
+  'data-shadow'?: '';
+}
+
+export function topBarStack({ shadow = false }: { shadow?: boolean } = {}): TopBarStackAttrs {
+  return shadow ? { 'data-boogy': 'top-bar-stack', 'data-shadow': '' } : { 'data-boogy': 'top-bar-stack' };
 }
 
 export interface BarItemFit {

@@ -12,7 +12,7 @@
 import { h, type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import {
-  fitTopBar, isTypingTarget, measureContentBox, menuItem, menuItemText, menuRows, moveInRows, observeSize, resolveLength, runRounds, topBar,
+  fitTopBar, isTypingTarget, measureContentBox, menuItem, menuItemText, menuRows, moveInRows, observeSize, resolveLength, runRounds, topBar, topBarStack,
   type ButtonSize, type ButtonVariant, type PopoverVariant, type RoundJob, type TopBarPlace,
 } from '@boogy/web';
 import { Button } from './button';
@@ -106,6 +106,14 @@ export type TopBarProps = ({
   menuGround?: string;
   /** A shadow below the bar (`--bar-shadow`), over what scrolls under it. Default none. */
   shadow?: boolean;
+  /** The bar runs edge to edge of its surface (a page's or a pane's top), so it
+   *  pads its ends (--top-bar-inset). As a sheet's head it does so anyway.
+   *  Default off: a bar inside a padded layout lines up with what is below it. */
+  inset?: boolean;
+  /** A row directly under the bar (a row of tabs, say). The bar and it are then
+   *  one unit: it takes the class and style, and casts the shadow below the
+   *  row. The bar itself keeps its height. */
+  below?: ComponentChildren;
 } & Omit<JSX.HTMLAttributes<HTMLElement>, 'title' | 'size'>;
 
 const isSubmenu = (it: TopBarItem): it is TopBarSubmenu => it.submenu !== undefined;
@@ -362,7 +370,7 @@ function TopBarMenu({ rows, label, start, variant, ground, close }: { rows: read
   );
 }
 
-export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: given = [], moreLabel = 'More', moreGlyph, size = 'md', zoom = 'menu', zoomLabel = 'Text size', menuVariant = 'flat', menuGround, shadow = false, ...rest }: TopBarProps) {
+export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: given = [], moreLabel = 'More', moreGlyph, size = 'md', zoom = 'menu', zoomLabel = 'Text size', menuVariant = 'flat', menuGround, shadow = false, inset = false, below, ...rest }: TopBarProps) {
   const items: readonly TopBarItem[] = zoom === false
     ? given
     : [...given, { id: 'zoom', label: zoomLabel, priority: ZOOM_PRIORITY, place: zoom, widget: <ZoomControls size="sm" label={zoomLabel} /> }];
@@ -445,8 +453,9 @@ export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: 
     if (open && rows.length === 0) setOpen(false);
   }, [open, rows.length]);
   const Title = titleAs;
-  return (
-    <header ref={ref} {...rest} {...topBar({ shadow })}>
+  const stacked = below !== undefined;
+  const bar = (
+    <header ref={ref} {...(stacked ? {} : rest)} {...topBar({ shadow: shadow && !stacked, inset })}>
       {leading !== undefined && <div ref={leadRef} data-slot="leading">{leading}</div>}
       <div data-slot="heading">
         {tabs ? <TabList {...tabs} /> : h(Title, { 'data-slot': 'title' }, title)}
@@ -488,5 +497,12 @@ export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: 
         <TopBarMenu rows={rows} label={moreLabel} start={start} variant={menuVariant} ground={menuGround} close={() => setOpen(false)} />
       </Popover>
     </header>
+  );
+  if (!stacked) return bar;
+  return (
+    <div {...(rest as JSX.HTMLAttributes<HTMLDivElement>)} {...topBarStack({ shadow })}>
+      {bar}
+      <div data-slot="below">{below}</div>
+    </div>
   );
 }

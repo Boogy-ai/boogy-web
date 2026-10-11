@@ -48,6 +48,28 @@ export function tabPanel(): TabPanelAttrs {
   return { 'data-boogy': 'tab-panel', role: 'tabpanel' };
 }
 
+/** Whether a row of tabs scrolled to `scrollLeft` has more beyond its left and
+ *  right edges: what its fades show. A pixel of rounding either way is none. */
+export function tabRowMore(scrollLeft: number, clientWidth: number, scrollWidth: number): { left: boolean; right: boolean } {
+  return { left: scrollLeft > 1, right: scrollLeft + clientWidth < scrollWidth - 1 };
+}
+
+/** How far a wheel turn moves a row of tabs sideways, in pixels, or null when
+ *  the turn is not the row's to take: a sideways turn (the browser scrolls the
+ *  row itself), a row that fits, or a turn toward an end the row is already at
+ *  (the page scrolls instead). A turn counted in lines moves `line` pixels a
+ *  line; one counted in pages, the row's width. */
+export function tabRowWheel(
+  wheel: { deltaX: number; deltaY: number; deltaMode: number },
+  row: { scrollLeft: number; clientWidth: number; scrollWidth: number },
+  line: number,
+): number | null {
+  if (Math.abs(wheel.deltaY) <= Math.abs(wheel.deltaX)) return null;
+  const by = wheel.deltaY * (wheel.deltaMode === 1 ? line : wheel.deltaMode === 2 ? row.clientWidth : 1);
+  const more = tabRowMore(row.scrollLeft, row.clientWidth, row.scrollWidth);
+  return (by > 0 ? more.right : more.left) ? by : null;
+}
+
 /** A tab's element id, from its panel's id and its own: what the panel is
  *  labelled by, so a row and a panel shown apart stay linked. */
 export const tabId = (panel: string, id: string): string => `${panel}--${id}`;

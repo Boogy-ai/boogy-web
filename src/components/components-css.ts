@@ -666,16 +666,23 @@ const SHEET_CSS = `
   /* A TopBar with \`shadow\` as the head: the shadow is the head's, cast from
      its edge rather than from inside its padding, over the body that scrolls
      under it. */
-  [data-boogy="sheet"] > [data-slot="head"]:has(> [data-boogy="top-bar"][data-shadow]) {
+  [data-boogy="sheet"] > [data-slot="head"]:has(> :is([data-boogy="top-bar"], [data-boogy="top-bar-stack"])[data-shadow]) {
     position: relative;
     z-index: 1;
     box-shadow: var(--bar-shadow);
   }
-  [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"][data-shadow] { box-shadow: none; }
+  [data-boogy="sheet"] > [data-slot="head"] > :is([data-boogy="top-bar"], [data-boogy="top-bar-stack"])[data-shadow] { box-shadow: none; }
   /* A head of the caller's own: the head's frame (its edge and padding), and
      none of the title's type. What it holds takes the head's width. */
   [data-boogy="sheet"] > [data-slot="head"][data-head="own"] { font-size: var(--fs-body); font-weight: 400; }
   [data-boogy="sheet"] > [data-slot="head"][data-head="own"] > * { flex: 1 1 auto; min-width: 0; }
+  /* A TopBar head is the bar's own height: the head adds no padding above or
+     below it. */
+  [data-boogy="sheet"] > [data-slot="head"]:has(> :is([data-boogy="top-bar"], [data-boogy="top-bar-stack"])) { padding: 0; }
+  /* An edge-to-edge bar pads its own ends: as a sheet's head, and with \`inset\`. */
+  [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"],
+  [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar-stack"] > [data-boogy="top-bar"],
+  [data-boogy="top-bar"][data-inset] { padding-inline: var(--top-bar-inset); }
   [data-boogy="sheet"] > [data-slot="body"] {
     flex: 1 1 auto;
     min-height: 0;
@@ -1561,6 +1568,56 @@ const COLOR_PICKER_CSS = `
   ${PICKER} > [data-slot] { padding: var(--space-3); }
   ${PICKER} > [data-slot] + [data-slot] { border-top: var(--rule); }
 
+  /* Accordion: a column of native details, a rule between each two. A trigger
+     is a large control holding the label, a trailing note pushed to the end
+     and a chevron that turns as the item opens; a nested level is a step
+     quieter and indented. */
+  [data-boogy="accordion"] { display: flex; flex-direction: column; min-inline-size: 0; }
+  [data-boogy="accordion"] > [data-slot="item"] + [data-slot="item"] { border-top: var(--rule); }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-block-size: var(--control-lg);
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-1);
+    color: var(--text-1);
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+  }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"]::-webkit-details-marker { display: none; }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"]:hover { background: var(--fill-hover); }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"]:focus-visible {
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: calc(-1 * var(--ring));
+  }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] > [data-slot="label"] { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] > [data-slot="meta"] {
+    margin-inline-start: auto;
+    color: var(--text-2);
+    font-size: var(--fs-detail);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] > [data-slot="chevron"] {
+    flex: none;
+    color: var(--text-2);
+    transition: rotate var(--dur-base) ease-out;
+  }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"]:not(:has(> [data-slot="meta"])) > [data-slot="chevron"] { margin-inline-start: auto; }
+  [data-boogy="accordion"] > [data-slot="item"][open] > [data-slot="trigger"] > [data-slot="chevron"] { rotate: 90deg; }
+  @media (prefers-reduced-motion: reduce) {
+    [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] > [data-slot="chevron"] { transition: none; }
+  }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="content"] { padding-block-end: var(--space-2); }
+  [data-boogy="accordion"] [data-boogy="accordion"] { padding-inline-start: var(--space-3); }
+  [data-boogy="accordion"] [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] {
+    min-block-size: var(--control-md);
+    font-weight: 500;
+  }
+
   /* SampleGrid: tiles the app paints, in columns, scrolling past \`rows\`
      of them. Padded by a ring's width, so the scroll box does not clip the
      chosen or focused tile's ring at its edges. Its tiles' hover, chosen and
@@ -1734,9 +1791,27 @@ ${pickerThumb('::-moz-range-thumb')}
 // coincide exactly and read as one line that lights under the selected tab. In
 // a TopBar the bar draws the neutral line, across its whole width.
 const TABS_CSS = `
+  /* Too many tabs to fit: the row scrolls sideways with no scrollbar, and fades
+     out at a side with more beyond it (TabList keeps data-more-left/right). */
   [data-boogy="tab-list"] {
+    --_more-left: 0px;
+    --_more-right: 0px;
+    position: relative;
     display: flex;
     gap: 0;
+    min-inline-size: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  [data-boogy="tab-list"]::-webkit-scrollbar { display: none; }
+  [data-boogy="tab-list"][data-dragging],
+  [data-boogy="tab-list"][data-dragging] > [data-slot="tab"] { cursor: grabbing; user-select: none; }
+  [data-boogy="tab-list"][data-more-left] { --_more-left: var(--tab-fade); }
+  [data-boogy="tab-list"][data-more-right] { --_more-right: var(--tab-fade); }
+  [data-boogy="tab-list"]:is([data-more-left], [data-more-right]) {
+    mask-image: linear-gradient(to right, transparent, #000 var(--_more-left), #000 calc(100% - var(--_more-right)), transparent);
   }
   [data-boogy="tab-list"],
   [data-boogy="tab-list"] > [data-slot="tab"],
@@ -1752,6 +1827,8 @@ const TABS_CSS = `
   [data-boogy="top-bar"] > [data-slot="heading"] > [data-boogy="tab-list"] { background-image: none; }
   [data-boogy="tab-list"] > [data-slot="tab"] {
     position: relative;
+    flex: none;
+    white-space: nowrap;
     padding: var(--space-2);
     border: none;
     border-bottom: var(--underline) solid transparent;
@@ -1783,7 +1860,7 @@ const TABS_CSS = `
   }
   [data-boogy="tab-list"] > [data-slot="tab"] > [data-slot="icon"] { display: flex; flex: none; font-size: var(--icon-md); }
   /* fill: every tab an equal share of the row, its label centred in it */
-  [data-boogy="tab-list"][data-fill="true"] > [data-slot="tab"] { flex: 1 1 0; }
+  [data-boogy="tab-list"][data-fill="true"] > [data-slot="tab"] { flex: 1 1 0; min-inline-size: max-content; }
   [data-boogy="tab-list"] > [data-slot="tab"][aria-selected="true"] {
     color: var(--text-1);
     background-image: linear-gradient(var(--accent), var(--accent));
@@ -1795,7 +1872,7 @@ const TABS_CSS = `
   [data-boogy="tab-panel"] { outline: none; }
   /* A tab row as a TopBar's heading (its \`tabs\`) fills the bar's height, so the
      selected tab's line is the bar's bottom edge. */
-  [data-boogy="top-bar"] > [data-slot="heading"]:has(> [data-boogy="tab-list"]) { align-self: stretch; }
+  [data-boogy="top-bar"] > [data-slot="heading"]:has(> [data-boogy="tab-list"]) { align-self: stretch; grid-template-columns: minmax(0, 1fr); }
 `;
 
 // --- FitText (see fit-text.ts) ---
@@ -2120,12 +2197,24 @@ const TOP_BAR_CSS = `
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    min-block-size: var(--control-lg);
+    /* One height wherever it is: on its own, as a sheet's head (which then
+       adds none of its own), with tabs. */
+    min-block-size: var(--top-bar-block);
     min-inline-size: 0;
   }
   /* \`shadow\`: a shadow below it, over what scrolls under it (its stacking
      lifts it above the content that follows it). */
   [data-boogy="top-bar"][data-shadow] { z-index: 1; box-shadow: var(--bar-shadow); }
+  /* A bar with a row below it (\`below\`): the two one unit, a column, its
+     shadow below the row rather than between them; the row takes the bar's
+     width (a row of tabs fills it). */
+  [data-boogy="top-bar-stack"] { position: relative; display: flex; flex-direction: column; min-inline-size: 0; }
+  [data-boogy="top-bar-stack"][data-shadow] { z-index: 1; box-shadow: var(--bar-shadow); }
+  /* A rule under the bar itself, between it and the row: the line a sheet's
+     head draws under its bar. */
+  [data-boogy="top-bar-stack"] > [data-boogy="top-bar"] { border-bottom: var(--rule); }
+  [data-boogy="top-bar-stack"] > [data-slot="below"] { display: flex; min-inline-size: 0; }
+  [data-boogy="top-bar-stack"] > [data-slot="below"] > * { flex: 1 1 auto; min-inline-size: 0; }
   [data-boogy="top-bar"] > [data-slot="leading"] { display: flex; flex: none; align-items: center; }
   [data-boogy="top-bar"] > [data-slot="heading"] { display: grid; flex: 1 1 0; min-inline-size: var(--top-bar-title-min); }
   [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"] {

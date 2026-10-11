@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fitTopBar, menuRows, moveInRows, topBar, type BarItemFit } from './top-bar';
+import { fitTopBar, menuRows, moveInRows, topBar, topBarStack, type BarItemFit } from './top-bar';
 
 const item = (id: string, priority: number, width: number, place: BarItemFit['place'] = 'auto'): BarItemFit => ({ id, priority, width, place });
 // Edit 50 (1), Links 70 (1), Present 60 (2), Close 60 (3), Delete 60 (4); the More button is 30; gaps 10.
@@ -11,6 +11,11 @@ describe('topBar', () => {
     expect(topBar()).toEqual({ 'data-boogy': 'top-bar' });
     expect(topBar({ shadow: false })).toEqual({ 'data-boogy': 'top-bar' });
     expect(topBar({ shadow: true })).toEqual({ 'data-boogy': 'top-bar', 'data-shadow': '' });
+    // inset: an edge-to-edge bar pads its ends.
+    expect(topBar({ inset: true })).toEqual({ 'data-boogy': 'top-bar', 'data-inset': '' });
+    // A bar with a row below it: the two are one unit, which casts the shadow.
+    expect(topBarStack()).toEqual({ 'data-boogy': 'top-bar-stack' });
+    expect(topBarStack({ shadow: true })).toEqual({ 'data-boogy': 'top-bar-stack', 'data-shadow': '' });
   });
 });
 

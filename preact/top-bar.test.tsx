@@ -809,6 +809,32 @@ describe('<Glyph>', () => {
     expect([...list.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual(['Buddies', 'Settings']);
     expect(bar.querySelector('[data-slot="title"]')).toBeNull();
   });
+  it('`below`: a row directly under the bar, the two one unit that takes the class and casts the shadow, the bar itself unchanged', () => {
+    const root = mount(<TopBar class="home-bar" title="Squad" zoom={false} shadow below={<p data-test="tabs">tabs</p>} />);
+    const stack = root.querySelector('[data-boogy="top-bar-stack"]')!;
+    expect(stack.getAttribute('data-shadow')).toBe('');
+    expect(stack.className).toBe('home-bar');
+    const [bar, below] = [...stack.children];
+    expect(bar.getAttribute('data-boogy')).toBe('top-bar');
+    expect(bar.hasAttribute('data-shadow')).toBe(false);
+    expect(bar.querySelector('[data-slot="title"]')!.textContent).toBe('Squad');
+    expect(below.getAttribute('data-slot')).toBe('below');
+    expect(below.querySelector('[data-test="tabs"]')).toBeTruthy();
+  });
+  it('`inset` pads the bar\'s ends, on the bar itself, so a row below it still runs edge to edge', () => {
+    expect(mount(<TopBar title="T" zoom={false} />).querySelector('[data-boogy="top-bar"]')!.hasAttribute('data-inset')).toBe(false);
+    document.body.innerHTML = '';
+    const root = mount(<TopBar title="T" zoom={false} inset below={<p>row</p>} />);
+    expect(root.querySelector('[data-boogy="top-bar"]')!.getAttribute('data-inset')).toBe('');
+    expect(root.querySelector('[data-boogy="top-bar-stack"]')!.hasAttribute('data-inset')).toBe(false);
+  });
+  it('without `below` there is no stack: the bar is the root, as before', () => {
+    const root = mount(<TopBar class="plain" title="T" zoom={false} shadow />);
+    expect(root.querySelector('[data-boogy="top-bar-stack"]')).toBeNull();
+    const bar = root.querySelector('[data-boogy="top-bar"]')!;
+    expect(bar.className).toBe('plain');
+    expect(bar.getAttribute('data-shadow')).toBe('');
+  });
   it('casts a shadow below it only when asked: `shadow`', () => {
     const plain = mount(<TopBar title="Chats" zoom={false} />).querySelector('[data-boogy="top-bar"]')!;
     expect(plain.hasAttribute('data-shadow')).toBe(false);

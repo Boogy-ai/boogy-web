@@ -48,6 +48,10 @@ describe('<ListItem>', () => {
     expect(row.querySelector('[data-slot="text"] [data-slot="title"]')!.textContent).toBe('Chat EU');
     expect(row.querySelector('[data-slot="end"] #act')).not.toBeNull();
   });
+  it('as a link, it carries its address', () => {
+    const r = mount(<List><ListItem as="a" href="/c/tab-list" title="Tabs" /></List>);
+    expect(r.querySelector('a[data-boogy="list-item"]')!.getAttribute('href')).toBe('/c/tab-list');
+  });
   it('as a button, it is one control and refuses an end slot', () => {
     const r = mount(<List><ListItem as="button" title="Squad" /></List>);
     expect(r.querySelector('button[data-boogy="list-item"]')!.getAttribute('type')).toBe('button');

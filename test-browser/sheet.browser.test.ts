@@ -77,3 +77,48 @@ describe('a Sheet with a body far taller than itself', () => {
     expect(long.foot).toBe(short.foot);
   });
 });
+
+// A TopBar is one height wherever it is: on its own, as a sheet's head, and
+// with a row of tabs. The height of the bar, not of what holds it.
+describe('a TopBar is one height', () => {
+  it('on its own, as a sheet head (no padding of the head added), and in tab mode', async () => {
+    const heights = await page.evaluate(() => {
+      const bar = (inner: string) => `<header data-boogy="top-bar">${inner}<div data-slot="actions"></div></header>`;
+      const title = '<div data-slot="heading"><h1 data-slot="title">Title</h1></div>';
+      const tabs = '<div data-slot="heading"><div data-boogy="tab-list" role="tablist"><button data-slot="tab" role="tab">A</button><button data-slot="tab" role="tab">B</button></div></div>';
+      document.body.innerHTML = `<style>*, *::before, *::after { box-sizing: border-box; }</style>
+        <div id="alone">${bar(title)}</div>
+        <div id="tabs">${bar(tabs)}</div>
+        <div style="position:relative;height:300px"><div data-boogy="sheet" style="position:absolute"><header data-slot="head" data-head="own">${bar(title)}</header><div data-slot="body">x</div></div></div>`;
+      const h = (sel: string) => Math.round(document.querySelector(sel)!.getBoundingClientRect().height * 100) / 100;
+      return {
+        alone: h('#alone > [data-boogy="top-bar"]'),
+        tabs: h('#tabs > [data-boogy="top-bar"]'),
+        // The head's own box less its bottom rule: what the bar takes of it.
+        head: h('[data-boogy="sheet"] > [data-slot="head"]') - 1,
+      };
+    });
+    expect(heights.tabs).toBe(heights.alone);
+    expect(heights.head).toBe(heights.alone);
+  });
+});
+
+// A TopBar's ends are inset the same wherever it runs edge to edge: on its own
+// with \`inset\`, and as a sheet's head.
+describe('a TopBar is inset alike', () => {
+  it('its title starts the same distance in, on its own (inset) and as a sheet head', async () => {
+    const offsets = await page.evaluate(() => {
+      const bar = (attrs: string) => `<header data-boogy="top-bar" ${attrs}><div data-slot="heading"><h1 data-slot="title">Title</h1></div><div data-slot="actions"></div></header>`;
+      document.body.innerHTML = `<style>*, *::before, *::after { box-sizing: border-box; }</style>
+        <div id="alone" style="width:400px">${bar('data-inset')}</div>
+        <div style="position:relative;height:300px;width:400px"><div data-boogy="sheet" style="position:absolute"><header data-slot="head" data-head="own">${bar('')}</header><div data-slot="body">x</div></div></div>`;
+      const left = (root: string) => {
+        const box = document.querySelector(root)!.getBoundingClientRect().left;
+        return Math.round(document.querySelector(`${root} [data-slot="title"]`)!.getBoundingClientRect().left - box);
+      };
+      return { alone: left('#alone'), head: left('[data-boogy="sheet"]') };
+    });
+    expect(offsets.alone).toBeGreaterThan(0);
+    expect(offsets.head).toBe(offsets.alone);
+  });
+});

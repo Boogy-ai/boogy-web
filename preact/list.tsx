@@ -18,6 +18,8 @@ export type ListItemProps = {
   meta?: ComponentChildren;
   /** One trailing action. Not allowed when the row is itself a control. */
   end?: ComponentChildren;
+  /** With `as="a"`, the address the row links to. */
+  href?: string;
 } & Omit<JSX.HTMLAttributes<HTMLElement>, 'title'>;
 
 /** One row, in its own list item. */

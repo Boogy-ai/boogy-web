@@ -132,12 +132,36 @@ describe('drawer strip width', () => {
 });
 
 describe('top bar', () => {
+  it('is one height wherever it is: --top-bar-block (a large control and a step above and below it), and a sheet head holding one adds no height of its own', () => {
+    expect(ruleFor('[data-boogy="top-bar"]')).toMatch(/min-block-size:\s*var\(--top-bar-block\)/);
+    expect(FOUNDATION_CSS).toMatch(/--top-bar-block:\s*calc\(var\(--control-lg\) \+ 2 \* var\(--space-2\)\)/);
+    // A sheet head holding one adds no padding at all: the bar's own inset is its ends'.
+    expect(ruleFor('[data-boogy="sheet"] > [data-slot="head"]:has(> :is([data-boogy="top-bar"], [data-boogy="top-bar-stack"]))')).toMatch(/padding:\s*0/);
+    const inset = ruleFor('[data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"],\n  [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar-stack"] > [data-boogy="top-bar"],\n  [data-boogy="top-bar"][data-inset]');
+    expect(inset).toMatch(/padding-inline:\s*var\(--top-bar-inset\)/);
+    expect(FOUNDATION_CSS).toMatch(/--top-bar-inset:\s*var\(--space-4\)/);
+  });
   it("in a sheet's head, a bar's shadow is the head's: cast from the head's edge, not from inside its padding", () => {
-    const head = ruleFor('[data-boogy="sheet"] > [data-slot="head"]:has(> [data-boogy="top-bar"][data-shadow])');
+    const head = ruleFor('[data-boogy="sheet"] > [data-slot="head"]:has(> :is([data-boogy="top-bar"], [data-boogy="top-bar-stack"])[data-shadow])');
     expect(head).toMatch(/box-shadow:\s*var\(--bar-shadow\)/);
     expect(head).toMatch(/position:\s*relative/);
     expect(head).toMatch(/z-index:\s*1/);
-    expect(ruleFor('[data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"][data-shadow]')).toMatch(/box-shadow:\s*none/);
+    expect(ruleFor('[data-boogy="sheet"] > [data-slot="head"] > :is([data-boogy="top-bar"], [data-boogy="top-bar-stack"])[data-shadow]')).toMatch(/box-shadow:\s*none/);
+  });
+  it('a bar with a row below it is a column, the two one unit: its shadow falls below the row, not between them', () => {
+    const stack = ruleFor('[data-boogy="top-bar-stack"]');
+    expect(stack).toMatch(/display:\s*flex/);
+    expect(stack).toMatch(/flex-direction:\s*column/);
+    expect(stack).toMatch(/position:\s*relative/);
+    const shadowed = ruleFor('[data-boogy="top-bar-stack"][data-shadow]');
+    expect(shadowed).toMatch(/box-shadow:\s*var\(--bar-shadow\)/);
+    expect(shadowed).toMatch(/z-index:\s*1/);
+    // A rule under the bar itself, between it and the row: the line a sheet's
+    // head draws under its bar.
+    expect(ruleFor('[data-boogy="top-bar-stack"] > [data-boogy="top-bar"]')).toMatch(/border-bottom:\s*var\(--rule\)/);
+    // The row below takes the bar's width (a row of tabs fills it).
+    expect(ruleFor('[data-boogy="top-bar-stack"] > [data-slot="below"]')).toMatch(/display:\s*flex/);
+    expect(ruleFor('[data-boogy="top-bar-stack"] > [data-slot="below"] > *')).toMatch(/flex:\s*1 1 auto/);
   });
   it('a bar with `shadow` casts the bar shadow below it, over what scrolls under it', () => {
     const r = ruleFor('[data-boogy="top-bar"][data-shadow]');
@@ -443,6 +467,30 @@ describe('tabs', () => {
   });
 });
 
+describe('a row of tabs too wide for its box', () => {
+  it('scrolls sideways with no scrollbar; a tab keeps its label whole', () => {
+    const list = ruleFor('[data-boogy="tab-list"]');
+    expect(list).toMatch(/overflow-x:\s*auto/);
+    expect(list).toMatch(/overflow-y:\s*hidden/);
+    expect(list).toMatch(/scrollbar-width:\s*none/);
+    expect(list).toMatch(/min-inline-size:\s*0/);
+    expect(ruleFor('[data-boogy="tab-list"]::-webkit-scrollbar')).toMatch(/display:\s*none/);
+    const tab = ruleFor('[data-boogy="tab-list"] > [data-slot="tab"]');
+    expect(tab).toMatch(/flex:\s*none/);
+    expect(tab).toMatch(/white-space:\s*nowrap/);
+  });
+  it('fades out at a side with more beyond it, by --tab-fade', () => {
+    const faded = ruleFor('[data-boogy="tab-list"]:is([data-more-left], [data-more-right])');
+    expect(faded).toMatch(/mask-image:\s*linear-gradient\(to right, transparent, #000 var\(--_more-left\), #000 calc\(100% - var\(--_more-right\)\), transparent\)/);
+    expect(ruleFor('[data-boogy="tab-list"][data-more-left]')).toMatch(/--_more-left:\s*var\(--tab-fade\)/);
+    expect(ruleFor('[data-boogy="tab-list"][data-more-right]')).toMatch(/--_more-right:\s*var\(--tab-fade\)/);
+    expect(FOUNDATION_CSS).toMatch(/--tab-fade:\s*var\(--space-6\)/);
+  });
+  it("in a TopBar's heading the row may be narrower than its tabs, and scrolls", () => {
+    expect(ruleFor('[data-boogy="top-bar"] > [data-slot="heading"]:has(> [data-boogy="tab-list"])')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
+  });
+});
+
 describe('tab glyphs', () => {
   it('a tab with a glyph centres the glyph and its label on one line, a gap apart; the glyph at the icon size, in the tab\'s colour', () => {
     const t = ruleFor('[data-boogy="tab-list"] > [data-slot="tab"]:has(> [data-slot="icon"])');
@@ -471,7 +519,10 @@ describe('tabs in a top bar', () => {
 
 describe('tabs fill', () => {
   it('a filled bar gives every tab an equal share of its width', () => {
-    expect(ruleFor('[data-boogy="tab-list"][data-fill="true"] > [data-slot="tab"]')).toContain('flex: 1 1 0');
+    // Equal shares of the row, never narrower than a label: a row too narrow scrolls.
+    const filled = ruleFor('[data-boogy="tab-list"][data-fill="true"] > [data-slot="tab"]');
+    expect(filled).toContain('flex: 1 1 0');
+    expect(filled).toContain('min-inline-size: max-content');
   });
 });
 
@@ -722,6 +773,29 @@ describe('blur scale', () => {
     expect(FOUNDATION_CSS).toMatch(/--blur-sm:\s*calc\(var\(--u\) \* 0\.25\)/);
     expect(FOUNDATION_CSS).toMatch(/--blur-md:\s*calc\(var\(--u\) \* 0\.5\)/);
     expect(FOUNDATION_CSS).toMatch(/--blur-lg:\s*calc\(var\(--u\) \* 1\)/);
+  });
+});
+
+describe('accordion', () => {
+  const A = '[data-boogy="accordion"]';
+  it('is a column of items, a rule between each two', () => {
+    expect(ruleFor(A)).toMatch(/flex-direction:\s*column/);
+    expect(ruleFor(`${A} > [data-slot="item"] + [data-slot="item"]`)).toMatch(/border-top:\s*var\(--rule\)/);
+  });
+  it('a trigger is a large control: no native marker, the label, its note pushed to the end, a chevron that turns when open', () => {
+    const t = ruleFor(`${A} > [data-slot="item"] > [data-slot="trigger"]`);
+    expect(t).toMatch(/list-style:\s*none/);
+    expect(t).toMatch(/min-block-size:\s*var\(--control-lg\)/);
+    expect(t).toMatch(/cursor:\s*pointer/);
+    expect(ruleFor(`${A} > [data-slot="item"] > [data-slot="trigger"]::-webkit-details-marker`)).toMatch(/display:\s*none/);
+    expect(ruleFor(`${A} > [data-slot="item"] > [data-slot="trigger"] > [data-slot="meta"]`)).toMatch(/margin-inline-start:\s*auto/);
+    expect(ruleFor(`${A} > [data-slot="item"][open] > [data-slot="trigger"] > [data-slot="chevron"]`)).toMatch(/rotate:\s*90deg/);
+    expect(ruleFor(`${A} > [data-slot="item"] > [data-slot="trigger"]:focus-visible`)).toMatch(/outline:\s*var\(--ring\) solid var\(--ring-color\)/);
+  });
+  it('a nested level is a step quieter: a medium control, its triggers indented', () => {
+    const nested = ruleFor(`${A} ${A} > [data-slot="item"] > [data-slot="trigger"]`);
+    expect(nested).toMatch(/min-block-size:\s*var\(--control-md\)/);
+    expect(nested).toMatch(/font-weight:\s*500/);
   });
 });
 

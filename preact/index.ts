@@ -29,6 +29,8 @@ export type { SwatchProps } from './swatch';
 export { ColorPicker } from './color-picker';
 export type { ColorPickerProps } from './color-picker';
 export { SampleGrid } from './sample-grid';
+export { Accordion } from './accordion';
+export type { AccordionItem, AccordionProps } from './accordion';
 export type { Sample, SampleGridProps } from './sample-grid';
 export { Tabs, TabList, TabPanel } from './tabs';
 export type { TabsProps, TabItem, TabListProps, TabPanelProps } from './tabs';

@@ -186,6 +186,13 @@ export const FOUNDATION_CSS = `
     --control-sm: calc(var(--u) * 1.5);
     --control-md: calc(var(--u) * 2);
     --control-lg: calc(var(--u) * 2.5);
+    /* A TopBar's height, wherever it is (on its own, as a sheet's head, with
+       tabs): a large control and a step above and below it. */
+    --top-bar-block: calc(var(--control-lg) + 2 * var(--space-2));
+    /* An edge-to-edge TopBar's ends (its \`inset\`, and as a sheet's head). */
+    --top-bar-inset: var(--space-4);
+    /* How far a scrolling row of tabs fades out at a side with more beyond it. */
+    --tab-fade: var(--space-6);
     --icon-sm: calc(var(--u) * 1);
     --icon-md: calc(var(--u) * 1.25);
     --mark-md: calc(var(--u) * 1.75);
