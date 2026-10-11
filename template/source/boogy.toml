@@ -17,3 +17,8 @@ mode = "public"
 root = "web"
 build = "source"
 jsx_import_source = "preact"
+
+[boards]
+# In a board's pane the board's background shows through, and the page renders
+# in the board's colour scheme.
+background = "board"

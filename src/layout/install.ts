@@ -15,8 +15,8 @@ export interface InstallOptions {
    * Scale the whole page with its viewport: the root size unit, and with it
    * every component, size token and plain text, follows the viewport between a
    * floor and a cap. `true` takes the SDK's default scale; a `Scale` overrides
-   * it per field. Off by default (the page keeps the fixed base size). Suits a
-   * page embedded in a frame of varying size, whose viewport IS the frame.
+   * it per field. On by default: the page follows its viewport, which in a
+   * board is the pane. `false` keeps the fixed base size.
    */
   scale?: boolean | Scale;
 }
@@ -35,9 +35,13 @@ export function installFoundation(opts: InstallOptions = {}): void {
   }
   // The page's remembered zoom, before the first paint.
   initZoom();
-  if (opts.scale) applyRootScale(opts.scale === true ? {} : opts.scale);
+  const s = opts.scale ?? true;
+  if (s) applyRootScale(s === true ? {} : s);
   if (opts.dev && !watching) {
     watching = true;
+    if (opts.scale === false) {
+      console.warn('[@boogy/web] the page scale is off: SDK sizes stay fixed in a pane at every size. Remove `scale: false` unless a waiver says why.');
+    }
     const warned = new WeakSet<Element>();
     const scan = () => {
       for (const v of findLayoutViolations(document)) {

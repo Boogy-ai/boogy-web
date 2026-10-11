@@ -1,7 +1,11 @@
 import { render } from 'preact';
-import { installFoundation, scale, surface } from '@boogy/web';
+import { connectPane, installFoundation, scale, surface } from '@boogy/web';
 
+// The page scale is on by default: every SDK size follows the window, or the
+// pane in a board.
 installFoundation();
+// In a board: its background, colour scheme and Smaller/Larger reach the page.
+connectPane({ service: '{{name}}' });
 
 // Each region declares how it scales. This header's text shares a line with
 // other content, so it is `clamped`; it follows the scarce axis (`min`).

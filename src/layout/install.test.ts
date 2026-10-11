@@ -32,10 +32,26 @@ describe('installFoundation scale', () => {
     for (const a of ['data-u-axis', 'data-u-policy', 'data-component']) root().removeAttribute(a);
     root().removeAttribute('style');
   };
-  it('is off by default: the page keeps the fixed base size', async () => {
+  it('is on by default: the whole page follows its viewport', async () => {
     reset();
     const { installFoundation } = await import('./install');
+    const { DEFAULT_SCALE } = await import('./scale');
     installFoundation();
+    expect(root().getAttribute('data-u-policy')).toBe(DEFAULT_SCALE.policy);
+    reset();
+  });
+  it('in dev, turning the page scale off says so', async () => {
+    reset();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { installFoundation } = await import('./install');
+    installFoundation({ dev: true, scale: false });
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('page scale is off'))).toBe(true);
+    warn.mockRestore();
+  });
+  it('scale: false keeps the fixed base size', async () => {
+    reset();
+    const { installFoundation } = await import('./install');
+    installFoundation({ scale: false });
     expect(root().hasAttribute('data-u-policy')).toBe(false);
   });
   it('scale: true — the whole page follows its viewport, between the default floor and cap', async () => {
