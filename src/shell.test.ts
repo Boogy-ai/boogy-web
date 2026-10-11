@@ -112,13 +112,41 @@ describe('createShell', () => {
     shell.destroy();
   });
 
+  it('reports whether a pane drew the board background, only on a plain "board"', () => {
+    const onReady = vi.fn();
+    const shell = createShell({ onReady });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    deliver(a.win, frame('ready', a.nonce(), { service: 'squad', background: 'board' }));
+    expect(onReady).toHaveBeenLastCalledWith('p1', 'squad', { signsIn: false, boardBackground: true });
+    deliver(a.win, frame('ready', a.nonce(), { service: 'squad', background: 'yes' }));
+    expect(onReady).toHaveBeenLastCalledWith('p1', 'squad', { signsIn: false, boardBackground: false });
+    shell.destroy();
+  });
+
+  it('tells each pane the board scheme on connect, when it has one', () => {
+    const shell = createShell({}, { scheme: 'dark' });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    expect(a.connects().at(-1)!.frame.payload.scheme).toBe('dark');
+    shell.destroy();
+  });
+
+  it('says no scheme to a pane when it was given none', () => {
+    const shell = createShell({});
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    expect(a.connects().at(-1)!.frame.payload.scheme).toBeUndefined();
+    shell.destroy();
+  });
+
   it('emits ready for a registered pane and nothing for an unregistered frame', () => {
     const onReady = vi.fn();
     const shell = createShell({ onReady });
     const a = fakeFrame();
     shell.registerPane(a.el, reg('p1', 'squad'));
     deliver(a.win, frame('ready', a.nonce(), { service: 'squad' }));
-    expect(onReady).toHaveBeenCalledWith('p1', 'squad', { signsIn: false });
+    expect(onReady).toHaveBeenCalledWith('p1', 'squad', { signsIn: false, boardBackground: false });
 
     const stranger = fakeFrame();
     deliver(stranger.win, frame('ready', a.nonce(), { service: 'squad' }));
@@ -134,8 +162,8 @@ describe('createShell', () => {
     deliver(a.win, frame('ready', a.nonce(), { service: 'squad', signsIn: true }));
     deliver(a.win, frame('ready', a.nonce(), { service: 'squad', signsIn: 'yes' }));
     expect(onReady.mock.calls).toEqual([
-      ['p1', 'squad', { signsIn: true }],
-      ['p1', 'squad', { signsIn: false }],
+      ['p1', 'squad', { signsIn: true, boardBackground: false }],
+      ['p1', 'squad', { signsIn: false, boardBackground: false }],
     ]);
     shell.destroy();
   });
@@ -361,7 +389,7 @@ describe('createShell', () => {
     a.load();
     expect(a.connects()).toHaveLength(connectsBefore + 1);
     deliver(a.win, frame('ready', a.nonce(), { service: 'probe' }));
-    expect(onReady).toHaveBeenCalledWith('p1', 'probe', { signsIn: false });
+    expect(onReady).toHaveBeenCalledWith('p1', 'probe', { signsIn: false, boardBackground: false });
     shell.destroy();
   });
 

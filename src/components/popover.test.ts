@@ -114,8 +114,18 @@ describe('place', () => {
 describe('popover()', () => {
   it('marks the element, its mode and the side it landed on', () => {
     expect(popover({ mode: 'anchored', placement: 'top' })).toEqual({
-      'data-boogy': 'popover', 'data-mode': 'anchored', 'data-placement': 'top',
+      'data-boogy': 'popover', 'data-mode': 'anchored', 'data-placement': 'top', 'data-variant': 'raised',
     });
-    expect(popover({ mode: 'page' })).toEqual({ 'data-boogy': 'popover', 'data-mode': 'page' });
+    expect(popover({ mode: 'page' })).toEqual({ 'data-boogy': 'popover', 'data-mode': 'page', 'data-variant': 'raised' });
+  });
+});
+
+describe('popover() variant', () => {
+  it('is raised by default, and flat when asked', () => {
+    expect(popover({ mode: 'popover' as never })['data-variant']).toBe('raised');
+    expect(popover({ mode: 'anchored', variant: 'flat' })['data-variant']).toBe('flat');
+  });
+  it('refuses an unknown variant, naming the allowed ones', () => {
+    expect(() => popover({ mode: 'anchored', variant: 'round' as never })).toThrow(/raised, flat/);
   });
 });

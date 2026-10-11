@@ -150,3 +150,19 @@ describe('parseFrame zoom', () => {
     }
   });
 });
+
+describe('connect.scheme', () => {
+  const connect = (payload: Record<string, unknown>) =>
+    parseFrame({ boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n', payload: { shellOrigin: 'https://b.example', ...payload } });
+  it('keeps dark and light', () => {
+    expect(connect({ scheme: 'dark' })).toMatchObject({ payload: { scheme: 'dark' } });
+    expect(connect({ scheme: 'light' })).toMatchObject({ payload: { scheme: 'light' } });
+  });
+  it('drops anything else, and the connect still stands', () => {
+    for (const scheme of ['Dark', 'auto', 1, null, 'light dark']) {
+      const f = connect({ scheme });
+      expect(f?.type).toBe('connect');
+      expect((f?.payload as { scheme?: unknown }).scheme).toBeUndefined();
+    }
+  });
+});

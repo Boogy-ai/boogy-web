@@ -467,4 +467,16 @@ describe('connectPane zoom', () => {
     expect(zoomState().host).toBe(1);
     pane.disconnect();
   });
+  it('an app that did not opt in keeps its own background in a board', async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    fromShell({ boogy: PANE_PROTOCOL, type: 'connect', nonce: 'bg1', payload: { shellOrigin: SHELL, host: 'board', scheme: 'dark' } });
+    // The pane answered: without its ready, "no background" would hold vacuously.
+    await vi.waitFor(() => expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: 'ready' }), SHELL));
+    expect(document.documentElement.hasAttribute('data-board-background')).toBe(false);
+    const ready = post.mock.calls.map((c) => c[0] as { type: string; payload: Record<string, unknown> }).find((m) => m.type === 'ready');
+    expect(ready).toBeDefined();
+    expect(ready!.payload).not.toHaveProperty('background');
+    pane.disconnect();
+  });
 });

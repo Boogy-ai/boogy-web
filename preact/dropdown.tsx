@@ -69,16 +69,23 @@ export function Dropdown({ isOpen, defaultOpen = false, onOpenChange, children }
   return <DropdownCtx.Provider value={state}>{children}</DropdownCtx.Provider>;
 }
 
+export type DropdownTriggerProps = {
+  children: VNode;
+  /** What it opens, as announced: `menu` (the default), or `dialog` for
+   *  content that is not a menu (a picker, a form). */
+  haspopup?: 'menu' | 'dialog';
+};
+
 /** Wraps ONE element (usually a `<Button>`) and makes it open the menu: a press
  *  toggles it, ArrowDown/ArrowUp open it on the first/last item. */
-function DropdownTrigger({ children }: { children: VNode }) {
+function DropdownTrigger({ children, haspopup = 'menu' }: DropdownTriggerProps) {
   const s = useDropdown('Dropdown.Trigger');
   const child = toChildArray(children)[0] as VNode<Record<string, unknown>>;
   const own = child.props as { onClick?: (e: MouseEvent) => void; onKeyDown?: (e: KeyboardEvent) => void };
   return cloneElement(child, {
     id: s.triggerId,
     ref: (el: HTMLElement | null) => { s.triggerRef.current = el; },
-    'aria-haspopup': 'menu',
+    'aria-haspopup': haspopup,
     'aria-expanded': s.open ? 'true' : 'false',
     onClick: (e: MouseEvent) => {
       own.onClick?.(e);

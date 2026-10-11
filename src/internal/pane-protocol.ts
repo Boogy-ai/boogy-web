@@ -38,6 +38,11 @@ export type PaneHost = 'board';
 
 const HOSTS: readonly PaneHost[] = ['board'];
 
+/** The colour scheme of the page framing an app: what an app that draws the
+ *  board's background renders in, so its text reads on that background. */
+export type PaneScheme = 'dark' | 'light';
+const SCHEMES: readonly PaneScheme[] = ['dark', 'light'];
+
 /** How the last sign-in trip a page made for the app ended, when it came back
  *  without signing the app in: `'cancelled'` (the person cancelled it) or
  *  `'failed'` (it did not finish for this app). */
@@ -83,6 +88,9 @@ export interface ConnectPayload {
   history?: PaneHistory;
   /** The size the board draws this pane at (its override, or the board's); absent means 1. */
   zoom?: number;
+  /** The framing page's colour scheme. Absent from a page that does not say,
+   *  or says something this version does not know. */
+  scheme?: PaneScheme;
 }
 /** `hello` (pane → board: "I am listening now") and `ready` both name the service. */
 export interface ReadyPayload {
@@ -91,6 +99,9 @@ export interface ReadyPayload {
    *  until it reports signed in (see `ConnectPaneOptions.signsIn`). Absent is
    *  no. */
   signsIn?: boolean;
+  /** `ready` only: the app drew no page background, so the board's shows
+   *  through it (it declared that it does). Absent is no. */
+  background?: 'board';
 }
 export interface AuthStatePayload {
   signedIn: boolean;
@@ -183,6 +194,7 @@ function connectPayload(p: unknown): ConnectPayload | null {
     out.history = { entries: [...(p.history.entries as string[])], index: p.history.index as number };
   }
   if (isZoomFactor(p.zoom)) out.zoom = p.zoom as number;
+  if (SCHEMES.includes(p.scheme as PaneScheme)) out.scheme = p.scheme as PaneScheme;
   return out;
 }
 

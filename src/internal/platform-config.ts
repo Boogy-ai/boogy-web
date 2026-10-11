@@ -42,6 +42,9 @@ export interface PlatformConfig {
    * origin lets nothing frame it, so it is empty there.
    */
   boardShell: boolean;
+  /** `'board'` when this app declared that, in a board, it shows the board's
+   *  background. Absent otherwise. */
+  boardBackground?: 'board';
 }
 
 const CONFIG_PATH = '/boogy/config';
@@ -64,12 +67,13 @@ export function parsePlatformConfig(body: unknown): PlatformConfig {
     throw new BoogyError('config_unavailable', 'the platform config response was not an object');
   }
 
-  const { authOrigin, owner, shellOrigins, service, boardShell } = body as {
+  const { authOrigin, owner, shellOrigins, service, boardShell, boardBackground } = body as {
     authOrigin?: unknown;
     owner?: unknown;
     shellOrigins?: unknown;
     service?: unknown;
     boardShell?: unknown;
+    boardBackground?: unknown;
   };
 
   if (typeof owner !== 'string' || !owner) {
@@ -97,6 +101,7 @@ export function parsePlatformConfig(body: unknown): PlatformConfig {
     boardShell: boardShell === true,
   };
   if (typeof service === 'string' && service) config.service = service;
+  if (boardBackground === 'board') config.boardBackground = 'board';
   return config;
 }
 

@@ -90,8 +90,10 @@ export interface TypeaheadSearch {
   at: number;
 }
 
-/** Whether `target` takes typed text itself. */
-function isField(target: EventTarget | null): boolean {
+/** Whether `target` takes keys for itself: a field, a select or editable
+ *  text, where typing goes in and the arrow keys move within it. A menu
+ *  around one leaves those keys to it. */
+export function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   return !!el && typeof el.matches === 'function' && (el.isContentEditable || el.matches('input, textarea, select'));
 }
@@ -106,7 +108,7 @@ export function typeaheadSearch(
   e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'target'>,
   now: number,
 ): TypeaheadSearch | null {
-  if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey || isField(e.target)) return null;
+  if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target)) return null;
   const fresh = search.text === '' || now - search.at > TYPEAHEAD_RESET_MS;
   if (e.key === ' ' && fresh) return null;
   return { text: (fresh ? '' : search.text) + e.key, at: now };

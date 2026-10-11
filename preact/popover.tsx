@@ -13,9 +13,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preac
 import { Button } from './button';
 import { BackButton } from './back-button';
 import { Glyph } from './glyphs';
-import { DRAWER_BREAKPOINTS, place, popover, type DrawerBreakpoint, type PopoverMode, type PopoverPlacement } from '@boogy/web';
+import { TAB_STOPS } from './tab-stops';
+import { DRAWER_BREAKPOINTS, place, popover, type DrawerBreakpoint, type PopoverMode, type PopoverPlacement, type PopoverVariant } from '@boogy/web';
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export type PopoverProps = {
   /** The element it is anchored to; focus returns here when it closes. */
@@ -33,6 +33,13 @@ export type PopoverProps = {
   /** Minimum gap from the viewport's edges, px. Default 12. */
   containerPadding?: number;
   maxHeight?: number;
+  /** `raised` (default): rounded, with a shadow. `flat`: square corners, a
+   *  hairline edge, no shadow, square menu rows; its colours stay the app's
+   *  (`--popover-ground`, `--popover-edge`). */
+  variant?: PopoverVariant;
+  /** Its ground: any CSS colour (a `var()` is fine). Default the theme's
+   *  popover ground. */
+  ground?: string;
   /** Below this viewport width it opens as a full-screen page. Default `sm`; `false` never. */
   fullscreenBelow?: DrawerBreakpoint | false;
   /** The dialog's accessible name, and its head's title where it has a head
@@ -80,7 +87,7 @@ function useMode(below: DrawerBreakpoint | false): PopoverMode {
 }
 
 export function Popover({
-  triggerRef, isOpen, onOpenChange, placement, offset, crossOffset, shouldFlip, containerPadding, maxHeight,
+  triggerRef, isOpen, onOpenChange, placement, offset, crossOffset, shouldFlip, containerPadding, maxHeight, variant = 'raised', ground,
   fullscreenBelow = 'sm', title, titleIcon, centered = false, centerY = 0.5, overlay, onBack, children, ...rest
 }: PopoverProps) {
   const mode = useMode(fullscreenBelow);
@@ -177,17 +184,24 @@ export function Popover({
       // The CONTENT first: the head's Back/Close come before it in the tree,
       // and opening a popover should not land on its Close button.
       const body = el.querySelector<HTMLElement>('[data-slot="body"]');
-      (body?.querySelector<HTMLElement>(FOCUSABLE) ?? el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus();
+      (body?.querySelector<HTMLElement>(TAB_STOPS) ?? el.querySelector<HTMLElement>(TAB_STOPS) ?? el).focus();
     }
 
     // DISMISSAL: Escape, or a press anywhere but the popover and its trigger.
+    // Escape closes the INNERMOST open popover only: one opened from inside
+    // this one (a menu opened from a row of a menu) is drawn as a descendant
+    // of it, so while it is open this one leaves Escape to it, and closes on
+    // the next. Decided by nesting, not by which listener runs first.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); closeRef.current(); return; }
+      if (e.key === 'Escape') {
+        if (el.querySelector('[data-boogy="popover"]')) return;
+        e.preventDefault(); closeRef.current(); return;
+      }
       // Already handled inside (a menu closes on Tab rather than trapping it).
       if (e.defaultPrevented) return;
       if (e.key !== 'Tab' || !el.contains(document.activeElement)) return;
       // Focus stays inside while it is open.
-      const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const items = Array.from(el.querySelectorAll<HTMLElement>(TAB_STOPS));
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];
@@ -199,8 +213,21 @@ export function Popover({
       if (el.contains(target) || trigger?.contains(target)) return;
       closeRef.current();
     };
+    // A press inside an embedded frame (an iframe: another page) reaches that
+    // page, never this document; here it shows only as this window losing
+    // focus to the frame. A frame inside the popover is the popover's own; the
+    // whole window losing focus (another app) leaves it open.
+    let blurCheck = 0;
+    const onBlur = () => {
+      clearTimeout(blurCheck);
+      blurCheck = window.setTimeout(() => {
+        const at = document.activeElement;
+        if (at instanceof HTMLIFrameElement && !el.contains(at)) closeRef.current();
+      }, 0);
+    };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPress, true);
+    window.addEventListener('blur', onBlur);
 
     // HISTORY (page only): back closes it; any other close steps back.
     let pushed = false;
@@ -221,6 +248,8 @@ export function Popover({
       ro?.disconnect();
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPress, true);
+      window.removeEventListener('blur', onBlur);
+      clearTimeout(blurCheck);
       window.removeEventListener('popstate', onPop);
       if (pushed && (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) history.back();
       if (el.contains(document.activeElement) || document.activeElement === document.body) trigger?.focus();
@@ -248,7 +277,9 @@ export function Popover({
     )}
     <div
       {...rest}
-      {...popover({ mode })}
+      // A ground the caller passes (any CSS colour) is the popover's own.
+      style={ground === undefined ? rest.style : { ...(rest.style as object | undefined), '--popover-ground': ground } as JSX.CSSProperties}
+      {...popover({ mode, variant })}
       ref={show}
       popover="manual"
       role="dialog"

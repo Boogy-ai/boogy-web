@@ -84,6 +84,14 @@ describe('parsePlatformConfig', () => {
     });
     expect(config).toEqual({ authOrigin: 'https://auth.boogy.app', owner: 'dave', shellOrigins: [], boardShell: false, service: 'chats' });
   });
+  it('keeps boardBackground only as a literal "board"', async () => {
+    const { parsePlatformConfig } = await import('./platform-config');
+    const base = { authOrigin: 'https://auth.example', owner: 'o', shellOrigins: [] };
+    expect(parsePlatformConfig({ ...base, boardBackground: 'board' }).boardBackground).toBe('board');
+    for (const v of [undefined, 'app', true, 'Board']) {
+      expect(parsePlatformConfig({ ...base, boardBackground: v }).boardBackground).toBeUndefined();
+    }
+  });
 });
 
 describe('loadPlatformConfig / platformConfig', () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'preact';
 import { useState } from 'preact/hooks';
 import { act } from 'preact/test-utils';
-import { Tabs } from './index';
+import { TabList, TabPanel, Tabs } from './index';
 
 afterEach(() => { document.body.replaceChildren(); });
 
@@ -56,8 +56,48 @@ describe('<Tabs>', () => {
     key(tabsOf(r)[2], 'Home');
     expect(document.activeElement).toBe(tabsOf(r)[0]);
   });
-  it('fill: the root carries the option, so its tabs share the bar evenly', () => {
-    const r = mount(<Tabs label="Pick" items={ITEMS} selected="one" onSelect={() => {}} fill />);
-    expect(r.querySelector('[data-boogy="tabs"]')!.getAttribute('data-fill')).toBe('true');
+  it("a tab may lead with a glyph: hidden from assistive tech, the label still its name; a tab without one has no slot", () => {
+    const items = [{ id: 'a', label: 'Buddies', icon: <svg data-test="people" /> }, { id: 'b', label: 'Plain' }];
+    const r = mount(<Tabs label="Pick" items={items} selected="a" onSelect={() => {}}><p>x</p></Tabs>);
+    const [a, b] = tabsOf(r);
+    const icon = a.querySelector(':scope > [data-slot="icon"]')!;
+    expect(icon.getAttribute('aria-hidden')).toBe('true');
+    expect(icon.querySelector('svg[data-test="people"]')).toBeTruthy();
+    expect(a.firstElementChild).toBe(icon);
+    expect(a.textContent).toBe('Buddies');
+    expect(b.querySelector('[data-slot="icon"]')).toBeNull();
   });
+
+  it('fill: the row carries the option, so its tabs share it evenly', () => {
+    const r = mount(<Tabs label="Pick" items={ITEMS} selected="one" onSelect={() => {}} fill><p>x</p></Tabs>);
+    expect(r.querySelector('[data-boogy="tab-list"]')!.getAttribute('data-fill')).toBe('true');
+  });
+
+  it('the row and the panel can be shown apart (a row in a top bar), linked by the panel\'s id', () => {
+    function Apart() {
+      const [at, setAt] = useState('two');
+      return (
+        <>
+          <TabList label="Pick" items={ITEMS} selected={at} onSelect={setAt} panel="pick" />
+          <TabPanel id="pick" selected={at}><p>panel for {at}</p></TabPanel>
+        </>
+      );
+    }
+    const r = mount(<Apart />);
+    const list = r.querySelector('[data-boogy="tab-list"]')!;
+    expect(list.getAttribute('role')).toBe('tablist');
+    expect(list.getAttribute('aria-label')).toBe('Pick');
+    const panel = r.querySelector('[role="tabpanel"]')!;
+    expect(panel.getAttribute('data-boogy')).toBe('tab-panel');
+    const [, two, three] = tabsOf(r);
+    expect(two.id).toBe('pick--two');
+    expect(two.getAttribute('aria-controls')).toBe('pick');
+    expect(panel.getAttribute('aria-labelledby')).toBe('pick--two');
+    two.focus();
+    key(two, 'ArrowRight');
+    expect(document.activeElement).toBe(three);
+    expect(r.querySelector('[role="tabpanel"]')!.getAttribute('aria-labelledby')).toBe('pick--three');
+    expect(r.textContent).toContain('panel for three');
+  });
+
 });

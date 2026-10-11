@@ -82,12 +82,8 @@ const BUTTON_CSS = `
   [data-boogy="glyph"] { flex: none; width: var(--icon-md); height: var(--icon-md); }
   [data-boogy="glyph"][data-size="sm"] { width: var(--icon-sm); height: var(--icon-sm); }
 
-  /* Zoom controls: two buttons a hair apart; each shows a letter, small for
-     smaller and large for larger, from the text tokens. */
-  [data-boogy="zoom-controls"] { display: inline-flex; align-items: center; gap: var(--space-0); }
-  [data-boogy="zoom-controls"] [data-slot="letter"] { font-family: var(--font-body); font-weight: 600; line-height: 1; }
-  [data-boogy="zoom-controls"] [data-slot="smaller"] > [data-slot="letter"] { font-size: var(--fs-caption); }
-  [data-boogy="zoom-controls"] [data-slot="larger"] > [data-slot="letter"] { font-size: var(--fs-title); }
+  /* Zoom controls: two buttons a hair apart. */
+  [data-boogy="zoom-controls"] { display: inline-flex; align-items: center; gap: var(--space-0); --slider-inline: var(--slider-length); --slider-gap-end: var(--space-2); }
 
   /* solid */
   [data-boogy="button"][data-variant="solid"] {
@@ -124,6 +120,13 @@ const BUTTON_CSS = `
     border-color: var(--text-2);
   }
 
+  /* soft: a translucent fill of the ink at rest, a step stronger on hover and
+     press; disabled is the shared dimming above. */
+  [data-boogy="button"][data-variant="soft"] { background: var(--fill-selected); color: var(--text-1); }
+  [data-boogy="button"][data-variant="soft"]:not(:disabled, [aria-disabled="true"]):hover { background: var(--fill-strong); }
+  [data-boogy="button"][data-variant="soft"]:not(:disabled, [aria-disabled="true"]):active { background: var(--fill-strong); }
+  [data-boogy="button"][data-variant="soft"][aria-pressed="true"] { background: var(--fill-strong); }
+
   /* danger */
   [data-boogy="button"][data-variant="danger"] { color: var(--danger); }
   [data-boogy="button"][data-variant="danger"]:not(:disabled, [aria-disabled="true"]):hover {
@@ -133,6 +136,28 @@ const BUTTON_CSS = `
     background: color-mix(in oklch, var(--danger) 26%, transparent);
   }
   [data-boogy="button"][data-fill="true"] { flex: 1 1 auto; width: 100%; }
+`;
+
+const BUTTON_GROUP_CSS = `
+  /* A partitioned pill: buttons edge to edge, the group's outer ends taking
+     the buttons' radius (full when rounded), every corner at a seam square, a
+     faint hairline between neighbours. The corners are set on the buttons
+     themselves, so nothing is clipped and each keeps its own focus ring. */
+  [data-boogy="button-group"] { --_r: var(--radius-1); display: inline-flex; align-items: stretch; }
+  [data-boogy="button-group"][data-rounded="true"] { --_r: var(--radius-full); }
+  [data-boogy="button-group"] > [data-boogy="button"] { border-radius: 0; }
+  [data-boogy="button-group"] > [data-boogy="button"]:first-child {
+    border-start-start-radius: var(--_r);
+    border-end-start-radius: var(--_r);
+  }
+  [data-boogy="button-group"] > [data-boogy="button"]:last-child {
+    border-start-end-radius: var(--_r);
+    border-end-end-radius: var(--_r);
+  }
+  [data-boogy="button-group"] > [data-boogy="button"] + [data-boogy="button"] {
+    border-inline-start: var(--hairline) solid var(--edge-faint);
+  }
+  [data-boogy="button-group"] > [data-boogy="button"]:focus-visible { position: relative; z-index: 1; }
 `;
 
 // Drawer breakpoints: the container width at which the drawer docks. Fixed
@@ -202,11 +227,10 @@ const DRAWER_CSS = `
      Its own container, so the mode follows the space it is given, not the
      viewport. Overlay is the default; the breakpoint query docks it. */
   [data-boogy="drawer-layout"] {
-    /* The drawer's own dimensions, defined once. The strip holds one large
-       mark with the drawer's padding either side. */
+    /* The drawer's docked width, defined once here: a width the person drags
+       is written on the layout over it. Its other dimensions are on the drawer
+       itself (below), so they follow the drawer's own unit. */
     --drawer-width: calc(var(--u) * 15);
-    --drawer-overlay-width: calc(var(--u) * 18);
-    --drawer-strip-width: calc(var(--mark-lg) + 2 * var(--space-2) + 1px); /* + the 1px edge: the drawer is border-box */
     /* The framed entry's mark tile. An app themes it by redefining these on
        the drawer (e.g. to match its own panels). */
     --drawer-mark-ground: var(--ground-solid);
@@ -227,6 +251,11 @@ const DRAWER_CSS = `
   [data-boogy="drawer-main"] { flex: 1 1 auto; min-width: 0; min-height: 0; }
 
   [data-boogy="drawer"] {
+    /* Its overlay width and collapsed strip, in its OWN unit: a drawer that
+       sets its own scale keeps these with it. The strip holds one large mark
+       with the drawer's padding either side. */
+    --drawer-overlay-width: calc(var(--u) * 18);
+    --drawer-strip-width: calc(var(--mark-lg) + 2 * var(--space-2) + 1px); /* + the 1px edge: the drawer is border-box */
     --boogy-drawer-mode: overlay;
     box-sizing: border-box;
     position: absolute;
@@ -426,6 +455,19 @@ const POPOVER_CSS = `
     scale: 1;
     transition: opacity var(--dur-base) ease-out, scale var(--dur-base) ease-out;
   }
+  /* flat: edged, a slight radius, a small shadow (--menu-shadow, not the
+     raised popover's large one), and frosted — its ground (by
+     default --ground-frost, a glass grey) a little see-through
+     (--popover-frost) over a blur of what is behind it. Its
+     colours stay the app's (--popover-ground, --popover-edge), its radii too
+     (--popover-radius, --popover-row-radius). */
+  [data-boogy="popover"][data-variant="flat"] {
+    border-radius: var(--popover-radius, var(--radius-1));
+    box-shadow: var(--menu-shadow);
+    background: color-mix(in oklch, var(--popover-ground, var(--ground-frost)) var(--popover-frost), transparent);
+    backdrop-filter: blur(var(--blur-md));
+  }
+  [data-boogy="popover"][data-variant="flat"] :is([data-boogy="menu-item"], [data-boogy="menu-row"]) { border-radius: var(--popover-row-radius, var(--radius-1)); }
   @starting-style {
     [data-boogy="popover"] { opacity: 0; scale: 0.96; }
   }
@@ -445,6 +487,7 @@ const POPOVER_CSS = `
     border-radius: 0;
     box-shadow: none;
     background: var(--popover-ground, var(--ground-solid));
+    backdrop-filter: none;
   }
   /* The head, in every mode that has one; the body scrolls beneath it. */
   [data-boogy="popover"]:has(> [data-slot="head"]) { display: flex; flex-direction: column; overflow: hidden; }
@@ -473,7 +516,7 @@ const MENU_CSS = `
     --menu-min-width: calc(var(--u) * 12);
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--hairline);
     min-width: max(var(--trigger-width, 0px), var(--menu-min-width));
     padding: var(--space-1);
     outline: none;
@@ -491,9 +534,14 @@ const MENU_CSS = `
     display: grid;
     grid-template-columns: 1fr auto auto;
     grid-template-areas: "label kbd indicator" "description kbd indicator";
+    /* The two rows packed in the middle: with no description the label is
+       centred, level with an icon or a widget row's label, not above an
+       empty row that took half of the height. */
+    align-content: center;
     align-items: center;
     column-gap: var(--space-3);
-    cursor: default;
+    /* A press acts on it: the pointer (a disabled one has the arrow, below). */
+    cursor: pointer;
     outline: none;
     user-select: none;
   }
@@ -502,7 +550,7 @@ const MENU_CSS = `
   [data-boogy="menu-item"][data-variant="danger"]:focus {
     background: color-mix(in oklch, var(--danger) 16%, transparent);
   }
-  [data-boogy="menu-item"][data-disabled="true"] { opacity: 0.45; }
+  [data-boogy="menu-item"][data-disabled="true"] { opacity: 0.45; cursor: default; }
   [data-boogy="menu-item"] > [data-slot="label"] { grid-area: label; min-width: 0; }
   /* A leading icon or swatch: a column of its own, only on an item that has
      one, so a menu without icons keeps its labels against the edge. */
@@ -510,7 +558,9 @@ const MENU_CSS = `
     grid-template-columns: auto 1fr auto auto;
     grid-template-areas: "icon label kbd indicator" "icon description kbd indicator";
   }
-  [data-boogy="menu-item"] > [data-slot="icon"] { grid-area: icon; display: flex; color: var(--text-2); }
+  /* An item's icon and a widget row's icon: one size and ink. */
+  [data-boogy="menu-item"] > [data-slot="icon"], [data-boogy="menu-row"] > [data-slot="icon"] { display: flex; color: var(--text-2); }
+  [data-boogy="menu-item"] > [data-slot="icon"] { grid-area: icon; }
   [data-boogy="menu-item"] > [data-slot="description"] {
     grid-area: description;
     color: var(--text-3);
@@ -529,6 +579,16 @@ const MENU_CSS = `
     width: var(--icon-sm);
     height: var(--icon-sm);
   }
+  /* A row that opens more content to its side ends in a chevron, in the
+     indicator's column, a step quieter than its label. While what it opened
+     is open the row keeps the focused look, so the content reads as coming
+     from it. */
+  [data-boogy="menu-item"] > [data-slot="submenu-indicator"] {
+    grid-area: indicator;
+    display: flex;
+    color: var(--text-3);
+  }
+  [data-boogy="menu-item"][aria-expanded="true"] { background: var(--fill-hover); }
   [data-boogy="menu-section"] { display: flex; flex-direction: column; gap: 1px; }
   [data-boogy="menu-section"] > [data-slot="header"] {
     padding: var(--space-1) var(--space-2);
@@ -565,7 +625,16 @@ const SHEET_CSS = `
     font-size: var(--fs-body);
     line-height: 1.5;
   }
+  /* A page showing the board's background has a transparent --ground, so a
+     sheet left to it would show the screen it covers at full strength: it
+     covers with the opaque solid ground instead. A page's own --sheet-ground
+     still wins (one that hides what its sheet covers may set transparent). */
+  :root[data-board-background] [data-boogy="sheet"] { background: var(--sheet-ground, var(--ground-solid)); }
+  /* The head and the foot are their own height whatever the body holds: a
+     body far taller than the sheet scrolls, and never squeezes them (as
+     shrinkable flex items, a long body took their padding away). */
   [data-boogy="sheet"] > [data-slot="head"] {
+    flex: none;
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -594,6 +663,15 @@ const SHEET_CSS = `
     font-size: var(--fs-body);
     font-weight: 400;
   }
+  /* A TopBar with \`shadow\` as the head: the shadow is the head's, cast from
+     its edge rather than from inside its padding, over the body that scrolls
+     under it. */
+  [data-boogy="sheet"] > [data-slot="head"]:has(> [data-boogy="top-bar"][data-shadow]) {
+    position: relative;
+    z-index: 1;
+    box-shadow: var(--bar-shadow);
+  }
+  [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"][data-shadow] { box-shadow: none; }
   /* A head of the caller's own: the head's frame (its edge and padding), and
      none of the title's type. What it holds takes the head's width. */
   [data-boogy="sheet"] > [data-slot="head"][data-head="own"] { font-size: var(--fs-body); font-weight: 400; }
@@ -608,6 +686,7 @@ const SHEET_CSS = `
     padding: var(--space-4);
   }
   [data-boogy="sheet"] > [data-slot="foot"] {
+    flex: none;
     display: flex;
     justify-content: flex-end;
     align-items: center;
@@ -873,6 +952,9 @@ const AVATAR_CSS = `
     place-items: center;
     overflow: hidden;
     background: var(--fill-hover);
+    /* A small shadow, lifting it off what it sits on (its overflow clips its
+       contents, never its own shadow). */
+    box-shadow: var(--avatar-shadow);
     color: oklch(0.98 0 0);
     font-weight: 600;
     line-height: 1;
@@ -1400,50 +1482,320 @@ const SWATCH_CSS = `
   }
 `;
 
+// --- ColorPicker (see color-picker.ts) ---
+// Sections, each inside the picker's own padding, a hairline between each two
+// running the picker's full width: the swatches, the custom colour, the
+// transparency slider.
+//
+//   * A swatch is a square chip of its colour, a hairline inside its edge so a
+//     chip close to the ground (black on a dark menu, white on a light one)
+//     still reads as a chip. The chosen chip is ringed in the ink with a ring
+//     of the ground inside that, so the ring reads on any colour, light or
+//     dark; the custom colour's preview takes the same rings when a custom
+//     colour is the one chosen.
+//   * The area is white to the pure hue across and clear to black down: the
+//     HSV model drawn. Its gradients, and the hue strip's rainbow, are the
+//     only colours named here, and each is defined once on the picker.
+//   * Every thumb is one lens: a hollow ring as tall as the strips, framing
+//     the colour under it, so what shows inside the ring is the colour you
+//     get. A ring of the ground between two hairlines of the ink reads on
+//     white and on black alike.
+//   * Corners are one knob, --color-picker-radius: small, and square under a
+//     flat popover.
+//
+// A range's track and thumb are styled once per engine (a rule naming another
+// engine's pseudo-element is dropped whole), so each is written once below and
+// stamped out for both.
+const PICKER = '[data-boogy="color-picker"]';
+const SAMPLES = '[data-boogy="sample-grid"]';
+// The size controls' slider shares the picker's track and thumb.
+const ZOOM_SLIDER = '[data-boogy="zoom-controls"] > [data-slot="slider"]';
+const SLIDERS = `:is(${PICKER} :is([data-slot="hue"], [data-slot="opacity"] > input), ${ZOOM_SLIDER})`;
+const LENS = `
+    box-sizing: border-box;
+    inline-size: var(--slider-track);
+    block-size: var(--slider-track);
+    border: var(--ring) solid var(--ground-solid);
+    border-radius: var(--radius-full);
+    box-shadow: 0 0 0 var(--hairline) var(--text-1), inset 0 0 0 var(--hairline) var(--text-1);
+    background: transparent;`;
+const pickerTrack = (pseudo: string) => `
+  ${SLIDERS}${pseudo} {
+    box-sizing: border-box;
+    block-size: var(--slider-track);
+    border-radius: var(--color-picker-radius, var(--radius-1));
+    box-shadow: inset 0 0 0 var(--hairline) var(--edge);
+  }
+  ${ZOOM_SLIDER}${pseudo} { background: var(--fill-selected); }
+  ${PICKER} [data-slot="hue"]${pseudo} { background: var(--color-picker-rainbow); }
+  ${PICKER} [data-slot="opacity"] > input${pseudo} {
+    background: linear-gradient(to right, var(--color-picker-current), transparent), var(--checker) 0 0 / var(--space-2) var(--space-2);
+  }`;
+// A slider's thumb: a plain filled circle in the ink, a hairline of the
+// ground around it so it reads on a light strip and a dark one.
+const DOT = `
+    box-sizing: border-box;
+    inline-size: var(--slider-track);
+    block-size: var(--slider-track);
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--text-1);
+    box-shadow: 0 0 0 var(--hairline) var(--ground-solid);`;
+const pickerThumb = (pseudo: string, reset = '') => `
+  ${SLIDERS}${pseudo} {${reset}${DOT}
+  }`;
+const COLOR_PICKER_CSS = `
+  ${PICKER} {
+    --color-picker-radius: var(--radius-1);
+    --color-picker-area-ratio: 2 / 1;
+    /* The HSV model: the hue circle, and white and black at the ends of the
+       area. --color-picker-hue (the pure hue) and --color-picker-current (the
+       colour shown) are set on the picker as it changes. */
+    --color-picker-rainbow: linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red);
+    --color-picker-tint: linear-gradient(to right, white, var(--color-picker-hue));
+    --color-picker-shade: linear-gradient(to top, black, transparent);
+    display: grid;
+    box-sizing: border-box;
+  }
+  [data-boogy="popover"][data-variant="flat"] ${PICKER} { --color-picker-radius: 0; }
+  ${PICKER} > [data-slot] { padding: var(--space-3); }
+  ${PICKER} > [data-slot] + [data-slot] { border-top: var(--rule); }
+
+  /* SampleGrid: tiles the app paints, in columns, scrolling past \`rows\`
+     of them. Padded by a ring's width, so the scroll box does not clip the
+     chosen or focused tile's ring at its edges. Its tiles' hover, chosen and
+     focus looks are the swatches' (below). */
+  ${SAMPLES} {
+    --sample-grid-radius: var(--radius-1);
+    display: grid;
+    grid-template-columns: repeat(var(--sample-grid-columns), minmax(0, 1fr));
+    grid-auto-rows: var(--sample-md);
+    gap: var(--space-1);
+    max-block-size: calc(var(--sample-grid-rows) * (var(--sample-md) + var(--space-1)) - var(--space-1));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--ring);
+  }
+  [data-boogy="popover"][data-variant="flat"] ${SAMPLES} { --sample-grid-radius: 0; }
+  ${SAMPLES} > [data-slot="sample"] {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: var(--rule);
+    border-radius: var(--sample-grid-radius);
+    cursor: pointer;
+  }
+
+  ${PICKER} > [data-slot="swatches"] {
+    display: grid;
+    grid-template-columns: repeat(var(--color-picker-columns), minmax(var(--chip-md), 1fr));
+    gap: var(--space-0);
+  }
+  ${PICKER} [data-slot="swatch"] {
+    box-sizing: border-box;
+    aspect-ratio: 1;
+    margin: 0;
+    padding: 0;
+    border: var(--rule);
+    border-radius: var(--color-picker-radius);
+    background: var(--swatch-color, transparent);
+    cursor: pointer;
+  }
+  ${SAMPLES} > [data-slot="sample"]:hover,
+  ${PICKER} [data-slot="swatch"]:hover { border-color: var(--text-1); }
+  /* Chosen: a ring of the ink for its edge, a ring of the ground inside it. */
+  ${SAMPLES} > [data-slot="sample"][aria-pressed="true"],
+  ${PICKER} :is([data-slot="swatch"][aria-pressed="true"], [data-slot="custom"][data-pressed="true"] [data-slot="preview"]) {
+    border: var(--ring) solid var(--text-1);
+    box-shadow: inset 0 0 0 var(--ring) var(--ground-solid);
+  }
+  ${SAMPLES} > [data-slot="sample"]:focus-visible,
+  ${PICKER} [data-slot="swatch"]:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: 0;
+  }
+
+  ${PICKER} > [data-slot="custom"] {
+    display: grid;
+    gap: var(--space-2);
+  }
+  ${PICKER} [data-slot="area"] {
+    position: relative;
+    aspect-ratio: var(--color-picker-area-ratio);
+    border-radius: var(--color-picker-radius);
+    background: var(--color-picker-shade), var(--color-picker-tint);
+    touch-action: none;
+    cursor: crosshair;
+  }
+  /* The area's hairline, over its gradient, so its white corner reads on a
+     white menu. */
+  ${PICKER} [data-slot="area"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--color-picker-radius);
+    box-shadow: inset 0 0 0 var(--hairline) var(--edge);
+    pointer-events: none;
+  }
+  ${PICKER} [data-slot="area"]:focus-visible {
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: var(--ring);
+  }
+  ${PICKER} [data-slot="area-thumb"] {
+    position: absolute;
+    margin: calc(var(--slider-track) / -2) 0 0 calc(var(--slider-track) / -2);
+    pointer-events: none;${LENS}
+  }
+  ${PICKER} [data-slot="hex-row"] {
+    display: flex;
+    gap: var(--space-2);
+  }
+  ${PICKER} [data-slot="preview"] {
+    flex: none;
+    box-sizing: border-box;
+    inline-size: var(--control-sm);
+    border: var(--rule);
+    border-radius: var(--color-picker-radius);
+    background: var(--color-picker-current);
+  }
+  ${PICKER} [data-slot="hex"] {
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    inline-size: 0;
+    min-inline-size: 0;
+    block-size: var(--control-sm);
+    margin: 0;
+    padding: 0 var(--space-2);
+    border: var(--rule);
+    border-radius: var(--color-picker-radius);
+    background: var(--ground-sunken);
+    color: var(--text-1);
+    font-family: var(--font-mono);
+    font-size: var(--fs-detail);
+  }
+  ${PICKER} [data-slot="hex"]:focus-visible {
+    border-color: var(--edge-strong);
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: 0;
+  }
+  ${PICKER} [data-slot="hex"][aria-invalid="true"] {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  ${PICKER} > [data-slot="opacity"] {
+    display: grid;
+    gap: var(--space-2);
+  }
+  ${PICKER} > [data-slot="opacity"] > label {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+    color: var(--text-2);
+    font-size: var(--fs-detail);
+  }
+  ${PICKER} [data-slot="opacity-value"] {
+    color: var(--text-1);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  ${SLIDERS} {
+    appearance: none;
+    box-sizing: border-box;
+    display: block;
+    justify-self: stretch;
+    /* A host sets these on itself rather than out-ranking this rule. */
+    inline-size: var(--slider-inline, auto);
+    block-size: var(--slider-track);
+    margin: 0;
+    margin-inline-end: var(--slider-gap-end, 0);
+    border-radius: var(--color-picker-radius, var(--radius-1));
+    background: transparent;
+    cursor: pointer;
+  }
+  ${SLIDERS}:focus-visible {
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: var(--ring);
+  }
+${pickerTrack('::-webkit-slider-runnable-track')}
+${pickerTrack('::-moz-range-track')}
+${pickerThumb('::-webkit-slider-thumb', `
+    appearance: none;`)}
+${pickerThumb('::-moz-range-thumb')}
+`;
+
 // --- Tabs (see tabs.ts) ---
-// A row of tabs on a line: a thin, dim shade of the accent under every tab, and
-// the selected tab in the full ink with the full accent, thicker, under it —
-// drawn as its own bottom border laid over the row's line (the -1px margin), so
-// the two read as one line that brightens under the selected tab.
+// A row of tabs on a line: a neutral line under every tab (no accent, so only
+// the selected tab is coloured), as heavy as the selected underline, and the
+// selected tab in the full ink with the accent line over it. Both lines are a
+// background of the underline's height at the bottom of their box, so the two
+// coincide exactly and read as one line that lights under the selected tab. In
+// a TopBar the bar draws the neutral line, across its whole width.
 const TABS_CSS = `
-  [data-boogy="tabs"] > [data-slot="list"] {
+  [data-boogy="tab-list"] {
     display: flex;
     gap: 0;
-    border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
   }
-  [data-boogy="tabs"] [data-slot="tab"] {
+  [data-boogy="tab-list"],
+  [data-boogy="tab-list"] > [data-slot="tab"],
+  [data-boogy="top-bar"]:has(> [data-slot="heading"] > [data-boogy="tab-list"]) {
+    background-position: bottom;
+    background-size: 100% var(--underline);
+    background-repeat: no-repeat;
+  }
+  [data-boogy="tab-list"],
+  [data-boogy="top-bar"]:has(> [data-slot="heading"] > [data-boogy="tab-list"]) {
+    background-image: linear-gradient(var(--edge-strong), var(--edge-strong));
+  }
+  [data-boogy="top-bar"] > [data-slot="heading"] > [data-boogy="tab-list"] { background-image: none; }
+  [data-boogy="tab-list"] > [data-slot="tab"] {
     position: relative;
-    margin-bottom: -1px;
     padding: var(--space-2);
     border: none;
     border-bottom: var(--underline) solid transparent;
-    background: transparent;
+    background-color: transparent;
+    background-origin: border-box;
     color: var(--text-2);
     font: inherit;
     cursor: pointer;
   }
-  [data-boogy="tabs"] [data-slot="tab"]:hover { color: var(--text-1); }
+  [data-boogy="tab-list"] > [data-slot="tab"]:hover { color: var(--text-1); }
   /* A faint divider between neighbouring tabs, short of the row's top and
      bottom. The tabs sit edge to edge (no gap), so it is exactly between two;
      each tab's padding spaces the labels. */
-  [data-boogy="tabs"] [data-slot="tab"] + [data-slot="tab"]::before {
+  [data-boogy="tab-list"] > [data-slot="tab"] + [data-slot="tab"]::before {
     content: "";
     position: absolute;
     inset-block: var(--space-2);
     inset-inline-start: 0;
     border-inline-start: 1px solid var(--edge);
   }
-  /* fill: every tab an equal share of the row, its label centred in it */
-  [data-boogy="tabs"][data-fill="true"] [data-slot="tab"] { flex: 1 1 0; }
-  [data-boogy="tabs"] [data-slot="tab"][aria-selected="true"] {
-    color: var(--text-1);
-    border-bottom-color: var(--accent);
+  /* A tab with a glyph: the glyph and its label on one line, centred, a gap
+     apart; the glyph at the icon size (a 1em icon takes it from here), in the
+     tab's colour, so it brightens with the label when selected. */
+  [data-boogy="tab-list"] > [data-slot="tab"]:has(> [data-slot="icon"]) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
   }
-  [data-boogy="tabs"] [data-slot="tab"]:focus-visible {
+  [data-boogy="tab-list"] > [data-slot="tab"] > [data-slot="icon"] { display: flex; flex: none; font-size: var(--icon-md); }
+  /* fill: every tab an equal share of the row, its label centred in it */
+  [data-boogy="tab-list"][data-fill="true"] > [data-slot="tab"] { flex: 1 1 0; }
+  [data-boogy="tab-list"] > [data-slot="tab"][aria-selected="true"] {
+    color: var(--text-1);
+    background-image: linear-gradient(var(--accent), var(--accent));
+  }
+  [data-boogy="tab-list"] > [data-slot="tab"]:focus-visible {
     outline: var(--ring) solid var(--ring-color);
     outline-offset: -1px;
   }
-  [data-boogy="tabs"] > [data-slot="panel"] { outline: none; }
+  [data-boogy="tab-panel"] { outline: none; }
+  /* A tab row as a TopBar's heading (its \`tabs\`) fills the bar's height, so the
+     selected tab's line is the bar's bottom edge. */
+  [data-boogy="top-bar"] > [data-slot="heading"]:has(> [data-boogy="tab-list"]) { align-self: stretch; }
 `;
 
 // --- FitText (see fit-text.ts) ---
@@ -1771,6 +2123,9 @@ const TOP_BAR_CSS = `
     min-block-size: var(--control-lg);
     min-inline-size: 0;
   }
+  /* \`shadow\`: a shadow below it, over what scrolls under it (its stacking
+     lifts it above the content that follows it). */
+  [data-boogy="top-bar"][data-shadow] { z-index: 1; box-shadow: var(--bar-shadow); }
   [data-boogy="top-bar"] > [data-slot="leading"] { display: flex; flex: none; align-items: center; }
   [data-boogy="top-bar"] > [data-slot="heading"] { display: grid; flex: 1 1 0; min-inline-size: var(--top-bar-title-min); }
   [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"] {
@@ -1781,6 +2136,22 @@ const TOP_BAR_CSS = `
     font-size: var(--fs-title);
     font-weight: 600;
     line-height: 1.25;
+  }
+  /* A title may carry media beside its text (an avatar by a name), as a
+     Sheet's may: a row, the media its own size, the text beside it truncating
+     as a plain title does. */
+  [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]:has(> :is([data-boogy="avatar"], [data-boogy="thumbnail"], [data-boogy="glyph"])) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    /* Not clipped, so the media's shadow shows; the text truncates itself. */
+    overflow: visible;
+  }
+  [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]:has(> :is([data-boogy="avatar"], [data-boogy="thumbnail"], [data-boogy="glyph"])) > [data-boogy] { flex: none; }
+  [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]:has(> :is([data-boogy="avatar"], [data-boogy="thumbnail"], [data-boogy="glyph"])) > :not([data-boogy]) {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="subtitle"] {
     margin: 0;
@@ -1805,17 +2176,34 @@ const TOP_BAR_CSS = `
     visibility: hidden;
   }
   [data-boogy="top-bar"] > [data-slot="measure"] > div { display: flex; inline-size: max-content; gap: var(--space-1); }
-  [data-boogy="menu-row"] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+  /* The gap before the label is an item's icon column gap, so every row's label starts at one inline position. */
+  [data-boogy="menu-row"] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  [data-boogy="menu-row"] > [data-slot="label"] { flex: 1; min-width: 0; }
   [data-boogy="menu-row"]:focus-within { background: var(--fill-hover); }
   [data-boogy="menu-row"] > [data-slot="widget"] { display: flex; align-items: center; }
+  /* A faint hairline between each two of the menu's rows, none above the
+     first: drawn in the hairline gap between them, so a row's fill never
+     covers it, its rounded corners never bend it, and every row keeps its
+     padding. */
+  [data-boogy="menu"] > [data-slot="row"] { position: relative; }
+  [data-boogy="menu"] > [data-slot="row"] ~ [data-slot="row"]::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: calc(-1 * var(--hairline));
+    block-size: var(--hairline);
+    background: var(--edge-faint);
+    pointer-events: none;
+  }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, TABS_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, BUTTON_GROUP_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, COLOR_PICKER_CSS, TABS_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
 
 export const COMPONENTS_CSS = `${FILL_GRID_PROPERTIES}
 @layer boogy.components {
 ${PILL_CSS}
 ${BUTTON_CSS}
+${BUTTON_GROUP_CSS}
 ${DRAWER_CSS}
 ${POPOVER_CSS}
 ${MENU_CSS}
@@ -1827,6 +2215,7 @@ ${SEEDED_ART_CSS}
 ${BUBBLE_CSS}
 ${INLINE_EDIT_CSS}
 ${SWATCH_CSS}
+${COLOR_PICKER_CSS}
 ${TABS_CSS}
 ${SECTION_CSS}
 ${THUMBNAIL_CSS}

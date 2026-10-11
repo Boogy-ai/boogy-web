@@ -65,6 +65,10 @@ export const FOUNDATION_CSS = `
     --ground: light-dark(oklch(1 0 0 / 0.85), oklch(0 0 0 / 0.4));
     --ground-sunken: light-dark(oklch(calc(1 - var(--_step)) 0 0), oklch(0 0 0));
     --ground-raised: light-dark(oklch(1 0 0), oklch(var(--_step) 0 0));
+    /* A frosted surface's ground (a flat popover): glass, a mid grey in dark
+       and near white in light, in the theme's tint — never the raised ground,
+       which is near black in dark. */
+    --ground-frost: light-dark(oklch(0.98 var(--tint) var(--hue)), oklch(0.3 var(--tint) var(--hue)));
     --ground-overlay: light-dark(oklch(1 0 0), oklch(calc(2 * var(--_step)) 0 0));
     /* The well: a translucent SUNKEN ground — a darker band over a page (a
        message bar, a footer) that still shows what is behind. A step below
@@ -83,6 +87,9 @@ export const FOUNDATION_CSS = `
        line across a page in dark */
     --edge: color-mix(in oklch, var(--text-1) 12%, transparent);
     --edge-strong: color-mix(in oklch, var(--text-1) 28%, transparent);
+    /* A divider INSIDE a surface (between a menu's rows): fainter than the
+       edge around that surface, so the frame still reads as the frame. */
+    --edge-faint: color-mix(in oklch, var(--text-1) 7%, transparent);
     --rule: 1px solid var(--edge);
 
     /* accent, derived */
@@ -103,6 +110,11 @@ export const FOUNDATION_CSS = `
     /* fills */
     --fill-hover: color-mix(in oklch, var(--text-1) 6%, transparent);
     --fill-selected: color-mix(in oklch, var(--text-1) 12%, transparent);
+    --fill-strong: color-mix(in oklch, var(--text-1) 18%, transparent);
+    /* A checkerboard to show transparency over: under a see-through colour,
+       how much of it shows is how clear the colour is. An image, sized where
+       it is used (each tile is two squares by two). */
+    --checker: repeating-conic-gradient(var(--fill-strong) 0 25%, transparent 0 50%);
     /* scrollbar thumb: faint at rest, a step up while its area is hovered */
     --scrollbar-thumb: color-mix(in oklch, var(--text-1) 14%, transparent);
     --scrollbar-thumb-hover: color-mix(in oklch, var(--text-1) 26%, transparent);
@@ -114,10 +126,19 @@ export const FOUNDATION_CSS = `
        all loses its lift. Fixed px, like a hairline: depth does not scale. */
     --surface-shadow: 0 2px 4px 0 light-dark(rgb(0 0 0 / 0.04), transparent), 0 1px 2px 0 light-dark(rgb(0 0 0 / 0.06), transparent), 0 0 1px 0 light-dark(rgb(0 0 0 / 0.06), transparent);
     --overlay-shadow: 0 4px 16px 0 light-dark(rgb(24 24 27 / 0.08), rgb(0 0 0 / 0.45)), 0 8px 24px 0 light-dark(rgb(24 24 27 / 0.09), rgb(0 0 0 / 0.35));
+    /* An avatar's shadow: small, kept in dark, lifting it off what it sits on. */
+    --avatar-shadow: 0 2px 2px 0 light-dark(rgb(24 24 27 / 0.08), rgb(0 0 0 / 0.25)), 0 4px 6px 0 light-dark(rgb(24 24 27 / 0.07), rgb(0 0 0 / 0.2));
+    /* A frosted menu's shadow (the flat popover): small, kept in dark. */
+    --menu-shadow: 0 1px 2px 0 light-dark(rgb(24 24 27 / 0.08), rgb(0 0 0 / 0.3)), 0 3px 8px 0 light-dark(rgb(24 24 27 / 0.10), rgb(0 0 0 / 0.35));
+    /* A bar's shadow (TopBar's \`shadow\`): below it only, never to the sides. */
+    --bar-shadow: 0 1px 2px 0 light-dark(rgb(24 24 27 / 0.08), rgb(0 0 0 / 0.4)), 0 4px 10px -4px light-dark(rgb(24 24 27 / 0.12), rgb(0 0 0 / 0.45));
     --field-shadow: 0 2px 4px 0 light-dark(rgb(0 0 0 / 0.04), transparent), 0 1px 2px 0 light-dark(rgb(0 0 0 / 0.06), transparent), 0 0 1px 0 light-dark(rgb(0 0 0 / 0.06), transparent);
 
     /* A finger does not scale with the unit. */
     --touch-min: 2.75rem;
+    /* The thinnest line: an edge drawn inside a box or as a shadow, where a
+       --rule (a whole border) does not fit. Fixed, like a hairline border. */
+    --hairline: 1px;
 
     /* motion */
     --dur-fast: 80ms;
@@ -130,6 +151,18 @@ export const FOUNDATION_CSS = `
     --font-display: "Syne", system-ui, sans-serif;
     --font-brand: "Unica One", system-ui, sans-serif;
   }
+
+  /* An app showing the board's background (set by the pane on a board's
+     connect): its base ground and its page are transparent, so what the
+     board paints behind the pane shows through. Covering surfaces keep the
+     app's own colour, since a see-through sheet would show the screen it
+     covers: --ground-solid is unchanged, and a sheet that sets no
+     --sheet-ground covers with it (the sheet's own rule). Only page paint is
+     redefined here: a token also used as a colour (an ink, a solid ground)
+     must stay opaque, or what it colours vanishes with the page. */
+  :root[data-board-background] { --ground: transparent; }
+  :root[data-board-background],
+  :root[data-board-background] > body { background: transparent; }
 
 
   /* Sizes: re-derived wherever --u is set (see the header). */
@@ -161,6 +194,12 @@ export const FOUNDATION_CSS = `
     --thumb-md: calc(var(--u) * 3.5);
     --thumb-lg: calc(var(--u) * 6);
     --tile-min: calc(var(--u) * 6.5);
+    --slider-track: calc(var(--u) * 1);
+    /* The size controls' slider: wide enough to read its steps apart. */
+    --slider-length: calc(var(--u) * 6);
+    --chip-md: calc(var(--u) * 1.25);
+    /* A SampleGrid tile's height. */
+    --sample-md: calc(var(--u) * 3);
     --card-min: calc(var(--u) * 15);
     --card-divider: var(--edge);
     --ring: calc(var(--u) * 0.125);
@@ -169,6 +208,13 @@ export const FOUNDATION_CSS = `
     --radius-2: calc(var(--u) * 0.5);
     --radius-3: calc(var(--u) * 1);
     --radius-full: 999em;
+    /* Blur radii (a backdrop-filter's frosted glass, a soft shadow), by size. */
+    --blur-sm: calc(var(--u) * 0.25);
+    --blur-md: calc(var(--u) * 0.5);
+    --blur-lg: calc(var(--u) * 1);
+    /* How much of its ground a frosted surface (a flat popover) keeps: the rest
+       shows the blur of what is behind it. */
+    --popover-frost: 70%;
   }
 
   /* Scrollbars in the theme: thin, no track (the surface shows through), a

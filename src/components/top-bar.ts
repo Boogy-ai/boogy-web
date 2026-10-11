@@ -24,10 +24,12 @@ export type TopBarPlace = 'auto' | 'bar' | 'menu';
 
 export interface TopBarAttrs {
   'data-boogy': 'top-bar';
+  /** It casts a shadow below it, over what scrolls under it. */
+  'data-shadow'?: '';
 }
 
-export function topBar(): TopBarAttrs {
-  return { 'data-boogy': 'top-bar' };
+export function topBar({ shadow = false }: { shadow?: boolean } = {}): TopBarAttrs {
+  return shadow ? { 'data-boogy': 'top-bar', 'data-shadow': '' } : { 'data-boogy': 'top-bar' };
 }
 
 export interface BarItemFit {

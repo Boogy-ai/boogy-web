@@ -22,6 +22,10 @@ describe('button', () => {
   it('carries the outline variant', () => {
     expect(button({ variant: 'outline' })['data-variant']).toBe('outline');
   });
+  it('carries the soft variant', () => {
+    expect(BUTTON_VARIANTS).toContain('soft');
+    expect(button({ variant: 'soft', shape: 'icon', rounded: true })).toMatchObject({ 'data-variant': 'soft', 'data-shape': 'icon', 'data-rounded': 'true' });
+  });
   it('has a large size, for the one main action of a surface', () => {
     expect(button({ variant: 'solid', size: 'lg' })).toMatchObject({ 'data-size': 'lg' });
   });

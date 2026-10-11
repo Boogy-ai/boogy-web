@@ -4,14 +4,17 @@
 // focus, pointer-down, pressed, disabled); `shape`, `size` and `rounded` are
 // independent of it.
 
-export const BUTTON_VARIANTS = ['solid', 'quiet', 'danger', 'outline'] as const;
+export const BUTTON_VARIANTS = ['solid', 'quiet', 'danger', 'outline', 'soft'] as const;
 export const BUTTON_SHAPES = ['text', 'icon'] as const;
 export const BUTTON_SIZES = ['sm', 'md', 'lg'] as const;
 
 /** `solid`: the accent, for the primary action. `quiet`: no ground until
  *  hovered, for toolbar and icon buttons. `danger`: destructive actions.
  *  `outline`: a faint edge and no fill, for a secondary action that should be
- *  visible at rest (with `rounded` and `shape="icon"`, a circle). */
+ *  visible at rest (with `rounded` and `shape="icon"`, a circle). `soft`: a translucent
+ *  fill of the ink at rest, a step stronger on hover and press, for a control
+ *  that should read as a shape without the accent (round arrows over content,
+ *  with `rounded` and `shape="icon"`). */
 export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
 /** `icon`: square, for an icon-only button (which needs an accessible label). */
 export type ButtonShape = (typeof BUTTON_SHAPES)[number];

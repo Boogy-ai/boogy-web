@@ -123,9 +123,56 @@ describe('drawer strip width', () => {
   it('includes the drawer edge, so a mark-lg tile fits inside a border-box strip unclipped', () => {
     expect(CODE).toMatch(/--drawer-strip-width:\s*calc\(var\(--mark-lg\) \+ 2 \* var\(--space-2\) \+ 1px\);/);
   });
+  it("is declared on the drawer itself, so it follows the drawer's own unit (a drawer with its own scale keeps its collapsed width)", () => {
+    const drawer = ruleFor('[data-boogy="drawer"]') ?? '';
+    expect(drawer).toMatch(/--drawer-strip-width:/);
+    expect(drawer).toMatch(/--drawer-overlay-width:/);
+    expect(ruleFor('[data-boogy="drawer-layout"]') ?? '').not.toMatch(/--drawer-(strip|overlay)-width:/);
+  });
 });
 
 describe('top bar', () => {
+  it("in a sheet's head, a bar's shadow is the head's: cast from the head's edge, not from inside its padding", () => {
+    const head = ruleFor('[data-boogy="sheet"] > [data-slot="head"]:has(> [data-boogy="top-bar"][data-shadow])');
+    expect(head).toMatch(/box-shadow:\s*var\(--bar-shadow\)/);
+    expect(head).toMatch(/position:\s*relative/);
+    expect(head).toMatch(/z-index:\s*1/);
+    expect(ruleFor('[data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"][data-shadow]')).toMatch(/box-shadow:\s*none/);
+  });
+  it('a bar with `shadow` casts the bar shadow below it, over what scrolls under it', () => {
+    const r = ruleFor('[data-boogy="top-bar"][data-shadow]');
+    expect(r).toMatch(/box-shadow:\s*var\(--bar-shadow\)/);
+    expect(r).toMatch(/z-index:\s*1/);
+    // Downward only: every layer offset below, none to the sides.
+    const token = /--bar-shadow:\s*([^;]+);/.exec(FOUNDATION_CSS)![1];
+    // Its layers: the commas outside every parenthesis.
+    const layers: string[] = [''];
+    let depth = 0;
+    for (const c of token) {
+      depth += c === '(' ? 1 : c === ')' ? -1 : 0;
+      if (c === ',' && depth === 0) layers.push('');
+      else layers[layers.length - 1] += c;
+    }
+    expect(layers.length).toBeGreaterThan(0);
+    for (const layer of layers) expect(layer.trim()).toMatch(/^0 [1-9]\d*px /);
+  });
+
+  it("a title carrying media (an avatar by a name) is a row, a gap between them, its text still truncating", () => {
+    const MEDIA = '[data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]:has(> :is([data-boogy="avatar"], [data-boogy="thumbnail"], [data-boogy="glyph"]))';
+    const row = ruleFor(MEDIA);
+    expect(row).toMatch(/display:\s*flex/);
+    expect(row).toMatch(/align-items:\s*center/);
+    expect(row).toMatch(/gap:\s*var\(--space-2\)/);
+    // Not clipped: the media's shadow falls outside the title's box (its text
+    // truncates itself, below).
+    expect(row).toMatch(/overflow:\s*visible/);
+    const text = ruleFor(`${MEDIA} > :not([data-boogy])`);
+    expect(text).toMatch(/min-inline-size:\s*0/);
+    expect(text).toMatch(/overflow:\s*hidden/);
+    expect(text).toMatch(/text-overflow:\s*ellipsis/);
+    expect(ruleFor(`${MEDIA} > [data-boogy]`)).toMatch(/flex:\s*none/);
+  });
+
   it('its title takes what is left, down to a minimum, on one line ending in an ellipsis', () => {
     expect(ruleFor('[data-boogy="top-bar"] > [data-slot="heading"]')).toMatch(/min-inline-size:\s*var\(--top-bar-title-min\)/);
     const title = ruleFor('[data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]')!;
@@ -145,6 +192,28 @@ describe('top bar', () => {
     const shared = ruleFor('[data-boogy="menu-row"], [data-boogy="menu-item"]')!;
     for (const d of ['min-height', 'padding', 'border-radius', 'color', 'font-size']) expect(shared).toMatch(new RegExp(`${d}:`));
     expect(ruleFor('[data-boogy="menu-row"]')).not.toMatch(/min-height:|border-radius:/);
+  });
+  it("More's rows have a faint hairline between each two, in the gap between them, and none above the first", () => {
+    // The menu's gap between rows is one hairline, and the line fills it, so
+    // it is never under a row's fill and the rows keep their padding.
+    expect(ruleFor('  [data-boogy="menu"]')).toMatch(/gap:\s*var\(--hairline\);/);
+    expect(ruleFor('[data-boogy="menu"] > [data-slot="row"]')).toMatch(/position:\s*relative/);
+    const line = ruleFor('[data-boogy="menu"] > [data-slot="row"] ~ [data-slot="row"]::before')!;
+    expect(line).toMatch(/content:\s*''/);
+    expect(line).toMatch(/inset-block-start:\s*calc\(-1 \* var\(--hairline\)\)/);
+    expect(line).toMatch(/block-size:\s*var\(--hairline\)/);
+    expect(line).toMatch(/inset-inline:\s*0/);
+    expect(line).toMatch(/background:\s*var\(--edge-faint\)/);
+    // Only a row that follows another row draws one: nothing draws a line on every row, or on the first.
+    const drawn = [...CODE.matchAll(/[^\n{}]*\[data-slot="row"\][^\n{}]*::before/g)].map((m) => m[0].trim());
+    expect(drawn).toEqual(['[data-boogy="menu"] > [data-slot="row"] ~ [data-slot="row"]::before']);
+    expect(CODE).not.toMatch(/\[data-slot="row"\][^{]*\{[^}]*border-(top|block-start)/);
+  });
+  it("a submenu row ends in its chevron, in the indicator's column, quieter than its label; while its content is open the row stays lit", () => {
+    const chevron = ruleFor('[data-boogy="menu-item"] > [data-slot="submenu-indicator"]')!;
+    expect(chevron).toMatch(/grid-area:\s*indicator/);
+    expect(chevron).toMatch(/color:\s*var\(--text-3\)/);
+    expect(ruleFor('[data-boogy="menu-item"][aria-expanded="true"]')).toMatch(/background:\s*var\(--fill-hover\)/);
   });
   it("reaches its items as children, never into a widget's own content", () => {
     expect(CODE).not.toMatch(/\[data-boogy="top-bar"\] \[data-item\]/);
@@ -251,6 +320,10 @@ describe('menu styles', () => {
     expect(ruleFor('[data-boogy="menu-item"] > [data-slot="description"]')).toMatch(/grid-area:\s*description/);
     expect(ruleFor('[data-boogy="menu-item"] > [data-slot="kbd"]')).toMatch(/grid-area:\s*kbd/);
     expect(ruleFor('[data-boogy="menu-item"] > [data-slot="indicator"]')).toMatch(/grid-area:\s*indicator/);
+    // Its rows are packed in the middle: an item with no description keeps
+    // its label centred in a row taller than it, level with its icon, rather
+    // than above an empty description row that took half the height.
+    expect(ruleFor('  [data-boogy="menu-item"]')).toMatch(/align-content:\s*center/);
   });
   it('has section headers and separators', () => {
     expect(ruleFor('[data-boogy="menu-section"] > [data-slot="header"]')).toMatch(/color:\s*var\(--text-3\)/);
@@ -333,35 +406,78 @@ describe('menu item icon slot', () => {
     expect(withIcon).toContain('grid-template-columns: auto 1fr auto auto');
     expect(withIcon).toContain('"icon label kbd indicator" "icon description kbd indicator"');
     expect(ruleFor('[data-boogy="menu-item"] > [data-slot="icon"]')).toContain('grid-area: icon');
+    expect(ruleFor('[data-boogy="menu-item"] > [data-slot="icon"]')).toContain('grid-area: icon');
+  });
+  it("a widget row's icon and an item's icon share one rule for size and ink, and the label takes the room between", () => {
+    const shared = ruleFor('[data-boogy="menu-item"] > [data-slot="icon"], [data-boogy="menu-row"] > [data-slot="icon"]')!;
+    expect(shared).toContain('display: flex');
+    expect(shared).toContain('color: var(--text-2)');
+    expect(ruleFor('[data-boogy="menu-row"] > [data-slot="label"]')).toContain('flex: 1');
     expect(ruleFor('[data-boogy="menu-item"]')).toContain('grid-template-columns: 1fr auto auto');
   });
 });
 
 describe('tabs', () => {
-  it('a row of tabs on a hairline, the selected one in the full ink with the accent under it', () => {
-    // The row's line: a dimmer, thinner shade of the selected tab's accent, so
-    // every tab sits on it and the selected one's full accent reads on top.
-    expect(ruleFor('[data-boogy="tabs"] > [data-slot="list"]')).toContain('border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent)');
-    const t = ruleFor('[data-boogy="tabs"] [data-slot="tab"]')!;
+  it('a row of tabs on a neutral line, the selected one in the full ink with the accent line over it, exactly', () => {
+    // Both lines are a background of the underline's height at the bottom of
+    // their box (one geometry for the row, its tabs and a tabbed TopBar), so
+    // the selected one lies exactly over the row's: a border under a negative
+    // margin rounded a pixel apart.
+    const LINES = '[data-boogy="tab-list"],\n  [data-boogy="tab-list"] > [data-slot="tab"],\n  [data-boogy="top-bar"]:has(> [data-slot="heading"] > [data-boogy="tab-list"])';
+    const geometry = ruleFor(LINES);
+    expect(geometry).toMatch(/background-position:\s*bottom/);
+    expect(geometry).toMatch(/background-size:\s*100% var\(--underline\)/);
+    expect(geometry).toMatch(/background-repeat:\s*no-repeat/);
+    // The row's line: neutral (no accent), so only the selected tab is coloured.
+    expect(ruleFor('[data-boogy="tab-list"],\n  [data-boogy="top-bar"]:has(> [data-slot="heading"] > [data-boogy="tab-list"])')).toMatch(/background-image:\s*linear-gradient\(var\(--edge-strong\), var\(--edge-strong\)\)/);
+    const t = ruleFor('[data-boogy="tab-list"] > [data-slot="tab"]')!;
     expect(t).toContain('color: var(--text-2)');
-    // The underline is twice a focus ring's thickness; every tab reserves it,
-    // so selecting one never shifts its label.
+    // Every tab reserves the underline's room, so selecting one never shifts
+    // its label; its line is drawn in that room.
     expect(t).toContain('border-bottom: var(--underline) solid transparent');
-    const on = ruleFor('[data-boogy="tabs"] [data-slot="tab"][aria-selected="true"]')!;
+    expect(t).toContain('background-origin: border-box');
+    expect(t).not.toMatch(/margin-bottom/);
+    const on = ruleFor('[data-boogy="tab-list"] > [data-slot="tab"][aria-selected="true"]')!;
     expect(on).toContain('color: var(--text-1)');
-    expect(on).toContain('border-bottom-color: var(--accent)');
+    expect(on).toMatch(/background-image:\s*linear-gradient\(var\(--accent\), var\(--accent\)\)/);
+  });
+});
+
+describe('tab glyphs', () => {
+  it('a tab with a glyph centres the glyph and its label on one line, a gap apart; the glyph at the icon size, in the tab\'s colour', () => {
+    const t = ruleFor('[data-boogy="tab-list"] > [data-slot="tab"]:has(> [data-slot="icon"])');
+    expect(t).toMatch(/display:\s*inline-flex/);
+    expect(t).toMatch(/align-items:\s*center/);
+    expect(t).toMatch(/justify-content:\s*center/);
+    expect(t).toMatch(/gap:\s*var\(--space-2\)/);
+    const icon = ruleFor('[data-boogy="tab-list"] > [data-slot="tab"] > [data-slot="icon"]');
+    expect(icon).toMatch(/font-size:\s*var\(--icon-md\)/);
+    expect(icon).toMatch(/flex:\s*none/);
+    expect(icon).not.toMatch(/color:/);
+  });
+});
+
+describe('tabs in a top bar', () => {
+  it("in a TopBar the bar draws the row's line, across its whole width (under its actions too); the row draws none of its own", () => {
+    expect(ruleFor('[data-boogy="top-bar"] > [data-slot="heading"] > [data-boogy="tab-list"]')).toMatch(/background-image:\s*none/);
+  });
+  it("a TopBar's tab row fills the bar's height, so the selected tab's line is the bar's bottom edge", () => {
+    expect(ruleFor('[data-boogy="top-bar"] > [data-slot="heading"]:has(> [data-boogy="tab-list"])')).toMatch(/align-self:\s*stretch/);
+  });
+  it('a panel shown apart from its row draws no focus outline of its own, as the tabs\' panel does not', () => {
+    expect(ruleFor('[data-boogy="tab-panel"]')).toMatch(/outline:\s*none/);
   });
 });
 
 describe('tabs fill', () => {
   it('a filled bar gives every tab an equal share of its width', () => {
-    expect(ruleFor('[data-boogy="tabs"][data-fill="true"] [data-slot="tab"]')).toContain('flex: 1 1 0');
+    expect(ruleFor('[data-boogy="tab-list"][data-fill="true"] > [data-slot="tab"]')).toContain('flex: 1 1 0');
   });
 });
 
 describe('tab padding', () => {
   it('a tab is padded --space-2 on every side (its vertical padding was --space-1)', () => {
-    expect(ruleFor('[data-boogy="tabs"] [data-slot="tab"]')).toContain('padding: var(--space-2);');
+    expect(ruleFor('[data-boogy="tab-list"] > [data-slot="tab"]')).toContain('padding: var(--space-2);');
   });
 });
 
@@ -376,15 +492,15 @@ describe('opaque covering surfaces', () => {
 
 describe('tab dividers', () => {
   it('a faint line between neighbouring tabs, inset from the row\'s top and bottom', () => {
-    const d = ruleFor('[data-boogy="tabs"] [data-slot="tab"] + [data-slot="tab"]::before');
+    const d = ruleFor('[data-boogy="tab-list"] > [data-slot="tab"] + [data-slot="tab"]::before');
     expect(d).toContain('position: absolute');
     expect(d).toContain('inset-block: var(--space-2)');
     expect(d).toContain('inset-inline-start: 0');
     expect(d).toContain('border-inline-start: 1px solid var(--edge)');
-    expect(ruleFor('[data-boogy="tabs"] [data-slot="tab"]')).toContain('position: relative');
+    expect(ruleFor('[data-boogy="tab-list"] > [data-slot="tab"]')).toContain('position: relative');
   });
   it('the tabs sit edge to edge, so a divider is exactly between two; their padding spaces the labels', () => {
-    expect(ruleFor('[data-boogy="tabs"] > [data-slot="list"]')).toContain('gap: 0');
+    expect(ruleFor('[data-boogy="tab-list"]')).toContain('gap: 0');
   });
 });
 
@@ -557,3 +673,199 @@ describe('visually hidden', () => {
     expect(rule).toMatch(/position:\s*absolute/);
   });
 });
+
+describe('soft button', () => {
+  const soft = '[data-boogy="button"][data-variant="soft"]';
+  const live = ':not(:disabled, [aria-disabled="true"])';
+  it('is a translucent fill at rest, a step stronger on hover and press', () => {
+    expect(ruleFor(soft)).toMatch(/background:\s*var\(--fill-selected\)/);
+    expect(ruleFor(`${soft}${live}:hover`)).toMatch(/background:\s*var\(--fill-strong\)/);
+    expect(ruleFor(`${soft}${live}:active`)).toMatch(/background:\s*var\(--fill-strong\)/);
+  });
+  it('has its stronger fill defined as a token', () => {
+    expect(FOUNDATION_CSS).toContain('--fill-strong: color-mix(in oklch, var(--text-1) 18%, transparent)');
+  });
+});
+
+describe('menu item cursor', () => {
+  it('a menu item a press acts on shows the pointer; a disabled one the arrow', () => {
+    expect(ruleFor('[data-boogy="menu-item"]')).toMatch(/cursor:\s*pointer/);
+    expect(ruleFor('[data-boogy="menu-item"][data-disabled="true"]')).toMatch(/cursor:\s*default/);
+  });
+});
+
+describe('flat popover', () => {
+  it("has a small shadow (the menu role's, not the raised popover's), and a slight radius (it and its menu rows) unless the app sets another", () => {
+    const body = ruleFor('[data-boogy="popover"][data-variant="flat"]');
+    expect(body).toMatch(/box-shadow:\s*var\(--menu-shadow\)/);
+    expect(ruleFor('[data-boogy="popover"][data-variant="flat"] :is([data-boogy="menu-item"], [data-boogy="menu-row"])')).toMatch(/border-radius:\s*var\(--popover-row-radius, var\(--radius-1\)\)/);
+    expect(body).toMatch(/border-radius:\s*var\(--popover-radius, var\(--radius-1\)\)/);
+  });
+  it('is frosted: its ground, a little see-through, over a blur of what is behind it', () => {
+    const body = ruleFor('[data-boogy="popover"][data-variant="flat"]');
+    expect(body).toMatch(/background:\s*color-mix\(in oklch, var\(--popover-ground, var\(--ground-frost\)\) var\(--popover-frost\), transparent\)/);
+    // Its own ground is glass, not the raised ground (near black in dark): a
+    // mid grey in dark, near white in light, in the theme's tint.
+    const frost = /--ground-frost:\s*light-dark\(oklch\(([\d.]+) var\(--tint\) var\(--hue\)\), oklch\(([\d.]+) var\(--tint\) var\(--hue\)\)\);/.exec(FOUNDATION_CSS)!;
+    expect(Number(frost[1])).toBeGreaterThan(0.9);
+    expect(Number(frost[2])).toBeGreaterThanOrEqual(0.25);
+    expect(Number(/--popover-frost:\s*(\d+)%/.exec(FOUNDATION_CSS)![1])).toBeLessThanOrEqual(75);
+    expect(body).toMatch(/backdrop-filter:\s*blur\(var\(--blur-md\)\)/);
+    expect(FOUNDATION_CSS).toMatch(/--popover-frost:\s*\d+%/);
+    // A popover filling the screen covers it: solid, nothing to blur.
+    expect(ruleFor('[data-boogy="popover"][data-mode="page"]')).toMatch(/backdrop-filter:\s*none/);
+  });
+});
+
+describe('blur scale', () => {
+  it('names its blur radii by size, each from the unit, small to large', () => {
+    expect(FOUNDATION_CSS).toMatch(/--blur-sm:\s*calc\(var\(--u\) \* 0\.25\)/);
+    expect(FOUNDATION_CSS).toMatch(/--blur-md:\s*calc\(var\(--u\) \* 0\.5\)/);
+    expect(FOUNDATION_CSS).toMatch(/--blur-lg:\s*calc\(var\(--u\) \* 1\)/);
+  });
+});
+
+describe('sample grid', () => {
+  const G = '[data-boogy="sample-grid"]';
+  it('lays its tiles out in `columns` columns of --sample-md rows, and scrolls past `rows` of them', () => {
+    const grid = ruleFor(G);
+    expect(grid).toMatch(/display:\s*grid/);
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(var\(--sample-grid-columns\), minmax\(0, 1fr\)\)/);
+    expect(grid).toMatch(/grid-auto-rows:\s*var\(--sample-md\)/);
+    expect(grid).toMatch(/max-block-size:\s*calc\(var\(--sample-grid-rows\) \* \(var\(--sample-md\) \+ var\(--space-1\)\) - var\(--space-1\)\)/);
+    expect(grid).toMatch(/overflow-y:\s*auto/);
+    // Room for a tile's ring, which the scroll box would clip at its edges.
+    expect(grid).toMatch(/padding:\s*var\(--ring\)/);
+    expect(FOUNDATION_CSS).toMatch(/--sample-md:\s*calc\(var\(--u\) \* 3\)/);
+  });
+  it("a tile is a hairline-edged button with the grid's radius, none under a flat popover", () => {
+    expect(ruleFor(G)).toMatch(/--sample-grid-radius:\s*var\(--radius-1\)/);
+    expect(ruleFor(`[data-boogy="popover"][data-variant="flat"] ${G}`)).toMatch(/--sample-grid-radius:\s*0;/);
+    const tile = ruleFor(`${G} > [data-slot="sample"]`);
+    expect(tile).toMatch(/border:\s*var\(--rule\)/);
+    expect(tile).toMatch(/border-radius:\s*var\(--sample-grid-radius\)/);
+  });
+  it("shares the colour picker's swatch states: hover, chosen, focus", () => {
+    for (const state of [':hover', '[aria-pressed="true"]', ':focus-visible']) {
+      expect(CODE, state).toMatch(new RegExp(`\\[data-boogy="sample-grid"\\] > \\[data-slot="sample"\\]${state.replace(/[[\]"]/g, (c) => '\\' + c)},\\s*\\n\\s*\\[data-boogy="color-picker"\\]`));
+    }
+  });
+});
+
+describe('color picker', () => {
+  const P = '[data-boogy="color-picker"]';
+  /** Every rule whose selector names the picker: [selector, body]. */
+  const rules = [...CODE.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((m) => m[1].includes(P))
+    .map((m) => [m[1].trim(), m[2]] as const);
+  // The picker's sliders share their track and thumb with the size controls' slider.
+  const SLIDERS = `:is(${P} :is([data-slot="hue"], [data-slot="opacity"] > input), [data-boogy="zoom-controls"] > [data-slot="slider"])`;
+
+  it('has its rules', () => {
+    expect(rules.length).toBeGreaterThan(10);
+  });
+
+  it('is a stack of sections, each inside the picker\'s padding, a hairline between each two and none above the first', () => {
+    expect(ruleFor(P)).toMatch(/display:\s*grid/);
+    expect(ruleFor(P)).not.toMatch(/(?:^|[\s;])(?:gap|padding):/);
+    expect(ruleFor(`${P} > [data-slot]`)).toMatch(/padding:\s*var\(--space-3\)/);
+    expect(ruleFor(`${P} > [data-slot] + [data-slot]`)).toMatch(/border-top:\s*var\(--rule\)/);
+  });
+
+  it('has one corner radius, the small one, and none under a flat popover', () => {
+    expect(ruleFor(P)).toMatch(/--color-picker-radius:\s*var\(--radius-1\)/);
+    expect(ruleFor(`[data-boogy="popover"][data-variant="flat"] ${P}`)).toMatch(/--color-picker-radius:\s*0;/);
+    const rounded = rules.filter(([, body]) => /border-radius:/.test(body));
+    for (const [sel, body] of rounded) {
+      expect(body, sel).toMatch(/border-radius:\s*var\(--(?:color-picker-radius(?:, var\(--radius-1\))?|radius-full)\)/);
+    }
+  });
+
+  it('lays its swatches out as a compact grid: `columns` square chips per row, a chip at least --chip-md, a hairline gap', () => {
+    const grid = ruleFor(`${P} > [data-slot="swatches"]`);
+    expect(grid).toMatch(/display:\s*grid/);
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(var\(--color-picker-columns\), minmax\(var\(--chip-md\), 1fr\)\)/);
+    expect(grid).toMatch(/gap:\s*var\(--space-0\)/);
+    const chip = ruleFor(`${P} [data-slot="swatch"]`);
+    expect(chip).toMatch(/aspect-ratio:\s*1;/);
+    expect(chip).toMatch(/background:\s*var\(--swatch-color, transparent\)/);
+    // A hairline inside its edge, over its colour, so a chip close to the
+    // menu's ground (black on black, white on white) still reads as a chip.
+    expect(chip).toMatch(/border:\s*var\(--rule\)/);
+    expect(FOUNDATION_CSS).toMatch(/--chip-md:\s*calc\(var\(--u\) \* [\d.]+\);/);
+  });
+
+  it('rings the chosen chip, and the custom colour\'s preview while a custom colour is chosen, in the ink with a ring of the ground inside: it reads on any colour', () => {
+    const chosen = ruleFor(`${P} :is([data-slot="swatch"][aria-pressed="true"], [data-slot="custom"][data-pressed="true"] [data-slot="preview"])`);
+    expect(chosen).toMatch(/border:\s*var\(--ring\) solid var\(--text-1\)/);
+    expect(chosen).toMatch(/box-shadow:\s*inset 0 0 0 var\(--ring\) var\(--ground-solid\)/);
+    // After the hover rule, so hovering the chosen chip keeps its ring.
+    expect(CODE.indexOf('[data-slot="swatch"][aria-pressed="true"]')).toBeGreaterThan(CODE.indexOf(`${P} [data-slot="swatch"]:hover`));
+    expect(ruleFor(`${P} [data-slot="swatch"]:focus-visible`)).toMatch(/outline:\s*var\(--ring\) solid var\(--ring-color\)/);
+  });
+
+  it('draws the area as white to the pure hue across and clear to black down, at a fixed aspect, dragged without scrolling', () => {
+    const area = ruleFor(`${P} [data-slot="area"]`);
+    expect(area).toMatch(/aspect-ratio:\s*var\(--color-picker-area-ratio\)/);
+    expect(area).toMatch(/background:\s*var\(--color-picker-shade\), var\(--color-picker-tint\)/);
+    expect(area).toMatch(/touch-action:\s*none/);
+    expect(ruleFor(P)).toMatch(/--color-picker-area-ratio:\s*\d+ \/ \d+;/);
+  });
+
+  it('defines the gradients that name colours in ONE place: the hue circle and the area\'s white and black', () => {
+    const root = ruleFor(P);
+    expect(root).toMatch(/--color-picker-rainbow:\s*linear-gradient\(to right, red, yellow, lime, cyan, blue, magenta, red\);/);
+    expect(root).toMatch(/--color-picker-tint:\s*linear-gradient\(to right, white, var\(--color-picker-hue\)\);/);
+    expect(root).toMatch(/--color-picker-shade:\s*linear-gradient\(to top, black, transparent\);/);
+    // A colour keyword anywhere else in the picker's rules is a colour literal.
+    const KEYWORD = /\b(?:red|yellow|lime|cyan|blue|magenta|white|black)\b/;
+    const elsewhere = rules
+      .flatMap(([sel, body]) => body.split(';').map((d) => [sel, d.trim()] as const))
+      .filter(([, d]) => KEYWORD.test(d) && !/^--color-picker-(?:rainbow|tint|shade):/.test(d));
+    expect(elsewhere).toEqual([]);
+  });
+
+  it('draws the hue strip on the rainbow, and the slider as the shown colour fading to clear over a checker, each a strip of --slider-track', () => {
+    for (const pseudo of ['::-webkit-slider-runnable-track', '::-moz-range-track']) {
+      const strip = ruleFor(`${SLIDERS}${pseudo}`);
+      expect(strip, pseudo).toMatch(/block-size:\s*var\(--slider-track\)/);
+      expect(ruleFor(`${P} [data-slot="hue"]${pseudo}`), pseudo).toMatch(/background:\s*var\(--color-picker-rainbow\)/);
+      expect(ruleFor(`${P} [data-slot="opacity"] > input${pseudo}`), pseudo)
+        .toMatch(/background:\s*linear-gradient\(to right, var\(--color-picker-current\), transparent\), var\(--checker\)/);
+    }
+    expect(ruleFor(SLIDERS)).toMatch(/block-size:\s*var\(--slider-track\)/);
+    expect(FOUNDATION_CSS).toMatch(/--slider-track:\s*calc\(var\(--u\) \* [\d.]+\);/);
+    expect(FOUNDATION_CSS).toMatch(/--checker:\s*repeating-conic-gradient\(/);
+  });
+
+  it("the area's thumb is a lens (a hollow ring framing the colour under it); a slider's is a plain filled circle", () => {
+    const lens = ruleFor(`${P} [data-slot="area-thumb"]`);
+    expect(lens).toMatch(/inline-size:\s*var\(--slider-track\)/);
+    expect(lens).toMatch(/block-size:\s*var\(--slider-track\)/);
+    expect(lens).toMatch(/border:\s*var\(--ring\) solid var\(--ground-solid\)/);
+    expect(lens).toMatch(/box-shadow:\s*0 0 0 var\(--hairline\) var\(--text-1\), inset 0 0 0 var\(--hairline\) var\(--text-1\)/);
+    expect(lens).toMatch(/background:\s*transparent/);
+    for (const pseudo of ['::-webkit-slider-thumb', '::-moz-range-thumb']) {
+      const dot = ruleFor(`${SLIDERS}${pseudo}`);
+      expect(dot, pseudo).toMatch(/inline-size:\s*var\(--slider-track\)/);
+      expect(dot, pseudo).toMatch(/block-size:\s*var\(--slider-track\)/);
+      expect(dot, pseudo).toMatch(/border-radius:\s*var\(--radius-full\)/);
+      expect(dot, pseudo).toMatch(/background:\s*var\(--text-1\)/);
+      expect(dot, pseudo).toMatch(/border:\s*0/);
+      expect(dot, pseudo).not.toMatch(/inset/);
+    }
+    expect(FOUNDATION_CSS).toMatch(/--hairline:\s*1px;/);
+  });
+
+  it('sets the hex in the monospace face, and an invalid hex in the danger colour', () => {
+    expect(ruleFor(`${P} [data-slot="hex"]`)).toMatch(/font-family:\s*var\(--font-mono\)/);
+    expect(ruleFor(`${P} [data-slot="hex"][aria-invalid="true"]`)).toMatch(/border-color:\s*var\(--danger\)/);
+  });
+
+  it('uses tokens only: no length or colour literal in any of its rules', () => {
+    const offenders = rules.filter(([, body]) =>
+      /\d(?:\.\d+)?(?:(?:px|rem|em|vw|vh)\b|%)|#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\(\s*\d/i.test(body));
+    expect(offenders.map(([sel]) => sel)).toEqual([]);
+  });
+});
+

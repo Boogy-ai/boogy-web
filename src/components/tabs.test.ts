@@ -1,13 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { tab, tabKey, tabs } from './tabs';
+import { tab, tabKey, tabs, tabList, tabPanel, tabId } from './tabs';
 
 describe('tabs', () => {
   it('marks the root', () => {
     expect(tabs()).toEqual({ 'data-boogy': 'tabs' });
   });
-  it('fill: the tabs share the bar evenly', () => {
-    expect(tabs({ fill: true })).toEqual({ 'data-boogy': 'tabs', 'data-fill': 'true' });
-    expect(tabs({ fill: false })).toEqual({ 'data-boogy': 'tabs' });
+  it('the row of tabs is a tablist; fill: its tabs share it evenly', () => {
+    expect(tabList()).toEqual({ 'data-boogy': 'tab-list', role: 'tablist' });
+    expect(tabList({ fill: true })).toEqual({ 'data-boogy': 'tab-list', role: 'tablist', 'data-fill': 'true' });
+  });
+  it('a panel shown apart from its row is a tabpanel; a tab is found from its panel', () => {
+    expect(tabPanel()).toEqual({ 'data-boogy': 'tab-panel', role: 'tabpanel' });
+    expect(tabId('home', 'buddies')).toBe('home--buddies');
   });
   it('a tab is a button that says whether it is selected, and only the selected one is a tab stop', () => {
     expect(tab({ selected: true })).toEqual({ 'data-slot': 'tab', role: 'tab', type: 'button', 'aria-selected': 'true', tabIndex: 0 });

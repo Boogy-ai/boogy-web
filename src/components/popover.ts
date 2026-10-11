@@ -112,14 +112,23 @@ export function place(o: PlaceOptions): Placed {
   return { x: at.x, y: at.y, placement: side, maxHeight };
 }
 
+/** `raised`: rounded, with a shadow. `flat`: square, a hairline edge, no shadow. */
+export const POPOVER_VARIANTS = ['raised', 'flat'] as const;
+export type PopoverVariant = (typeof POPOVER_VARIANTS)[number];
+
 export interface PopoverAttrs {
   'data-boogy': 'popover';
   'data-mode': PopoverMode;
+  'data-variant': PopoverVariant;
   'data-placement'?: PopoverSide;
 }
 
-export function popover(opts: { mode: PopoverMode; placement?: PopoverSide }): PopoverAttrs {
-  const attrs: PopoverAttrs = { 'data-boogy': 'popover', 'data-mode': opts.mode };
+export function popover(opts: { mode: PopoverMode; placement?: PopoverSide; variant?: PopoverVariant }): PopoverAttrs {
+  const variant = opts.variant ?? 'raised';
+  if (!POPOVER_VARIANTS.includes(variant)) {
+    throw new Error(`popover(): variant must be one of ${POPOVER_VARIANTS.join(', ')}, got "${variant}"`);
+  }
+  const attrs: PopoverAttrs = { 'data-boogy': 'popover', 'data-mode': opts.mode, 'data-variant': variant };
   if (opts.placement) attrs['data-placement'] = opts.placement;
   return attrs;
 }

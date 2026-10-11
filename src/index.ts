@@ -14,10 +14,12 @@ export type { Axis, Policy, Scale, ScaleAttrs, Sized } from './layout/scale';
 export { installFoundation } from './layout/install';
 export type { InstallOptions } from './layout/install';
 export {
-  ZOOM_STEPS, ZOOM_MIN, ZOOM_MAX, zoomState, zoomIn, zoomOut, resetZoom, onZoomChange, rememberZoom,
+  ZOOM_STEPS, ZOOM_MIN, ZOOM_MAX, zoomState, zoomIn, zoomOut, resetZoom, setZoom, onZoomChange, rememberZoom,
   stepZoom, canStepZoom, isZoomFactor,
 } from './layout/zoom';
 export type { ZoomState } from './layout/zoom';
+export { buttonGroup } from './components/button-group';
+export type { ButtonGroupAttrs, ButtonGroupOptions } from './components/button-group';
 export { zoomControls } from './components/zoom-controls';
 export type { ZoomControlsAttrs } from './components/zoom-controls';
 export { FOUNDATION_CSS } from './layout/foundation-css';
@@ -29,8 +31,14 @@ export { inlineEdit, committedValue } from './components/inline-edit';
 export type { InlineEditAttrs } from './components/inline-edit';
 export { swatch } from './components/swatch';
 export type { SwatchAttrs } from './components/swatch';
-export { tabs, tab, tabKey } from './components/tabs';
-export type { TabsAttrs, TabAttrs, TabsOptions } from './components/tabs';
+export { colorPicker, parseHexColor, clampPercent, moveInGrid, stepPercent, stepArea, stepHue, MAX_HUE } from './components/color-picker';
+export type { ColorPickerAttrs, ColorSwatch } from './components/color-picker';
+export { sampleGrid } from './components/sample-grid';
+export type { SampleGridAttrs } from './components/sample-grid';
+export { hexToHsv, hsvToHex, hexToOklch, oklchToHex, cssColorToHex } from './components/color-math';
+export type { Hsv, Oklch } from './components/color-math';
+export { tabs, tab, tabKey, tabList, tabPanel, tabId } from './components/tabs';
+export type { TabsAttrs, TabAttrs, TabsOptions, TabListAttrs, TabPanelAttrs } from './components/tabs';
 export { COMPONENTS_CSS } from './components/components-css';
 export { drawerLayout, drawerItem, drawerMode, monogram, DRAWER_ITEM_VARIANTS } from './components/drawer';
 export type { DrawerBreakpoint, DrawerSide, DrawerLayoutOptions, DrawerLayoutAttrs, DrawerItemVariant, DrawerItemAttrs } from './components/drawer';
@@ -38,9 +46,9 @@ export { DRAWER_BREAKPOINTS } from './components/components-css';
 export { button, BUTTON_VARIANTS, BUTTON_SHAPES, BUTTON_SIZES } from './components/button';
 export type { ButtonVariant, ButtonShape, ButtonSize, ButtonOptions, ButtonAttrs } from './components/button';
 export { FONTS_CSS, FONT_FILES, FONTS_PATH } from './layout/fonts-css';
-export { place, parsePlacement, popover } from './components/popover';
-export type { PopoverSide, PopoverAlign, PopoverPlacement, PopoverMode, PlaceOptions, Placed, PopoverAttrs } from './components/popover';
-export { menuItem, menuItemText, moveFocus, typeahead, typeaheadSearch, MENU_ITEM_VARIANTS, TYPEAHEAD_RESET_MS } from './components/menu';
+export { place, parsePlacement, popover, POPOVER_VARIANTS } from './components/popover';
+export type { PopoverSide, PopoverAlign, PopoverPlacement, PopoverMode, PopoverVariant, PlaceOptions, Placed, PopoverAttrs } from './components/popover';
+export { menuItem, menuItemText, moveFocus, typeahead, typeaheadSearch, isTypingTarget, MENU_ITEM_VARIANTS, TYPEAHEAD_RESET_MS } from './components/menu';
 export type { MenuSelectionMode, MenuItemVariant, MenuItemAttrs, TypeaheadSearch } from './components/menu';
 export {
   mountInstallConsent,
@@ -94,7 +102,7 @@ export { createShell, MAX_TITLE_LENGTH, PANE_SANDBOX, TRIP_COOLDOWN_MS } from '.
 export { isServiceLabel } from './internal/service-label';
 export type { Shell, ShellEvents, ShellOptions, PaneRegistration } from './shell';
 export { PANE_PROTOCOL } from './internal/pane-protocol';
-export type { PaneHost, PaneLastSignIn, PaneSignInResult } from './internal/pane-protocol';
+export type { PaneHost, PaneScheme, PaneLastSignIn, PaneSignInResult } from './internal/pane-protocol';
 export { openStream, parseEnvelope, REMINT_AT } from './stream';
 export type { StreamTicket, StreamEnvelope, StreamStatus, StreamSocket, StreamConnect, StreamOptions } from './stream';
 export { runRounds, flushRounds, setFrameScheduler, observeSize, resolveLength, measurePadding, measureContentBox } from './components/measure';

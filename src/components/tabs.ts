@@ -1,16 +1,22 @@
 // Tabs: a row of tabs choosing which of several panels shows in one place.
 // The row is a tablist and each tab a button that says whether it is selected.
 // By default the tabs sit together at the start of the row; with `fill` they
-// share the row's width evenly.
+// share the row's width evenly. The row and the panel can be shown apart (a
+// row in a top bar over a page's body): the panel's id links them, each tab's
+// id being `tabId(panel, its id)`.
 // The row is ONE tab stop — the selected tab — and the arrow keys move between
 // tabs, selecting as they go (wrapping round at either end); Home and End go to
 // the first and last.
 
 import { stepIndex } from './carousel';
 
+/** The row and its panel together. */
 export interface TabsAttrs {
   'data-boogy': 'tabs';
-  'data-fill'?: 'true';
+}
+
+export function tabs(): TabsAttrs {
+  return { 'data-boogy': 'tabs' };
 }
 
 export interface TabsOptions {
@@ -19,9 +25,32 @@ export interface TabsOptions {
   fill?: boolean;
 }
 
-export function tabs(opts: TabsOptions = {}): TabsAttrs {
-  return opts.fill ? { 'data-boogy': 'tabs', 'data-fill': 'true' } : { 'data-boogy': 'tabs' };
+/** The row of tabs. */
+export interface TabListAttrs {
+  'data-boogy': 'tab-list';
+  role: 'tablist';
+  'data-fill'?: 'true';
 }
+
+export function tabList(opts: TabsOptions = {}): TabListAttrs {
+  return opts.fill
+    ? { 'data-boogy': 'tab-list', role: 'tablist', 'data-fill': 'true' }
+    : { 'data-boogy': 'tab-list', role: 'tablist' };
+}
+
+/** The selected tab's panel. */
+export interface TabPanelAttrs {
+  'data-boogy': 'tab-panel';
+  role: 'tabpanel';
+}
+
+export function tabPanel(): TabPanelAttrs {
+  return { 'data-boogy': 'tab-panel', role: 'tabpanel' };
+}
+
+/** A tab's element id, from its panel's id and its own: what the panel is
+ *  labelled by, so a row and a panel shown apart stay linked. */
+export const tabId = (panel: string, id: string): string => `${panel}--${id}`;
 
 export interface TabAttrs {
   'data-slot': 'tab';

@@ -20,6 +20,12 @@ describe('grounds', () => {
     expect(decl('--edge')).toBe('color-mix(in oklch, var(--text-1) 12%, transparent)');
     expect(decl('--edge-strong')).toBe('color-mix(in oklch, var(--text-1) 28%, transparent)');
   });
+  it('a faint edge, for a divider inside a surface: a smaller share of the ink than the edge around it', () => {
+    const share = (name: string) => Number(/var\(--text-1\) (\d+)%/.exec(decl(name))?.[1]);
+    expect(decl('--edge-faint')).toMatch(/^color-mix\(in oklch, var\(--text-1\) \d+%, transparent\)$/);
+    expect(share('--edge-faint')).toBeLessThan(share('--edge'));
+    expect(share('--edge-faint')).toBeGreaterThan(0);
+  });
   it('the other grounds step the only way there is room to: down from white, up from black', () => {
     // Light: a sunken field is a step below white; raised and overlay surfaces
     // are white (they cannot go above it). Dark: sunken is black (it cannot go

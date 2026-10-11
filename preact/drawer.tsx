@@ -8,6 +8,7 @@ import { createContext, type ComponentChildren, type JSX } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Button } from './button';
 import { Glyph } from './glyphs';
+import { TAB_STOPS } from './tab-stops';
 import { drawerItem, drawerLayout, drawerMode, monogram, type DrawerBreakpoint, type DrawerItemVariant, type DrawerSide } from '@boogy/web';
 
 interface DrawerState {
@@ -25,8 +26,6 @@ function useDrawer(name: string): DrawerState {
   if (!s) throw new Error(`<${name}> must be inside <DrawerLayout>`);
   return s;
 }
-
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export type DrawerLayoutProps = {
   side?: DrawerSide;
@@ -179,7 +178,7 @@ export function Drawer({ label, children, ...rest }: DrawerProps) {
     const el = s.drawer.current;
     if (!el) return;
     if (s.open && !wasOpen.current && drawerMode(el) === 'overlay') {
-      (el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus();
+      (el.querySelector<HTMLElement>(TAB_STOPS) ?? el).focus();
     }
     if (!s.open && wasOpen.current && el.contains(document.activeElement)) {
       s.toggle.current?.focus();
@@ -198,7 +197,7 @@ export function Drawer({ label, children, ...rest }: DrawerProps) {
       return;
     }
     if (e.key === 'Tab') {
-      const items = Array.from(s.drawer.current!.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const items = Array.from(s.drawer.current!.querySelectorAll<HTMLElement>(TAB_STOPS));
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];

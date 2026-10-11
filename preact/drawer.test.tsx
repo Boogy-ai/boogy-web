@@ -116,6 +116,23 @@ describe('DrawerLayout and friends', () => {
     expect(document.activeElement).toBe(q('[data-role="drawer-toggle"]'));
   });
 
+  it('overlay: opening moves focus to the first TAB STOP, past a control kept out of the tab order', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const ui = (open: boolean) => (
+      <DrawerLayout open={open} onOpenChange={() => {}}>
+        <Drawer label="Boards" style="--boogy-drawer-mode: overlay">
+          <button id="skipped" tabIndex={-1}>skipped</button>
+          <DrawerItem as="a" href="#a" label="Scratchpad" />
+        </Drawer>
+        <DrawerMain><DrawerToggle /></DrawerMain>
+      </DrawerLayout>
+    );
+    act(() => render(ui(false), root));
+    act(() => render(ui(true), root));
+    expect(document.activeElement).toBe(root.querySelector('a[data-boogy="drawer-item"]'));
+  });
+
   it('overlay: Tab wraps inside the open drawer', () => {
     const { q } = setup({ open: true, mode: 'overlay' });
     const last = q('button[data-boogy="drawer-item"]');

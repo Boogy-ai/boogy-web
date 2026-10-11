@@ -24,6 +24,15 @@ describe('sheet', () => {
     expect(r).toMatch(/background:\s*var\(--sheet-ground, var\(--ground\)\)/);
     expect(r).toMatch(/font-family:\s*var\(--font-body\)/);
   });
+  it('in a page showing the board background, covers with the opaque solid ground unless the page sets its own', () => {
+    // The page's --ground is transparent there, so a default Sheet would show
+    // the screen it covers at full strength. A page's own --sheet-ground wins.
+    const r = ruleFor(':root[data-board-background] [data-boogy="sheet"]');
+    expect(r).toMatch(/background:\s*var\(--sheet-ground, var\(--ground-solid\)\)/);
+    // In the components layer, beside the base rule and more specific than it,
+    // so it wins (a foundation-layer rule would lose to the base rule).
+    expect(CODE.indexOf(r)).toBeGreaterThan(CODE.indexOf('@layer boogy.components {'));
+  });
 });
 
 describe('field', () => {

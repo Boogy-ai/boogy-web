@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'preact';
-import { useRef } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { act } from 'preact/test-utils';
-import { Popover } from './index';
+import { Popover, Dropdown, Button } from './index';
 
 // jsdom has no layout: every box is 0 x 0. Give the trigger and the popup real
 // geometry so placement is exercised, in a 1024 x 768 viewport.
@@ -145,6 +145,22 @@ describe('<Popover> anchored', () => {
     expect(document.activeElement).toBe(q('#trigger'));
   });
 
+  it('moves focus to the content\'s first TAB STOP: a group\'s current item, not an item it keeps out of the tab order', () => {
+    // A roving group (tabs, a swatch grid) keeps one item tabbable and the
+    // rest at tabindex -1; opening must land where Tab would.
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    function App() {
+      const ref = useRef<HTMLButtonElement>(null);
+      return (<div><button ref={ref}>t</button>
+        <Popover triggerRef={ref} isOpen onOpenChange={() => {}}>
+          <button id="a" tabIndex={-1}>a</button><button id="b" tabIndex={0}>b</button><button id="c" tabIndex={-1}>c</button>
+        </Popover></div>);
+    }
+    act(() => render(<App />, root));
+    expect(document.activeElement?.id).toBe('b');
+  });
+
   it('leaves focus alone when the content already took it', () => {
     function Autofocus() {
       return <input id="auto" ref={(el) => el?.focus()} />;
@@ -158,6 +174,45 @@ describe('<Popover> anchored', () => {
     }
     act(() => render(<App />, root));
     expect(document.activeElement?.id).toBe('auto');
+  });
+
+  it('Escape closes only the innermost of two open popovers, giving focus back to its trigger; the next Escape closes the outer', () => {
+    // A popover opened from inside another (a menu in a menu): the outer opens
+    // first, the inner from a button in it.
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    function App() {
+      const outerRef = useRef<HTMLButtonElement>(null);
+      const innerRef = useRef<HTMLButtonElement>(null);
+      const [outer, setOuter] = useState(false);
+      const [inner, setInner] = useState(false);
+      return (
+        <div>
+          <button id="outer-trigger" ref={outerRef} onClick={() => setOuter(true)}>Outer</button>
+          <Popover triggerRef={outerRef} isOpen={outer} onOpenChange={setOuter} aria-label="Outer">
+            <button id="inner-trigger" ref={innerRef} onClick={() => setInner(true)}>Inner</button>
+            <Popover triggerRef={innerRef} isOpen={inner} onOpenChange={setInner} aria-label="Inner">
+              <input id="inner-field" />
+            </Popover>
+          </Popover>
+        </div>
+      );
+    }
+    act(() => render(<App />, root));
+    const q = (s: string) => document.querySelector<HTMLElement>(s);
+    act(() => q('#outer-trigger')!.click());
+    act(() => q('#inner-trigger')!.click());
+    expect(document.activeElement).toBe(q('#inner-field'));
+    const escape = () => act(() => {
+      (document.activeElement as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    escape();
+    expect(q('[aria-label="Inner"]')).toBeNull();
+    expect(q('[aria-label="Outer"]')).not.toBeNull();
+    expect(document.activeElement).toBe(q('#inner-trigger'));
+    escape();
+    expect(q('[aria-label="Outer"]')).toBeNull();
+    expect(document.activeElement).toBe(q('#outer-trigger'));
   });
 });
 
@@ -316,5 +371,59 @@ describe('<Popover> head', () => {
   it('no title and anchored: no head at all', () => {
     const { q } = mount({ title: undefined });
     expect(q('[data-slot="head"]')).toBeNull();
+  });
+});
+
+describe('<Popover> dismissed by a press inside an embedded frame', () => {
+  // A press inside an iframe reaches the frame's own document, never this one:
+  // here it shows only as this window losing focus, to the frame.
+  it('closes when focus moves into an iframe outside it', async () => {
+    const { onOpenChange } = mount();
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    frame.focus();
+    Object.defineProperty(document, 'activeElement', { configurable: true, get: () => frame });
+    window.dispatchEvent(new Event('blur'));
+    await new Promise((r) => setTimeout(r, 0));
+    delete (document as { activeElement?: unknown }).activeElement;
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+  it('stays open when the whole window loses focus (another app), or focus is in an iframe inside it', async () => {
+    const { onOpenChange } = mount();
+    window.dispatchEvent(new Event('blur'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(onOpenChange).not.toHaveBeenCalled();
+    const inside = document.createElement('iframe');
+    document.querySelector('[data-boogy="popover"]')!.appendChild(inside);
+    Object.defineProperty(document, 'activeElement', { configurable: true, get: () => inside });
+    window.dispatchEvent(new Event('blur'));
+    await new Promise((r) => setTimeout(r, 0));
+    delete (document as { activeElement?: unknown }).activeElement;
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('<Popover> variant', () => {
+  it('is raised by default and flat when asked', () => {
+    expect(mount().q('[data-boogy="popover"]')!.dataset.variant).toBe('raised');
+    document.body.innerHTML = '';
+    expect(mount({ variant: 'flat' }).q('[data-boogy="popover"][data-variant="flat"]')).toBeTruthy();
+  });
+  it('takes its ground as a prop: any CSS colour, on the popover itself', () => {
+    const pop = mount({ ground: 'var(--x-ground)' }).q('[data-boogy="popover"]')!;
+    expect(pop.style.getPropertyValue('--popover-ground')).toBe('var(--x-ground)');
+    document.body.innerHTML = '';
+    expect(mount().q('[data-boogy="popover"]')!.style.getPropertyValue('--popover-ground')).toBe('');
+  });
+  it('reaches a Dropdown.Popover', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    act(() => render(
+      <Dropdown isOpen onOpenChange={() => {}}>
+        <Dropdown.Trigger><Button label="Actions">x</Button></Dropdown.Trigger>
+        <Dropdown.Popover variant="flat" ground="red"><Dropdown.Menu aria-label="A"><Dropdown.Item id="a"><span data-slot="label">A</span></Dropdown.Item></Dropdown.Menu></Dropdown.Popover>
+      </Dropdown>, root));
+    expect(document.querySelector('[data-boogy="popover"][data-variant="flat"]')).toBeTruthy();
+    expect(document.querySelector<HTMLElement>('[data-boogy="popover"]')!.style.getPropertyValue('--popover-ground')).toBe('red');
   });
 });

@@ -14,6 +14,7 @@ import {
 import { exactOrigin, sendFrame, type ExactOrigin } from './internal/pane-messaging';
 import { loadPlatformConfig } from './internal/platform-config';
 import { setHostZoom, clearHostZoom } from './layout/zoom';
+import { setBoardBackground, clearBoardBackground } from './layout/board-background';
 
 export interface PaneHandle {
   /** Whether this module has a signed-in person. Nothing more: no id, no name. */
@@ -218,15 +219,15 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     const offered = connect.payload.shellOrigin;
     if (offered !== event.origin) return;
 
-    let allowed: string[];
+    let config: Awaited<ReturnType<typeof loadPlatformConfig>>;
     try {
-      allowed = (await loadPlatformConfig()).shellOrigins;
+      config = await loadPlatformConfig();
     } catch {
       return; // no config, no shell: the module keeps working on its own
     }
-    if (!live || !allowed.includes(offered)) return;
+    if (!live || !config.shellOrigins.includes(offered)) return;
 
-    const { host = null, lastSignIn = null, history: handed, zoom } = connect.payload;
+    const { host = null, lastSignIn = null, history: handed, zoom, scheme } = connect.payload;
     shell = { origin: exactOrigin(offered), nonce: connect.nonce, host, lastSignIn };
     // A history the board hands back (this pane's content moved to this
     // frame): adopted only if this page is its current page, so it can never
@@ -240,9 +241,20 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     // out of bounds, which the validator drops) leaves it at 1.
     if (zoom !== undefined) setHostZoom(zoom);
     else clearHostZoom();
+    // An app that declared it shows the board's background draws none, in the
+    // board's scheme — set before `ready`, because a board keeps a pane covered
+    // until then, so the first frame anyone sees is already see-through. A
+    // board that names no scheme (an older one) gets the app as it is.
+    const seeThrough = host === 'board' && scheme !== undefined && config.boardBackground === 'board';
+    if (seeThrough) setBoardBackground(scheme);
+    else clearBoardBackground();
     sendFrame(window.parent, shell.origin, {
       boogy: PANE_PROTOCOL, type: 'ready', nonce: shell.nonce,
-      payload: opts.signsIn ? { service: opts.service, signsIn: true } : { service: opts.service },
+      payload: {
+        service: opts.service,
+        ...(opts.signsIn ? { signsIn: true } : {}),
+        ...(seeThrough ? { background: 'board' as const } : {}),
+      },
     });
     for (const [type, payload] of latest) send(type, payload);
     // A request still waiting was asked of the connection this one replaces,
@@ -343,6 +355,7 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
       shell = null;
       pending?.settle('unavailable');
       clearHostZoom();
+      clearBoardBackground();
       window.removeEventListener('message', onMessage);
       if (holder()[PANE_SLOT] === slot) delete holder()[PANE_SLOT];
     },

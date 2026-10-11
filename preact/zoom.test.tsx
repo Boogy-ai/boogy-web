@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
-import { resetZoom, zoomIn, zoomState } from '@boogy/web';
-import { ZoomControls, useZoom } from './index';
+import { resetZoom, zoomIn, zoomState, ZOOM_STEPS } from '@boogy/web';
+import { ZoomControls, useZoom, Glyph } from './index';
 
 afterEach(() => { act(() => resetZoom()); document.body.innerHTML = ''; });
 
@@ -52,7 +52,50 @@ describe('<ZoomControls>', () => {
   });
 });
 
+describe('<ZoomControls> glyphs', () => {
+  it('Smaller and Larger each hold their glyph (a letter with a down / up arrow), and no letter text', () => {
+    const r = mount(<ZoomControls />);
+    const glyph = (name: string) => btn(r, name).querySelector('svg[data-boogy="glyph"]')!;
+    expect(glyph('Smaller')).toBeTruthy();
+    expect(glyph('Larger')).toBeTruthy();
+    const ref = mount(<><Glyph shape="text-smaller" /><Glyph shape="text-larger" /></>);
+    const [down, up] = [...ref.querySelectorAll('svg[data-boogy="glyph"]')];
+    expect(glyph('Smaller').innerHTML).toBe(down.innerHTML);
+    expect(glyph('Larger').innerHTML).toBe(up.innerHTML);
+    expect(r.querySelector('[data-slot="letter"]')).toBeNull();
+    expect(btn(r, 'Smaller').textContent).toBe('');
+  });
+});
+
 describe('useZoom', () => {
+  it('with `slider`, a range over the same steps sits before the buttons, named by the group and saying the size', () => {
+    const r = mount(<ZoomControls value={1.25} onValueChange={() => {}} slider label="Pane size" />);
+    const group = r.querySelector<HTMLElement>('[data-boogy="zoom-controls"]')!;
+    const kids = [...group.children] as HTMLElement[];
+    expect(kids.map((k) => k.getAttribute('data-slot'))).toEqual(['slider', 'smaller', 'larger']);
+    const range = kids[0] as HTMLInputElement;
+    expect(range.type).toBe('range');
+    expect(range.min).toBe('0');
+    expect(range.max).toBe(String(ZOOM_STEPS.length - 1));
+    expect(range.value).toBe(String(ZOOM_STEPS.indexOf(1.25)));
+    expect(range.getAttribute('aria-label')).toBe('Pane size');
+    expect(range.getAttribute('aria-valuetext')).toBe('125%');
+    expect(mount(<ZoomControls value={1} onValueChange={() => {}} />).querySelector('[data-slot="slider"]')).toBeNull();
+  });
+
+  it('dragging the slider sets the size step by step: controlled reports it, uncontrolled sets the page zoom', () => {
+    const onValueChange = vi.fn();
+    const r = mount(<ZoomControls value={1} onValueChange={onValueChange} slider />);
+    const range = r.querySelector<HTMLInputElement>('[data-slot="slider"]')!;
+    act(() => { range.value = String(ZOOM_STEPS.indexOf(1.5)); range.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(onValueChange).toHaveBeenLastCalledWith(1.5);
+    expect(zoomState().own).toBe(1);
+    const page = mount(<ZoomControls slider />);
+    const pr = page.querySelector<HTMLInputElement>('[data-slot="slider"]')!;
+    act(() => { pr.value = String(ZOOM_STEPS.indexOf(0.9)); pr.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(zoomState().own).toBe(0.9);
+  });
+
   it('re-renders when the zoom changes anywhere on the page', () => {
     function Show() {
       const z = useZoom();

@@ -14,7 +14,7 @@
 
 import {
   PANE_PROTOCOL, isSignInWait, parseFrame, toResultPayload,
-  type Frame, type PaneHistory, type PaneHost, type PaneLastSignIn, type PaneSignInResult,
+  type Frame, type PaneHistory, type PaneHost, type PaneScheme, type PaneLastSignIn, type PaneSignInResult,
 } from './internal/pane-protocol';
 import { exactOrigin, sendFrame, receiveFrames, type ExactOrigin } from './internal/pane-messaging';
 import { isRestorablePath } from './internal/pane-paths';
@@ -73,8 +73,9 @@ export interface PaneRegistration {
 export interface ShellEvents {
   /** The pane speaks the protocol, and names the service it believes it is,
    *  and whether its app signs people in (`ConnectPaneOptions.signsIn`; only a
-   *  plain `true` counts). */
-  onReady(id: string, service: string, info: { signsIn: boolean }): void;
+   *  plain `true` counts) and whether it drew no page background, so the
+   *  board's shows through it (only a plain `'board'` counts). */
+  onReady(id: string, service: string, info: { signsIn: boolean; boardBackground: boolean }): void;
   /** A pane reported a service other than the one registered for it. The
    *  frame is not that app: nothing more from that page is acted on, until
    *  its frame loads another page. */
@@ -103,6 +104,9 @@ export interface ShellOptions {
    *  `board`, the default and the only one — an app shown alone is at its own
    *  address, unframed. */
   host?: PaneHost;
+  /** The scheme this page is drawn in, told to each pane on connect. Absent:
+   *  not said. */
+  scheme?: PaneScheme;
 }
 
 export interface Shell {
@@ -173,6 +177,7 @@ function newNonce(): string {
 export function createShell(events: Partial<ShellEvents>, options: ShellOptions = {}): Shell {
   const panes = new Map<string, Entry>();
   const host: PaneHost = options.host ?? 'board';
+  const scheme = options.scheme;
 
   // The board's zoom and each pane's override. Overrides are kept by pane id,
   // apart from the registration, so a pane registered again keeps its own.
@@ -200,7 +205,10 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
           return;
         }
         entry.ready = true;
-        events.onReady?.(pane.id, frame.payload.service, { signsIn: frame.payload.signsIn === true });
+        events.onReady?.(pane.id, frame.payload.service, {
+          signsIn: frame.payload.signsIn === true,
+          boardBackground: frame.payload.background === 'board',
+        });
         return;
       case 'sign-in':
         answerSignIn(entry);
@@ -324,6 +332,7 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
             ...(pane.lastSignIn ? { lastSignIn: pane.lastSignIn } : {}),
             ...(entry.history ? { history: entry.history } : {}),
             ...(zoomFor(pane.id) !== 1 ? { zoom: zoomFor(pane.id) } : {}),
+            ...(scheme ? { scheme } : {}),
           },
         });
       };

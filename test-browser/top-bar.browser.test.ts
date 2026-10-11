@@ -2,14 +2,20 @@
 // the More menu lowest priority first, and come back as it widens; at 150%
 // zoom the same holds at the larger size; and the zoom control, which lives in
 // the menu, changes the zoom from inside the open menu and leaves it open.
+// More's rows have a faint line between each two, and a submenu row opens its
+// content beside the row, on the other side when there is no room.
 // The component is bundled here with Preact, as an app would ship it.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
 const BROWSER = process.env.BOOGY_TEST_BROWSER ?? '/usr/bin/chromium';
+// With BOOGY_SHOTS_DIR set, the More menu case also saves screenshots of More
+// and of an open submenu beside it, light and dark, for a person to look at.
+const SHOTS = process.env.BOOGY_SHOTS_DIR;
 let browser: Browser;
 let page: Page;
 
@@ -151,5 +157,123 @@ describe('TopBar in a real layout', () => {
       await smaller.click();
       await frames();
     }
+  });
+});
+
+type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
+type MenuRow = {
+  kind: string; text: string; box: Box; paddingRight: number; background: string; expanded: string | null;
+  icon: Box | null; label: Box | null; chevron: Box | null;
+  line: { content: string; height: string; top: string; color: string; left: string; right: string };
+};
+type MenuReport = { more: Box | null; moreEdge: string | null; sub: Box | null; subPlacement: string | null; subHasPicker: boolean; focusInSub: boolean; rows: MenuRow[] };
+const menuReport = () => page.evaluate(() => (window as unknown as { topBarMenuFixture: { menuReport(): MenuReport } }).topBarMenuFixture.menuReport());
+async function openMenu(width: number, variant: 'flat' | 'raised' = 'raised'): Promise<MenuReport> {
+  await page.evaluate((o) => (window as unknown as { topBarMenuFixture: { mountMenu(o: { width: number; variant: string }): void } }).topBarMenuFixture.mountMenu(o), { width, variant });
+  await frames();
+  await page.click('[data-boogy="top-bar"] [data-slot="more"]');
+  await frames();
+  return menuReport();
+}
+async function openSubmenu(): Promise<MenuReport> {
+  await page.click('[role="menu"] [aria-haspopup="dialog"]');
+  await frames();
+  return menuReport();
+}
+/** The alpha of a computed colour (`rgba(…)`, `color(srgb … / a)`, `oklch(… / a)`); 1 when it has none. */
+const alpha = (c: string) => {
+  const m = /\/\s*([\d.]+)\)$/.exec(c) ?? /rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/.exec(c);
+  return m ? Number(m[1]) : 1;
+};
+const near = (a: number, b: number, slack = 0.5) => Math.abs(a - b) <= slack;
+
+describe('TopBar More: rows of every kind, and a submenu beside its row', () => {
+  beforeAll(async () => {
+    await page.setViewport({ width: 1100, height: 760, deviceScaleFactor: 2 });
+    // The popover's entrance (a scale from 0.96) would be measured mid-way.
+    await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+  });
+
+  it('a faint line sits in the gap between each two rows, none above the first, fainter than More\'s own edge', async () => {
+    const r = await openMenu(480);
+    expect(r.rows.map((row) => row.text)).toEqual(['Split into rows', 'Size', 'Colour', 'Copy link']);
+    expect(r.rows.map((row) => row.kind)).toEqual(['menu-item', 'menu-row', 'menu-item', 'menu-item']);
+    const [first, ...rest] = r.rows;
+    expect(first.line.content).toBe('none');
+    rest.forEach((row, i) => {
+      const above = r.rows[i];
+      expect(row.line.content).toBe('""');
+      expect(row.line.height).toBe('1px');
+      // In the gap: the line's 1px is exactly the space between the two rows.
+      expect(near(row.box.top - above.box.bottom, 1, 0.01)).toBe(true);
+      expect(row.line.top).toBe('-1px');
+      expect([row.line.left, row.line.right]).toEqual(['0px', '0px']);
+      expect(alpha(row.line.color)).toBeGreaterThan(0);
+      expect(alpha(row.line.color)).toBeLessThan(alpha(r.moreEdge!));
+    });
+  });
+
+  it("every row's glyph and label start where the others' do; the submenu row ends in its chevron at the row's end, centred on it", async () => {
+    const r = await openMenu(480);
+    const icons = r.rows.map((row) => row.icon!.left);
+    const labels = r.rows.map((row) => row.label!.left);
+    for (const x of icons) expect(near(x, icons[0])).toBe(true);
+    for (const x of labels) expect(near(x, labels[0])).toBe(true);
+    const sub = r.rows.find((row) => row.text === 'Colour')!;
+    expect(sub.chevron).not.toBeNull();
+    expect(near(sub.chevron!.right, sub.box.right - sub.paddingRight)).toBe(true);
+    expect(near(sub.chevron!.top + sub.chevron!.height / 2, sub.box.top + sub.box.height / 2)).toBe(true);
+    expect(near(sub.label!.top + sub.label!.height / 2, sub.box.top + sub.box.height / 2, 1)).toBe(true);
+    expect(r.rows.filter((row) => row.chevron).map((row) => row.text)).toEqual(['Colour']);
+  });
+
+  it("a press on the row opens the content beside it, its top at the row's, focus inside; the row stays lit", async () => {
+    await openMenu(480);
+    const r = await openSubmenu();
+    expect(r.subHasPicker).toBe(true);
+    expect(r.focusInSub).toBe(true);
+    expect(r.subPlacement).toBe('right');
+    expect(r.sub!.left).toBeGreaterThanOrEqual(r.more!.right);
+    const row = r.rows.find((x) => x.text === 'Colour')!;
+    expect(row.expanded).toBe('true');
+    expect(near(r.sub!.top, row.box.top)).toBe(true);
+    expect(alpha(row.background)).toBeGreaterThan(0);
+    // Escape closes it, focus back on the row, More still open. (Left on a swatch is the grid's own.)
+    await page.keyboard.press('Escape');
+    await frames();
+    const after = await menuReport();
+    expect(after.sub).toBeNull();
+    expect(after.more).not.toBeNull();
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-haspopup'))).toBe('dialog');
+  });
+
+  it('with no room to the right, the content opens on the left of More', async () => {
+    await openMenu(1100);
+    const r = await openSubmenu();
+    expect(r.subPlacement).toBe('left');
+    expect(r.sub!.right).toBeLessThanOrEqual(r.more!.left);
+    expect(r.sub!.left).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe.runIf(!!SHOTS)('TopBar More screenshots', () => {
+  it('saves More, and More with its submenu open beside it, light and dark, raised and flat', async () => {
+    mkdirSync(SHOTS!, { recursive: true });
+    const pad = 16;
+    const clipOf = (...boxes: Box[]) => {
+      const left = Math.max(0, Math.min(...boxes.map((b) => b.left)) - pad);
+      const top = Math.max(0, Math.min(...boxes.map((b) => b.top)) - pad);
+      return { x: left, y: top, width: Math.max(...boxes.map((b) => b.right)) + pad - left, height: Math.max(...boxes.map((b) => b.bottom)) + pad - top };
+    };
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
+      for (const variant of ['raised', 'flat'] as const) {
+        const r = await openMenu(480, variant);
+        await page.screenshot({ path: join(SHOTS!, `more-${scheme}-${variant}.png`), clip: clipOf(r.more!) });
+        const o = await openSubmenu();
+        await page.screenshot({ path: join(SHOTS!, `more-submenu-${scheme}-${variant}.png`), clip: clipOf(o.more!, o.sub!) });
+      }
+    }
+    await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
   });
 });

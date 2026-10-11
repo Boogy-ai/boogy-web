@@ -9,6 +9,8 @@ const ids = (s: Set<string>) => [...s].sort();
 describe('topBar', () => {
   it('marks the element', () => {
     expect(topBar()).toEqual({ 'data-boogy': 'top-bar' });
+    expect(topBar({ shadow: false })).toEqual({ 'data-boogy': 'top-bar' });
+    expect(topBar({ shadow: true })).toEqual({ 'data-boogy': 'top-bar', 'data-shadow': '' });
   });
 });
 

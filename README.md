@@ -819,7 +819,7 @@ twice.
 import { createShell, PANE_SANDBOX } from '@boogy/web';
 
 const shell = createShell({
-  onReady: (id, service) => { /* the app speaks the protocol */ },
+  onReady: (id, service, info) => { /* the app speaks the protocol; info: { signsIn, boardBackground } */ },
   onTitle: (id, text) => { /* show text in the frame header */ },
   onLocation: (id, path) => { /* save path; open the frame there next time */ },
   onAuthState: (id, signedIn) => { /* show the app's signed-in state */ },
@@ -904,8 +904,8 @@ default and the only one — an app shown alone is at its own address, not
 framed. An app treats a
 `connect` that names no host, or one it does not know, as not knowing where it
 is shown, never as a board — and still connects. Every optional field of a
-`connect` (`host`, `lastSignIn`, `history`, `zoom`) is read on its own: one an
-app cannot read is ignored, and costs the rest nothing.
+`connect` (`host`, `lastSignIn`, `history`, `zoom`, `scheme`) is read on its
+own: one an app cannot read is ignored, and costs the rest nothing.
 
 **Zoom.** A board can set the size its panes are drawn at:
 
@@ -918,6 +918,40 @@ shell.setPaneZoom('pane-1', null); // this pane follows the board again
 A pane applies it through `connectPane`, with no code of its own, multiplied by
 the app's own zoom (see [Zoom](#zoom)). A pane that is reloaded, or registered
 again, keeps its size. Factors are clamped to 0.5–3.
+
+**The board's colour scheme, and apps that show its background.** Pass the
+scheme your board is drawn in (`'dark'` or `'light'`) as the shell's `scheme`
+option, and every pane is told it on connect. That is all a board tells an app
+about its look: no colour of the board's is ever sent.
+
+```ts
+const shell = createShell({
+  onReady: (id, service, { boardBackground }) => {
+    // The app drew no page background, in the board's scheme: match its frame.
+    frames.get(id)!.toggleAttribute('data-board-background', boardBackground);
+  },
+  // …the other events, as above
+}, { scheme: 'dark' });
+```
+
+```css
+iframe { color-scheme: light dark; }
+/* The board's scheme, and what shows behind the app: the board's to choose. */
+iframe[data-board-background] { color-scheme: dark; background: rgb(0 0 0 / 0.33); }
+```
+
+An app that declared `[boards] background = "board"` in its manifest, and is
+connected with a `scheme`, draws no page background and renders in that scheme,
+whatever the viewer's system setting; its `ready` says so, and `onReady`
+reports it as `info.boardBackground: true`. Each `ready` reports it afresh, so
+follow the latest. **When it is true, set that pane's iframe `color-scheme` to
+your board's scheme.** A browser paints an opaque backdrop under a framed
+document whose colour scheme differs from its frame's, which would hide your
+board behind the transparent app. What shows behind the pane is then whatever
+the iframe and the page under it paint (Boards uses a colour and transparency
+the person picks for each pane, by default black at 33%, over its own ground).
+A board that passes no `scheme` gets every app as it is: an app that does not
+know the scheme keeps its own background.
 
 ### Versioning
 

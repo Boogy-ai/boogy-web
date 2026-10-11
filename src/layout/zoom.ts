@@ -122,6 +122,8 @@ function setOwn(value: number): void {
 export function zoomIn(): void { setOwn(stepZoom(own, 1)); }
 export function zoomOut(): void { setOwn(stepZoom(own, -1)); }
 export function resetZoom(): void { setOwn(1); }
+/** Set the page's own zoom to a value (a slider's step). */
+export function setZoom(value: number): void { if (Number.isFinite(value) && value > 0) setOwn(value); }
 
 export function onZoomChange(listener: (s: ZoomState) => void): () => void {
   listeners.add(listener);

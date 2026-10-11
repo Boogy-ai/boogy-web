@@ -34,6 +34,24 @@ function mount(menuProps: Record<string, unknown> = {}, dropdownProps: Record<st
   return { q, trigger, item, onAction, onSelectionChange };
 }
 
+describe('<Dropdown> trigger haspopup', () => {
+  const triggerOf = (haspopup?: 'menu' | 'dialog') => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    act(() => render(
+      <Dropdown>
+        <Dropdown.Trigger haspopup={haspopup}><Button label="Fill">c</Button></Dropdown.Trigger>
+        <Dropdown.Popover><div /></Dropdown.Popover>
+      </Dropdown>, root));
+    return root.querySelector('button')!;
+  };
+  it('announces a menu by default, and a dialog when what it opens is not a menu (a picker)', () => {
+    expect(triggerOf().getAttribute('aria-haspopup')).toBe('menu');
+    expect(triggerOf('menu').getAttribute('aria-haspopup')).toBe('menu');
+    expect(triggerOf('dialog').getAttribute('aria-haspopup')).toBe('dialog');
+  });
+});
+
 describe('<Dropdown> trigger', () => {
   it('is the child it wraps, marked as opening a menu, closed at first', () => {
     const { q, trigger } = mount();
