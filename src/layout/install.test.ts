@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { FOUNDATION_CSS } from './foundation-css';
 import { COMPONENTS_CSS } from '../components/components-css';
 import { FONTS_CSS } from './fonts-css';
+import { blockOf, ruleIn } from '../../test-support/rule-for';
 
 describe('installFoundation', () => {
   it('adopts the stylesheet exactly once', async () => {
@@ -80,8 +81,8 @@ describe('FOUNDATION_CSS', () => {
   it('a scaled page sizes its plain text from the scale too', () => {
     expect(FOUNDATION_CSS).toMatch(/:root:is\(\[data-u-policy\], \[data-zoom\]\) > body \{ font-size: var\(--fs-body\); \}/);
   });
-  it('contains no media query', () => {
-    expect(FOUNDATION_CSS).not.toMatch(/@media/);
+  it('sizes follow the container, never the viewport: its one media query is the touch capability', () => {
+    expect(FOUNDATION_CSS.match(/@media[^{]*/g)).toEqual(['@media (pointer: coarse) ']);
   });
   it('never spells a square root as sqrt(pow(', () => {
     expect(FOUNDATION_CSS).not.toMatch(/sqrt\s*\(\s*pow/);
@@ -90,5 +91,38 @@ describe('FOUNDATION_CSS', () => {
     for (const p of ['--u', '--u-inline', '--u-block']) {
       expect(FOUNDATION_CSS).toContain(`@property ${p} {`);
     }
+  });
+});
+
+/** The value a rule body gives `prop` (`--u` is not `--u-inline`). */
+const valueOf = (body: string, prop: string) => new RegExp(`(?:^|[\\s{;])${prop}:\\s*([^;]+);`).exec(body)?.[1].trim();
+
+describe('FOUNDATION_CSS on a touch screen', () => {
+  it('the reading floor is none by default and the reader\'s text size under a coarse pointer', () => {
+    expect(valueOf(ruleIn(FOUNDATION_CSS, ':root'), '--u-reading-floor')).toBe('0rem');
+    const coarse = blockOf(FOUNDATION_CSS, '@media (pointer: coarse)');
+    expect(valueOf(ruleIn(coarse, ':root'), '--u-reading-floor')).toBe('1rem');
+  });
+
+  it('every clamped and fluid unit floors at the larger of the scale\'s floor and the reading floor', () => {
+    const clamped = ruleIn(FOUNDATION_CSS, '[data-u-policy="clamped"]');
+    const fluid = ruleIn(FOUNDATION_CSS, '[data-u-policy="fluid"]');
+    for (const p of ['--u', '--u-inline', '--u-block']) {
+      expect(valueOf(clamped, p), p).toMatch(/^calc\(clamp\(max\(var\(--u-floor\), var\(--u-reading-floor\)\), /);
+      expect(valueOf(fluid, p), p).toMatch(/^calc\(max\(var\(--u-floor\), var\(--u-reading-floor\), /);
+    }
+  });
+
+  it('a glyph on a touch target is half the touch minimum', () => {
+    expect(valueOf(ruleIn(FOUNDATION_CSS, ':root'), '--icon-touch')).toBe('calc(var(--touch-min) / 2)');
+  });
+});
+
+describe('FOUNDATION_CSS accent', () => {
+  it('an element with an accent of its own re-derives exactly the accent tokens the root derives', () => {
+    const decls = (body: string) => Object.fromEntries([...body.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+    const derived = Object.fromEntries(Object.entries(decls(ruleIn(FOUNDATION_CSS, ':root'))).filter(([, v]) => v.includes('var(--accent)')));
+    expect(Object.keys(derived)).toEqual(expect.arrayContaining(['--accent-hover', '--accent-soft', '--ring-color']));
+    expect(decls(ruleIn(FOUNDATION_CSS, '[data-accent]'))).toEqual(derived);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { COMPONENTS_CSS } from './components-css';
+import { COMPONENTS_CSS, COMPONENTS_CSS_PARTS } from './components-css';
 import { FOUNDATION_CSS } from '../layout/foundation-css';
-import { ruleFor } from '../../test-support/rule-for';
+import { blockOf, ruleFor, ruleIn } from '../../test-support/rule-for';
 
 // Code only: comments are prose and may name sizes. Newlines kept for line numbers.
 const CODE = COMPONENTS_CSS.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
@@ -543,7 +543,8 @@ describe('opaque covering surfaces', () => {
 
 describe('tab dividers', () => {
   it('a faint line between neighbouring tabs, inset from the row\'s top and bottom', () => {
-    const d = ruleFor('[data-boogy="tab-list"] > [data-slot="tab"] + [data-slot="tab"]::before');
+    // A tab after a tab, or after a tab's own action (one piece with its tab).
+    const d = ruleFor('[data-boogy="tab-list"] > :is([data-slot="tab"], [data-slot="tab-action"]) + [data-slot="tab"]::before');
     expect(d).toContain('position: absolute');
     expect(d).toContain('inset-block: var(--space-2)');
     expect(d).toContain('inset-inline-start: 0');
@@ -943,3 +944,143 @@ describe('color picker', () => {
   });
 });
 
+
+describe('TopBar attention', () => {
+  it('draws the dot from tokens: the accent, sized and placed by space tokens', () => {
+    const dot = ruleFor('[data-boogy="top-bar"] [data-boogy="button"][data-attention]::after');
+    expect(dot).toMatch(/background:\s*var\(--accent\)/);
+    expect(dot).toMatch(/inline-size:\s*var\(--space-\d\)/);
+    expect(dot).not.toMatch(/\d(px|rem)\b|calc\(var\(--u\)/);
+  });
+});
+
+describe('icon buttons on a touch screen', () => {
+  const coarse = blockOf(COMPONENTS_CSS_PARTS.BUTTON_CSS, '@media (pointer: coarse)');
+
+  it("an icon button's glyph grows with its touch target: the larger of its own size and half the target, for a 1em icon and the SDK's glyph alike", () => {
+    const icon = ruleIn(coarse, '[data-boogy="button"][data-shape="icon"]');
+    expect(icon).toMatch(/--_glyph:\s*max\(var\(--icon-md\), var\(--icon-touch\)\);/);
+    expect(icon).toMatch(/min-width:\s*var\(--touch-min\);/);
+    expect(icon).toMatch(/font-size:\s*var\(--_glyph\);/);
+    const glyph = ruleIn(coarse, '[data-boogy="button"][data-shape="icon"] > [data-boogy="glyph"]');
+    expect(glyph).toMatch(/width:\s*var\(--_glyph\);/);
+    expect(glyph).toMatch(/height:\s*var\(--_glyph\);/);
+  });
+
+  it('in a bar the bar sets the size: no touch minimum either way, and an icon keeps its own size\'s glyph', () => {
+    expect(ruleIn(coarse, '[data-boogy="top-bar"] [data-boogy="button"]')).toMatch(/min-height:\s*0;/);
+    const icon = ruleIn(coarse, '[data-boogy="top-bar"] [data-boogy="button"][data-shape="icon"]');
+    expect(icon).toMatch(/min-width:\s*0;/);
+    expect(icon).toMatch(/--_glyph:\s*var\(--icon-md\);/);
+    expect(ruleIn(coarse, '[data-boogy="top-bar"] [data-boogy="button"][data-shape="icon"][data-size="sm"]')).toMatch(/--_glyph:\s*var\(--icon-sm\);/);
+  });
+});
+
+describe("an edge-to-edge bar's end buttons", () => {
+  // A bar that pads its own ends: `inset`, or a sheet's head.
+  const EDGE_TO_EDGE = ':is([data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"], [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar-stack"] > [data-boogy="top-bar"], [data-boogy="top-bar"][data-inset])';
+  const BLEED = /calc\(\(var\(--_glyph, var\(--icon-md\)\) - var\(--_h\)\) \/ 2\)/;
+
+  it("the first leading icon button reaches into the bar's padding by the space around its glyph", () => {
+    const lead = ruleFor(`${EDGE_TO_EDGE}\n    > [data-slot="leading"] > [data-boogy="button"][data-shape="icon"]:first-child`);
+    expect(lead).toMatch(new RegExp(`margin-inline-start:\\s*${BLEED.source}`));
+  });
+
+  it('so does the last action icon button, at the other end', () => {
+    const last = ruleFor(`${EDGE_TO_EDGE}\n    > [data-slot="actions"] > [data-boogy="button"][data-shape="icon"]:last-child`);
+    expect(last).toMatch(new RegExp(`margin-inline-end:\\s*${BLEED.source}`));
+  });
+});
+
+describe('off-canvas drawer edge', () => {
+  const EDGE = '1px var(--drawer-edge-style, solid) var(--drawer-edge)';
+
+  it('draws the drawer edge on its inline end, as the docked drawer does', () => {
+    expect(ruleFor('[data-boogy="drawer"]')).toContain(`border-inline-end: ${EDGE};`);
+  });
+
+  it('on the end side it draws it on its inline start instead', () => {
+    const end = ruleFor('[data-boogy="drawer-layout"][data-side="end"] > [data-boogy="drawer"]');
+    expect(end).toContain('border-inline-end: none;');
+    expect(end).toContain(`border-inline-start: ${EDGE};`);
+  });
+});
+
+describe('drawer layout clipping', () => {
+  it('clips without being a scroller: overflow clip, after hidden for an engine without clip', () => {
+    const layout = ruleFor('[data-boogy="drawer-layout"]');
+    expect(layout).toContain('overflow: clip;');
+    expect(layout.indexOf('overflow: clip;')).toBeGreaterThan(layout.indexOf('overflow: hidden;'));
+    expect(layout.indexOf('overflow: hidden;')).toBeGreaterThan(-1);
+  });
+});
+
+describe('a row of tabs over a pager', () => {
+  it('draws one sliding line of its own only over a pager: hidden otherwise', () => {
+    expect(ruleFor('[data-boogy="tab-list"] > [data-slot="indicator"]')).toMatch(/display:\s*none/);
+    const paged = ruleFor('[data-boogy="tab-list"][data-paged] > [data-slot="indicator"]');
+    expect(paged).toMatch(/display:\s*block/);
+    expect(paged).toMatch(/position:\s*absolute/);
+    expect(paged).toMatch(/bottom:\s*0/);
+    expect(paged).toMatch(/block-size:\s*var\(--underline\)/);
+    expect(paged).toMatch(/background:\s*var\(--accent\)/);
+    expect(paged).toMatch(/pointer-events:\s*none/);
+  });
+
+  it("over a pager the selected tab's own line is off, and its action's", () => {
+    expect(ruleFor('[data-boogy="tab-list"][data-paged] > [data-slot="tab"][aria-selected="true"]')).toMatch(/background-image:\s*none/);
+    expect(ruleFor('[data-boogy="tab-list"][data-paged] > [data-slot="tab-action"][data-selected]')).toMatch(/background-image:\s*none/);
+  });
+});
+
+describe("a tab's action", () => {
+  it("sits under its tab's line: the same reserved room, lit in the accent with its selected tab", () => {
+    const action = ruleFor('[data-boogy="tab-list"] > [data-slot="tab-action"]');
+    expect(action).toMatch(/border-bottom:\s*var\(--underline\) solid transparent/);
+    expect(action).toMatch(/background-position:\s*bottom/);
+    expect(action).toMatch(/background-size:\s*100% var\(--underline\)/);
+    expect(ruleFor('[data-boogy="tab-list"] > [data-slot="tab-action"][data-selected]')).toMatch(/background-image:\s*linear-gradient\(var\(--accent\), var\(--accent\)\)/);
+    expect(ruleFor('[data-boogy="tab-list"] > [data-slot="tab"]:has(+ [data-slot="tab-action"])')).toMatch(/padding-inline-end:\s*0/);
+  });
+});
+
+describe('a row of tabs on its top edge', () => {
+  it('runs its lines along its top: the row, its tabs and a bar it heads draw them there', () => {
+    const lines = ruleFor('[data-boogy="tab-list"][data-edge="top"],\n  [data-boogy="tab-list"][data-edge="top"] > [data-slot="tab"],\n  [data-boogy="top-bar"]:has(> [data-slot="heading"] > [data-boogy="tab-list"][data-edge="top"])');
+    expect(lines).toMatch(/background-position:\s*top/);
+  });
+
+  it('a tab and its action reserve the line\'s room at the top, and the sliding line runs there', () => {
+    for (const sel of ['[data-boogy="tab-list"][data-edge="top"] > [data-slot="tab"]', '[data-boogy="tab-list"][data-edge="top"] > [data-slot="tab-action"]']) {
+      const body = ruleFor(sel);
+      expect(body, sel).toMatch(/border-bottom:\s*none/);
+      expect(body, sel).toMatch(/border-top:\s*var\(--underline\) solid transparent/);
+    }
+    const indicator = ruleFor('[data-boogy="tab-list"][data-edge="top"][data-paged] > [data-slot="indicator"]');
+    expect(indicator).toMatch(/top:\s*0/);
+    expect(indicator).toMatch(/bottom:\s*auto/);
+  });
+});
+
+describe('tab pager', () => {
+  it('lays its pages out in one row, each the full size of the pager', () => {
+    const pager = ruleFor('[data-boogy="tab-pager"]');
+    expect(pager).toMatch(/display:\s*grid/);
+    expect(pager).toMatch(/grid-template-rows:\s*100%/);
+    expect(pager).toMatch(/grid-auto-columns:\s*100%/);
+    expect(ruleFor('[data-boogy="tab-pager"] > [data-slot="page"]')).toMatch(/grid-row:\s*1/);
+  });
+
+  it('scrolls sideways with no scrollbar, snapping to a page, one page per fling, and keeps a swipe at its ends to itself', () => {
+    const pager = ruleFor('[data-boogy="tab-pager"]');
+    expect(pager).toMatch(/overflow-x:\s*auto/);
+    expect(pager).toMatch(/overflow-y:\s*hidden/);
+    expect(pager).toMatch(/scroll-snap-type:\s*x mandatory/);
+    expect(pager).toMatch(/overscroll-behavior-x:\s*contain/);
+    expect(pager).toMatch(/scrollbar-width:\s*none/);
+    expect(ruleFor('[data-boogy="tab-pager"]::-webkit-scrollbar')).toMatch(/display:\s*none/);
+    const page = ruleFor('[data-boogy="tab-pager"] > [data-slot="page"]');
+    expect(page).toMatch(/scroll-snap-align:\s*start/);
+    expect(page).toMatch(/scroll-snap-stop:\s*always/);
+  });
+});

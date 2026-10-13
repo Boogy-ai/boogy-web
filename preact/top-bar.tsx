@@ -34,6 +34,10 @@ type ItemBase = {
    *  `menu`: always the menu. Default `auto` for an action or a submenu,
    *  `menu` for a widget. */
   place?: TopBarPlace;
+  /** Mark it as wanting the person's eye (a small dot on its button in the
+   *  bar and its row in the menu); More carries the dot too while such an item
+   *  is in the menu. For an action or a submenu; a widget has no button to mark. */
+  attention?: boolean;
 };
 export type TopBarAction = ItemBase & {
   onAction: () => void;
@@ -133,7 +137,7 @@ function BarSubmenu({ item, size, variant, ground }: { item: TopBarSubmenu; size
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button ref={ref} variant="quiet" size={size} shape="icon" label={item.label} aria-haspopup="dialog" aria-expanded={open ? 'true' : 'false'} onClick={() => setOpen(!open)}>
+      <Button ref={ref} variant="quiet" size={size} shape="icon" label={item.label} data-attention={item.attention ? '' : undefined} aria-haspopup="dialog" aria-expanded={open ? 'true' : 'false'} onClick={() => setOpen(!open)}>
         {item.icon}
       </Button>
       <Popover triggerRef={ref} isOpen={open} onOpenChange={setOpen} placement="bottom end" variant={variant} ground={ground} fullscreenBelow={false}>
@@ -162,6 +166,7 @@ function SubmenuRow({ item, variant, ground, open, setOpen }: { item: TopBarSubm
         ref={ref}
         data-slot="row"
         {...menuItem({ id: item.id, selectionMode: 'none' })}
+        data-attention={item.attention ? '' : undefined}
         aria-haspopup="dialog"
         aria-expanded={open ? 'true' : 'false'}
         aria-controls={open ? popoverId : undefined}
@@ -209,13 +214,13 @@ function InBar({ item, size, variant, ground }: { item: TopBarItem; size: Button
   if (isWidget(item)) return <>{item.widget}</>;
   if (item.icon !== undefined) {
     return (
-      <Button variant={item.variant ?? 'quiet'} size={size} shape="icon" label={item.label} disabled={item.disabled} onClick={item.onAction}>
+      <Button variant={item.variant ?? 'quiet'} size={size} shape="icon" label={item.label} disabled={item.disabled} data-attention={item.attention ? '' : undefined} onClick={item.onAction}>
         {item.icon}
       </Button>
     );
   }
   return (
-    <Button variant={item.variant ?? 'quiet'} size={size} disabled={item.disabled} onClick={item.onAction}>
+    <Button variant={item.variant ?? 'quiet'} size={size} disabled={item.disabled} data-attention={item.attention ? '' : undefined} onClick={item.onAction}>
       {item.label}
     </Button>
   );
@@ -351,6 +356,7 @@ function TopBarMenu({ rows, label, start, variant, ground, close }: { rows: read
             key={it.id}
             data-slot="row"
             {...menuItem({ id: it.id, selectionMode: 'none', variant: it.variant === 'danger' ? 'danger' : 'default', disabled: it.disabled })}
+            data-attention={it.attention ? '' : undefined}
             onClick={() => {
               if (it.disabled) return;
               close();
@@ -370,6 +376,68 @@ function TopBarMenu({ rows, label, start, variant, ground, close }: { rows: read
   );
 }
 
+export type MenuButtonProps = {
+  /** What the menu holds: a TopBar's items, as its More shows them (actions,
+   *  widgets and submenus, the most important first). */
+  items: readonly TopBarItem[];
+  /** The button's name, and the menu's. Default "More". */
+  label?: string;
+  /** Its glyph. Default the SDK's More glyph. */
+  glyph?: ComponentChildren;
+  /** Its size. Default `md`. */
+  size?: ButtonSize;
+  /** The menu's look: `flat` (default) or `raised`. */
+  menuVariant?: PopoverVariant;
+  /** The menu's ground (and its submenus'): any CSS colour. Default the theme's. */
+  menuGround?: string;
+} & Omit<JSX.HTMLAttributes<HTMLButtonElement>, 'label' | 'size'>;
+
+/** A button that opens a menu: a TopBar's More, for a menu that belongs to
+ *  something other than a whole bar (a tab, a row). Its rows, keys and
+ *  submenus are the More's; ArrowDown or ArrowUp on the button opens it on its
+ *  first or last row, and an item marked for attention marks the button. With
+ *  no items it shows nothing, and an open menu that empties closes. */
+export function MenuButton({ items, label = 'More', glyph, size = 'md', menuVariant = 'flat', menuGround, ...rest }: MenuButtonProps) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  // How the menu takes focus as it opens: ArrowUp opens it on its last row.
+  const [start, setStart] = useState<'first' | 'last'>('first');
+  const rows = menuRows(items, new Set()).map((id) => items.find((it) => it.id === id)!);
+  const isOpen = open && rows.length > 0;
+  // A menu that empties closes, so it never opens again by itself when items return.
+  useEffect(() => {
+    if (open && rows.length === 0) setOpen(false);
+  }, [open, rows.length]);
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <Button
+        {...rest}
+        ref={ref}
+        data-attention={rows.some((r) => r.attention) ? '' : undefined}
+        variant="quiet"
+        shape="icon"
+        size={size}
+        label={label}
+        aria-haspopup="menu"
+        aria-expanded={isOpen ? 'true' : 'false'}
+        onClick={() => { setStart('first'); setOpen(!isOpen); }}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          e.preventDefault();
+          setStart(e.key === 'ArrowUp' ? 'last' : 'first');
+          setOpen(true);
+        }}
+      >
+        {glyph ?? <Glyph shape="more" />}
+      </Button>
+      <Popover triggerRef={ref} isOpen={isOpen} onOpenChange={setOpen} placement="bottom end" variant={menuVariant} ground={menuGround} fullscreenBelow={false}>
+        <TopBarMenu rows={rows} label={label} start={start} variant={menuVariant} ground={menuGround} close={() => setOpen(false)} />
+      </Popover>
+    </>
+  );
+}
+
 export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: given = [], moreLabel = 'More', moreGlyph, size = 'md', zoom = 'menu', zoomLabel = 'Text size', menuVariant = 'flat', menuGround, shadow = false, inset = false, below, ...rest }: TopBarProps) {
   const items: readonly TopBarItem[] = zoom === false
     ? given
@@ -378,10 +446,6 @@ export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: 
   const leadRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const moreRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  // How the menu takes focus as it opens: ArrowUp on More opens it on its last row.
-  const [start, setStart] = useState<'first' | 'last'>('first');
   // Until a fit has run, every item that may be in the bar is.
   const [inBar, setInBar] = useState<Set<string> | null>(null);
   const itemsRef = useRef(items);
@@ -446,12 +510,6 @@ export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: 
   const shown = (it: TopBarItem) => placeOf(it) !== 'menu' && (inBar ? inBar.has(it.id) : true);
   const rowIds = menuRows(items, new Set(items.filter(shown).map((it) => it.id)));
   const rows = rowIds.map((id) => items.find((it) => it.id === id)!);
-  const menuOpen = open && rows.length > 0;
-  // A menu that empties (everything fits again) closes, so it never opens
-  // again by itself when items return.
-  useEffect(() => {
-    if (open && rows.length === 0) setOpen(false);
-  }, [open, rows.length]);
   const Title = titleAs;
   const stacked = below !== undefined;
   const bar = (
@@ -464,25 +522,7 @@ export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: 
       <div ref={actionsRef} data-slot="actions">
         {items.filter(shown).map((it) => <div key={it.id} data-item={it.id}><InBar item={it} size={size} variant={menuVariant} ground={menuGround} /></div>)}
         {rows.length > 0 && (
-          <Button
-            ref={moreRef}
-            data-slot="more"
-            variant="quiet"
-            shape="icon"
-            size={size}
-            label={moreLabel}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen ? 'true' : 'false'}
-            onClick={() => { setStart('first'); setOpen(!menuOpen); }}
-            onKeyDown={(e: KeyboardEvent) => {
-              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-              e.preventDefault();
-              setStart(e.key === 'ArrowUp' ? 'last' : 'first');
-              setOpen(true);
-            }}
-          >
-            {moreGlyph ?? <Glyph shape="more" />}
-          </Button>
+          <MenuButton data-slot="more" items={rows} label={moreLabel} glyph={moreGlyph} size={size} menuVariant={menuVariant} menuGround={menuGround} />
         )}
       </div>
       {/* Every item the bar may show, as it would show there, and the More
@@ -493,9 +533,6 @@ export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: 
           <div data-item=""><Button variant="quiet" shape="icon" size={size} label={moreLabel}>{moreGlyph ?? <Glyph shape="more" />}</Button></div>
         </div>
       </div>
-      <Popover triggerRef={moreRef} isOpen={menuOpen} onOpenChange={setOpen} placement="bottom end" variant={menuVariant} ground={menuGround} fullscreenBelow={false}>
-        <TopBarMenu rows={rows} label={moreLabel} start={start} variant={menuVariant} ground={menuGround} close={() => setOpen(false)} />
-      </Popover>
     </header>
   );
   if (!stacked) return bar;

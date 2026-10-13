@@ -19,6 +19,19 @@
 // Never `sqrt(pow(...))`: it is unsupported in current engines and the
 // declaration is silently dropped. `hypot()` is the supported spelling.
 
+// The accent's derived tokens, from `--accent` where they are declared: on
+// `:root`, and again on any element that sets its own accent
+// (`[data-accent]`), so they follow it there as the size tokens follow a
+// scaled region's unit.
+const ACCENT_DERIVED = `
+    --accent-hover: oklch(from var(--accent) calc(l + 0.06) c h);
+    --accent-soft: oklch(from var(--accent) l c h / 0.16);
+    /* The focus ring. On a dark ground the full accent outshone the control it
+       rings; at 0.6 it still stands over 3:1 against the dark grounds, the
+       contrast a focus indicator needs. A light ground keeps the full accent,
+       which is already nearer that floor. */
+    --ring-color: light-dark(var(--accent), oklch(from var(--accent) l c h / 0.6));`;
+
 export const FOUNDATION_CSS = `
 @property --u { syntax: '<length>'; inherits: true; initial-value: 16px; }
 @property --u-inline { syntax: '<length>'; inherits: true; initial-value: 16px; }
@@ -93,13 +106,7 @@ export const FOUNDATION_CSS = `
     --rule: 1px solid var(--edge);
 
     /* accent, derived */
-    --accent-hover: oklch(from var(--accent) calc(l + 0.06) c h);
-    --accent-soft: oklch(from var(--accent) l c h / 0.16);
-    /* The focus ring. On a dark ground the full accent outshone the control it
-       rings; at 0.6 it still stands over 3:1 against the dark grounds, the
-       contrast a focus indicator needs. A light ground keeps the full accent,
-       which is already nearer that floor. */
-    --ring-color: light-dark(var(--accent), oklch(from var(--accent) l c h / 0.6));
+${ACCENT_DERIVED}
 
     /* status: one lightness and chroma per scheme, hue varies */
     --ok: light-dark(oklch(0.55 0.14 150), oklch(0.74 0.14 150));
@@ -136,6 +143,12 @@ export const FOUNDATION_CSS = `
 
     /* A finger does not scale with the unit. */
     --touch-min: 2.75rem;
+    /* A glyph on a touch target: half of it, the touch platforms' own
+       proportion (a 22px glyph in a 44px target). */
+    --icon-touch: calc(var(--touch-min) / 2);
+    /* The smallest unit a scale may compute: none here, the reading size on a
+       touch screen (below). */
+    --u-reading-floor: 0rem;
     /* The thinnest line: an edge drawn inside a box or as a shadow, where a
        --rule (a whole border) does not fit. Fixed, like a hairline border. */
     --hairline: 1px;
@@ -243,6 +256,15 @@ export const FOUNDATION_CSS = `
   [data-u-axis="max"] { --_ub: 1cqmax; }
   [data-u-axis="diagonal"] { --_ub: calc(hypot(1cqi, 1cqb) / 1.41421356); }
 
+  /* A touch screen is held at reading distance whatever its size, so a scale
+     that follows a small screen down (a phone's 390px is a "small window")
+     stops at the reader's default text size, as a button stops at a finger
+     (--touch-min). A device capability, not a layout breakpoint; the zoom
+     still multiplies below it. */
+  @media (pointer: coarse) {
+    :root { --u-reading-floor: 1rem; }
+  }
+
   /* The zoom multiplies OUTSIDE each expression, so zooming in is never
      clamped back by a scale's cap. */
   [data-u-policy="fixed"] {
@@ -251,14 +273,19 @@ export const FOUNDATION_CSS = `
     --u-block: calc(var(--u-base) * var(--u-zoom));
   }
   [data-u-policy="clamped"] {
-    --u: calc(clamp(var(--u-floor), calc(var(--_ub) * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
-    --u-inline: calc(clamp(var(--u-floor), calc(1cqi * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
-    --u-block: calc(clamp(var(--u-floor), calc(1cqb * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
+    --u: calc(clamp(max(var(--u-floor), var(--u-reading-floor)), calc(var(--_ub) * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
+    --u-inline: calc(clamp(max(var(--u-floor), var(--u-reading-floor)), calc(1cqi * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
+    --u-block: calc(clamp(max(var(--u-floor), var(--u-reading-floor)), calc(1cqb * var(--u-factor)), var(--u-cap)) * var(--u-zoom));
   }
   [data-u-policy="fluid"] {
-    --u: calc(max(var(--u-floor), calc(var(--_ub) * var(--u-factor))) * var(--u-zoom));
-    --u-inline: calc(max(var(--u-floor), calc(1cqi * var(--u-factor))) * var(--u-zoom));
-    --u-block: calc(max(var(--u-floor), calc(1cqb * var(--u-factor))) * var(--u-zoom));
+    --u: calc(max(var(--u-floor), var(--u-reading-floor), calc(var(--_ub) * var(--u-factor))) * var(--u-zoom));
+    --u-inline: calc(max(var(--u-floor), var(--u-reading-floor), calc(1cqi * var(--u-factor))) * var(--u-zoom));
+    --u-block: calc(max(var(--u-floor), var(--u-reading-floor), calc(1cqb * var(--u-factor))) * var(--u-zoom));
+  }
+  /* An element with an accent of its own (\`data-accent\` and its own
+     \`--accent\`): the accent's derived tokens follow it there. */
+  [data-accent] {
+${ACCENT_DERIVED}
   }
 }
 `;

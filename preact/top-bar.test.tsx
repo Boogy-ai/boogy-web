@@ -4,7 +4,7 @@ import { act } from 'preact/test-utils';
 import { resetZoom, zoomState } from '@boogy/web';
 import { flushRounds, setFrameScheduler } from '../src/components/measure';
 import { useState } from 'preact/hooks';
-import { Button, ColorPicker, Dropdown, Glyph, TopBar, type TopBarItem } from './index';
+import { Button, ColorPicker, Dropdown, Glyph, MenuButton, TopBar, type TopBarItem } from './index';
 
 // happy-dom's ResizeObserver never fires: this one fires when the test says
 // the layout changed, as a browser's would.
@@ -854,5 +854,80 @@ describe('<Glyph>', () => {
     const [a, b] = [...root.querySelectorAll('svg[data-boogy="glyph"]')];
     expect(a.querySelectorAll('path, circle').length).toBeGreaterThan(0);
     expect(b.getAttribute('data-size')).toBe('sm');
+  });
+});
+
+describe('<TopBar> attention', () => {
+  const ITEMS_WITH_ATTENTION: TopBarItem[] = [
+    { id: 'edit', label: 'Edit', priority: 1, onAction: vi.fn() },
+    { id: 'update', label: 'Update', priority: 2, attention: true, onAction: vi.fn() },
+  ];
+  const itemButton = (root: HTMLElement, id: string) => root.querySelector<HTMLElement>(`[data-boogy="top-bar"] > [data-slot="actions"] > [data-item="${id}"] button`);
+
+  it('marks the button of an item that asks for attention, and no other', () => {
+    const root = mount(<TopBar title="T" items={ITEMS_WITH_ATTENTION} zoom={false} />);
+    layout(root, 400, { edit: 50, update: 60 });
+    expect(itemButton(root, 'update')!.hasAttribute('data-attention')).toBe(true);
+    expect(itemButton(root, 'edit')!.hasAttribute('data-attention')).toBe(false);
+    expect(more(root)).toBeNull();
+  });
+
+  it('marks More when the item that asks for attention is in its menu, and not otherwise', () => {
+    const root = mount(<TopBar title="T" items={ITEMS_WITH_ATTENTION} zoom={false} />);
+    layout(root, 80, { edit: 50, update: 60 });
+    expect(barItems(root)).toEqual(['edit']);
+    expect(more(root)!.hasAttribute('data-attention')).toBe(true);
+    act(() => more(root)!.click());
+    expect(menu()!.querySelector('[data-attention]')).toBeTruthy();
+    const quiet = mount(<TopBar title="T" items={ACTIONS} zoom={false} />);
+    layout(quiet, 250, WIDTHS);
+    expect(more(quiet)!.hasAttribute('data-attention')).toBe(false);
+  });
+
+  it('marks More when the item is always in the menu, and a submenu button in the bar', () => {
+    const root = mount(<TopBar title="T" zoom={false} items={[{ id: 'u', label: 'Update', priority: 1, place: 'menu', attention: true, onAction: vi.fn() }]} />);
+    layout(root, 400, {});
+    expect(more(root)!.hasAttribute('data-attention')).toBe(true);
+    const sub = mount(<TopBar title="T" zoom={false} items={[{ id: 's', label: 'Update', priority: 1, attention: true, icon: <span>i</span>, submenu: <p>x</p> }]} />);
+    layout(sub, 400, { s: 30 });
+    expect(itemButton(sub, 's')!.hasAttribute('data-attention')).toBe(true);
+  });
+});
+
+describe('<MenuButton>', () => {
+  // Out of importance order, as a caller may list them.
+  const ITEMS: TopBarItem[] = [
+    { id: 'third', label: 'Third', priority: 3, onAction: vi.fn() },
+    { id: 'first', label: 'First', priority: 1, onAction: vi.fn() },
+    { id: 'second', label: 'Second', priority: 2, onAction: vi.fn() },
+  ];
+  const button = (root: HTMLElement) => root.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
+  const press = (el: Element, k: string) => act(() => { el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })); });
+
+  it('shows nothing when it has no items', () => {
+    const root = mount(<MenuButton items={[]} />);
+    expect(root.innerHTML).toBe('');
+  });
+
+  it("opens a menu of its items, the most important first, named by its label, as a TopBar's More does", () => {
+    const root = mount(<MenuButton items={ITEMS} label="Options" />);
+    const b = button(root)!;
+    expect(b.getAttribute('aria-label')).toBe('Options');
+    expect(b.getAttribute('aria-expanded')).toBe('false');
+    act(() => b.click());
+    expect(b.getAttribute('aria-expanded')).toBe('true');
+    expect(menu()!.getAttribute('aria-label')).toBe('Options');
+    expect([...menu()!.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).toEqual(['First', 'Second', 'Third']);
+    expect(document.activeElement!.textContent).toBe('First');
+  });
+
+  it('ArrowDown on it opens the menu on its first row, ArrowUp on its last', () => {
+    const root = mount(<MenuButton items={ITEMS} />);
+    press(button(root)!, 'ArrowDown');
+    expect(document.activeElement!.textContent).toBe('First');
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    expect(menu()).toBeNull();
+    press(button(root)!, 'ArrowUp');
+    expect(document.activeElement!.textContent).toBe('Third');
   });
 });

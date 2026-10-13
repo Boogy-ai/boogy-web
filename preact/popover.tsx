@@ -86,6 +86,22 @@ function useMode(below: DrawerBreakpoint | false): PopoverMode {
   return mode;
 }
 
+/** The step back a closed page asked for, until the browser has taken it: a
+ *  page that opens meanwhile adds its own entry only after it, or that step
+ *  would land on the new entry and close the new page. */
+let stepping: Promise<void> | null = null;
+function stepBack() {
+  const step = new Promise<void>((resolve) => {
+    const done = () => { window.removeEventListener('popstate', done); clearTimeout(timer); resolve(); };
+    // No history to step through fires no popstate.
+    const timer = window.setTimeout(done, 300);
+    window.addEventListener('popstate', done);
+  });
+  stepping = step;
+  void step.then(() => { if (stepping === step) stepping = null; });
+  history.back();
+}
+
 export function Popover({
   triggerRef, isOpen, onOpenChange, placement, offset, crossOffset, shouldFlip, containerPadding, maxHeight, variant = 'raised', ground,
   fullscreenBelow = 'sm', title, titleIcon, centered = false, centerY = 0.5, overlay, onBack, children, ...rest
@@ -231,15 +247,21 @@ export function Popover({
 
     // HISTORY (page only): back closes it; any other close steps back.
     let pushed = false;
+    let live = true;
     const onPop = () => {
       if (!pushed || (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) return;
       pushed = false;
       closeRef.current();
     };
     if (mode === 'page') {
-      history.pushState({ ...(history.state as object | null), boogyPopover: id.current }, '');
-      pushed = true;
-      window.addEventListener('popstate', onPop);
+      const push = () => {
+        if (!live) return;
+        history.pushState({ ...(history.state as object | null), boogyPopover: id.current }, '');
+        pushed = true;
+        window.addEventListener('popstate', onPop);
+      };
+      if (stepping) void stepping.then(push);
+      else push();
     }
 
     return () => {
@@ -250,8 +272,9 @@ export function Popover({
       document.removeEventListener('pointerdown', onPress, true);
       window.removeEventListener('blur', onBlur);
       clearTimeout(blurCheck);
+      live = false;
       window.removeEventListener('popstate', onPop);
-      if (pushed && (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) history.back();
+      if (pushed && (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) stepBack();
       if (el.contains(document.activeElement) || document.activeElement === document.body) trigger?.focus();
     };
   }, [isOpen, mode, centered, centerY]);

@@ -9,6 +9,19 @@ const BROWSER = process.env.BOOGY_TEST_BROWSER ?? '/usr/bin/chromium';
 
 let browser: Browser;
 let page: Page;
+/** The same page on a touch screen (a coarse pointer). */
+let touch: Page;
+const TOUCH = { hasTouch: true, isMobile: true };
+
+async function prepare(p: Page) {
+  await p.setContent('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0"></body></html>');
+  await p.evaluate((css) => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    document.adoptedStyleSheets = [sheet];
+    document.documentElement.style.fontSize = '16px';
+  }, FOUNDATION_CSS);
+}
 
 beforeAll(async () => {
   if (!existsSync(BROWSER)) {
@@ -18,13 +31,7 @@ beforeAll(async () => {
     ? await puppeteer.launch({ browser: 'firefox', executablePath: BROWSER, headless: true })
     : await puppeteer.launch({ executablePath: BROWSER, headless: true, args: ['--no-sandbox'] });
   page = await browser.newPage();
-  await page.setContent('<!doctype html><html><head></head><body style="margin:0"></body></html>');
-  await page.evaluate((css) => {
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync(css);
-    document.adoptedStyleSheets = [sheet];
-    document.documentElement.style.fontSize = '16px';
-  }, FOUNDATION_CSS);
+  await prepare(page);
 });
 
 afterAll(async () => {
@@ -172,6 +179,27 @@ describe('theme', () => {
     expect(light).not.toBe(dark);
   });
 
+  it("an element with an accent of its own (data-accent) derives its soft fill and focus ring from it; one without, from the root's", async () => {
+    const got = await page.evaluate(() => {
+      const own = 'oklch(0.6 0.2 30)';
+      const probes = (id: string) => `<i id="${id}-soft" style="color:var(--accent-soft)"></i><i id="${id}-ring" style="color:var(--ring-color)"></i>`;
+      document.body.innerHTML = `
+        <div data-accent style="--accent:${own}">${probes('own')}</div>
+        <div style="--accent:${own}">${probes('plain')}</div>
+        ${probes('root')}`;
+      const read = (id: string) => [`${id}-soft`, `${id}-ring`].map((p) => getComputedStyle(document.getElementById(p)!).color);
+      const out = { own: read('own'), plain: read('plain'), root: read('root'), want: [] as string[] };
+      // What the root derives when the root's own accent is that one.
+      document.documentElement.style.setProperty('--accent', own);
+      out.want = read('root');
+      document.documentElement.style.removeProperty('--accent');
+      return out;
+    });
+    expect(got.own).toEqual(got.want);
+    expect(got.own).not.toEqual(got.root);
+    expect(got.plain).toEqual(got.root);
+  });
+
   it('relative colour syntax derives a hover accent distinct from the accent', async () => {
     const [a, h] = await page.evaluate(() => {
       document.body.innerHTML = '<i id="a" style="color:var(--accent)"></i><i id="h" style="color:var(--accent-hover)"></i>';
@@ -243,9 +271,9 @@ describe('a scaled page', () => {
   // installFoundation({ scale: true }) puts scale()'s attributes on <html>. It
   // has no container above it, so its container units fall back to the
   // viewport — which, for a page embedded in a frame, is the frame.
-  async function at(w: number, h: number) {
-    await page.setViewport({ width: w, height: h });
-    return page.evaluate((attrs) => {
+  async function at(w: number, h: number, on: Page = page) {
+    await on.setViewport({ width: w, height: h, ...(on === touch ? TOUCH : {}) });
+    return on.evaluate((attrs) => {
       const root = document.documentElement;
       for (const [k, v] of Object.entries(attrs)) if (k !== 'style') root.setAttribute(k, v as string);
       for (const [k, v] of Object.entries(attrs.style)) root.style.setProperty(k, v);
@@ -262,7 +290,18 @@ describe('a scaled page', () => {
       return out;
     }, scale() as unknown as Record<string, string> & { style: Record<string, string> });
   }
-  afterAll(async () => { await page.setViewport({ width: 800, height: 600 }); });
+  // The touch screen's own page, opened here, last: a page in the background
+  // takes no pointer input.
+  beforeAll(async () => {
+    touch = await browser.newPage();
+    await touch.setViewport({ width: 800, height: 600, ...TOUCH });
+    await prepare(touch);
+  });
+  afterAll(async () => {
+    await touch?.close();
+    await page.bringToFront();
+    await page.setViewport({ width: 800, height: 600 });
+  });
 
   it('tracks the viewport\'s shorter side: 4% of 300px is 12px, and plain text and tokens follow', async () => {
     const r = await at(300, 800);
@@ -275,5 +314,15 @@ describe('a scaled page', () => {
   });
   it('stops at its floor on a small one', async () => {
     expect((await at(200, 800)).u).toBeCloseTo(10, 1); // 0.625rem
+  });
+  it("on a touch screen it stops at the reader's text size however small the window; without touch it goes on down", async () => {
+    expect(await touch.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+    expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(false);
+    const rem = await touch.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+    const held = await at(300, 800, touch);
+    const mouse = await at(300, 800);
+    expect(mouse.u).toBeLessThan(rem);
+    expect(held.u).toBeCloseTo(rem, 1);
+    expect(held.body).toBeCloseTo(rem, 1);
   });
 });

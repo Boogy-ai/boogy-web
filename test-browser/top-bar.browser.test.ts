@@ -49,9 +49,11 @@ const ORDER = ['edit', 'links', 'present', 'close', 'delete'];
 /** The shown actions are always the most important ones: a prefix of the order. */
 const isPrefix = (shown: string[]) => shown.every((id, i) => id === ORDER[i]);
 
+let code: string;
+
 beforeAll(async () => {
   if (!existsSync(BROWSER)) throw new Error(`no browser at ${BROWSER}; set BOOGY_TEST_BROWSER`);
-  const code = await bundle();
+  code = await bundle();
   browser = BROWSER.includes('firefox')
     ? await puppeteer.launch({ browser: 'firefox', executablePath: BROWSER, headless: true })
     : await puppeteer.launch({ executablePath: BROWSER, headless: true, args: ['--no-sandbox'] });
@@ -256,6 +258,22 @@ describe('TopBar More: rows of every kind, and a submenu beside its row', () => 
   });
 });
 
+describe('TopBar attention', () => {
+  it('draws a small accent dot inside the corner of the button, not clipped', async () => {
+    await page.evaluate(() => (window as unknown as { topBarAttentionFixture: { mount(w: number): void } }).topBarAttentionFixture.mount(600));
+    await frames();
+    const r = await page.evaluate(() => (window as unknown as { topBarAttentionFixture: { report(): Record<string, unknown> } }).topBarAttentionFixture.report());
+    const n = (k: string) => r[k] as number;
+    expect(n('width')).toBeGreaterThan(2);
+    expect(n('width')).toBeLessThan(n('buttonWidth') / 2);
+    expect(n('height')).toBe(n('width'));
+    expect(n('top')).toBeGreaterThanOrEqual(0);
+    expect(n('right')).toBeGreaterThanOrEqual(0);
+    expect(r.overflow).not.toBe('hidden');
+    expect(r.color).toBe(r.accent);
+  });
+});
+
 describe.runIf(!!SHOTS)('TopBar More screenshots', () => {
   it('saves More, and More with its submenu open beside it, light and dark, raised and flat', async () => {
     mkdirSync(SHOTS!, { recursive: true });
@@ -275,5 +293,66 @@ describe.runIf(!!SHOTS)('TopBar More screenshots', () => {
       }
     }
     await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+  });
+});
+
+type EdgeButton = { box: Box; glyph: Box };
+type EdgeReport = {
+  coarse: boolean; content: { left: number; right: number };
+  back: EdgeButton; edit: EdgeButton; more: EdgeButton; alone: EdgeButton; tokens: Record<string, number>;
+};
+async function edgeBar(on: Page, width: number, size: 'sm' | 'md'): Promise<EdgeReport> {
+  type F = { topBarEdgeFixture: { mount(w: number, s: string): void; report(): EdgeReport } };
+  await on.evaluate((w, sz) => (window as unknown as F).topBarEdgeFixture.mount(w, sz), width, size);
+  await on.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  return on.evaluate(() => (window as unknown as F).topBarEdgeFixture.report());
+}
+
+describe("an edge-to-edge TopBar's end buttons", () => {
+  for (const size of ['md', 'sm'] as const) {
+    it(`(${size}) Back's glyph starts at the bar's content edge and More's ends at the other: each button reaches into the padding by the space around its glyph`, async () => {
+      const r = await edgeBar(page, 600, size);
+      expect(Math.abs(r.back.glyph.left - r.content.left)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(r.more.glyph.right - r.content.right)).toBeLessThanOrEqual(0.5);
+      expect(r.back.box.left).toBeLessThan(r.content.left - 1);
+      expect(r.more.box.right).toBeGreaterThan(r.content.right + 1);
+    });
+  }
+});
+
+describe('TopBar on a touch screen', () => {
+  // Its own page, opened last: a page in the background takes no pointer input.
+  let touch: Page;
+  beforeAll(async () => {
+    touch = await browser.newPage();
+    await touch.setViewport({ width: 400, height: 700, hasTouch: true, isMobile: true });
+    await touch.setContent('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0"></body></html>');
+    await touch.evaluate((c) => { document.documentElement.style.fontSize = '16px'; (0, eval)(c); }, code);
+  });
+  afterAll(async () => {
+    await touch?.close();
+    await page.bringToFront();
+  });
+
+  it('an icon button in no bar is at least the 44px touch target', async () => {
+    const r = await edgeBar(touch, 400, 'md');
+    expect(r.coarse).toBe(true);
+    expect(r.alone.box.width).toBeGreaterThanOrEqual(r.tokens['--touch-min']);
+    expect(r.alone.box.height).toBeGreaterThanOrEqual(r.tokens['--touch-min']);
+  });
+
+  it("in a bar the bar sets the size: its icon buttons keep their control size, not the touch target, and their own size's glyph", async () => {
+    const md = await edgeBar(touch, 400, 'md');
+    for (const [name, b] of Object.entries({ back: md.back, edit: md.edit, more: md.more })) {
+      expect(b.box.height, name).toBeCloseTo(md.tokens['--control-md'], 1);
+      expect(b.box.width, name).toBeCloseTo(md.tokens['--control-md'], 1);
+      expect(b.glyph.width, name).toBeCloseTo(md.tokens['--icon-md'], 1);
+    }
+    expect(md.tokens['--control-md']).toBeLessThan(md.tokens['--touch-min']);
+    const sm = await edgeBar(touch, 400, 'sm');
+    for (const [name, b] of Object.entries({ edit: sm.edit, more: sm.more })) {
+      expect(b.box.height, name).toBeCloseTo(sm.tokens['--control-sm'], 1);
+      expect(b.glyph.width, name).toBeCloseTo(sm.tokens['--icon-sm'], 1);
+    }
   });
 });

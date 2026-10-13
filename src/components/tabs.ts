@@ -23,6 +23,10 @@ export interface TabsOptions {
   /** The tabs share the row's width evenly, rather than sitting together at
    *  its start. */
   fill?: boolean;
+  /** The edge its lines run along, the side that meets what it controls:
+   *  `bottom` (default) for a row above its panel, `top` for a row below it
+   *  (a bar at the foot of a screen). */
+  edge?: 'bottom' | 'top';
 }
 
 /** The row of tabs. */
@@ -30,12 +34,14 @@ export interface TabListAttrs {
   'data-boogy': 'tab-list';
   role: 'tablist';
   'data-fill'?: 'true';
+  'data-edge'?: 'top';
 }
 
 export function tabList(opts: TabsOptions = {}): TabListAttrs {
-  return opts.fill
-    ? { 'data-boogy': 'tab-list', role: 'tablist', 'data-fill': 'true' }
-    : { 'data-boogy': 'tab-list', role: 'tablist' };
+  const attrs: TabListAttrs = { 'data-boogy': 'tab-list', role: 'tablist' };
+  if (opts.fill) attrs['data-fill'] = 'true';
+  if (opts.edge === 'top') attrs['data-edge'] = 'top';
+  return attrs;
 }
 
 /** The selected tab's panel. */

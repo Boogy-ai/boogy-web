@@ -9,7 +9,7 @@
 
 import {
   MAX_HISTORY, PANE_PROTOCOL, fromResultPayload, parseFrame,
-  type Frame, type PaneHost, type PaneLastSignIn, type PaneSignInResult,
+  type Frame, type PaneHost, type PaneLastSignIn, type PaneSignInResult, type PaneUpgradeResult,
 } from './internal/pane-protocol';
 import { exactOrigin, sendFrame, type ExactOrigin } from './internal/pane-messaging';
 import { loadPlatformConfig } from './internal/platform-config';
@@ -55,6 +55,21 @@ export interface PaneHandle {
    *  A request is not kept for later, and asking again before an answer is
    *  the same request. */
   requestSignIn(): Promise<PaneSignInResult>;
+  /** Whether the page framing this app shows its available update itself, in
+   *  its own header. An app then offers no update control of its own (see
+   *  `checkForUpdate`); it can still ask the page to show it
+   *  (`requestUpgrade`). `false` until a page framing it connects, and for
+   *  one that does not say. */
+  readonly boardShowsUpdates: boolean;
+  /** Ask the page framing this app to show its update's confirmation, when
+   *  the person chose to update from the app's own control. Resolves:
+   *  - `'opened'`: the page opened it;
+   *  - `'none'`: the page has nothing to show for this app;
+   *  - `'busy'`: another confirmation is open already;
+   *  - `'unavailable'`: no page that shows updates is connected (nothing is
+   *    sent), or none answered within `SIGN_IN_REPLY_TIMEOUT_MS`.
+   *  Asking again before an answer is the same request. */
+  requestUpgrade(): Promise<PaneUpgradeResult | 'unavailable'>;
   /** Where this app is shown: `'board'`, or `null` until a page framing it
    *  connects, when the page that did said nothing this version knows, or when
    *  it is not framed at all (shown alone, at its own address). */
@@ -99,7 +114,7 @@ export const SIGN_IN_REPLY_TIMEOUT_MS = 3_000;
 
 type Report = Exclude<
   Frame,
-  { type: 'hello' | 'connect' | 'ready' | 'history' | 'zoom' | 'sign-in' | 'sign-in-result' }
+  { type: 'hello' | 'connect' | 'ready' | 'history' | 'zoom' | 'sign-in' | 'sign-in-result' | 'upgrade' | 'upgrade-result' }
 >;
 
 /** One pane connection per window. The platform's automatic reporter and the
@@ -113,6 +128,19 @@ interface PaneSlot {
 }
 type SlotHolder = { [PANE_SLOT]?: PaneSlot };
 const holder = (): SlotHolder => globalThis as unknown as SlotHolder;
+
+/** Each handle's wait for the page framing it to connect. Internal: kept off
+ *  `PaneHandle` so the public interface does not grow. */
+const connections = new WeakMap<PaneHandle, (ms: number) => Promise<boolean>>();
+
+/** Whether a page framing this app has connected to `pane`: at once when it
+ *  already has, otherwise once it does, within `ms`. `false` when the page is
+ *  not framed, the pane is disconnected, or nothing connected in time; a
+ *  handle this SDK did not make answers whether it reports a host. */
+export function paneConnected(pane: PaneHandle, ms: number): Promise<boolean> {
+  const wait = connections.get(pane);
+  return wait ? wait(ms) : Promise.resolve(pane.host !== null);
+}
 
 /** Ask the page framing this window to sign its app in, through whichever
  *  pane connection this window has, first telling it the app is signed out
@@ -143,11 +171,19 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
 }
 
 function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHandle {
-  let shell: { origin: ExactOrigin; nonce: string; host: PaneHost | null; lastSignIn: PaneLastSignIn | null } | null = null;
-  // The sign-in request waiting for its answer, if any: one at a time. `ask`
-  // sends it to the shell connected now, with a fresh wait for the answer.
-  let pending: { promise: Promise<PaneSignInResult>; settle(r: PaneSignInResult): void; ask(): void } | null = null;
+  let shell: { origin: ExactOrigin; nonce: string; host: PaneHost | null; lastSignIn: PaneLastSignIn | null; updates: boolean } | null = null;
+  // The request waiting for its answer, one per kind at a time. `ask` sends
+  // it to the shell connected now, with a fresh wait for the answer.
+  interface Pending<R> { promise: Promise<R>; settle(r: R): void; ask(): void }
+  let pending: Pending<PaneSignInResult> | null = null;
+  let pendingUpgrade: Pending<PaneUpgradeResult | 'unavailable'> | null = null;
   let live = true;
+  // Those waiting for a page framing this app to connect (`paneConnected`),
+  // each told once: true on a connect, false on disconnect or its timeout.
+  const waiting = new Set<(connected: boolean) => void>();
+  const tellWaiting = (connected: boolean) => {
+    for (const tell of [...waiting]) tell(connected);
+  };
   // The latest of each report, so a board that connects after the module has
   // already set its title or moved still learns them.
   const latest = new Map<Report['type'], Report['payload']>();
@@ -208,6 +244,10 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
           pending?.settle(fromResultPayload(frame.payload));
           return;
         }
+        if (frame.type === 'upgrade-result') {
+          pendingUpgrade?.settle(frame.payload.outcome);
+          return;
+        }
       }
     }
     // A connect is admitted exactly when the one validator reads it as one,
@@ -227,8 +267,8 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     }
     if (!live || !config.shellOrigins.includes(offered)) return;
 
-    const { host = null, lastSignIn = null, history: handed, zoom, scheme } = connect.payload;
-    shell = { origin: exactOrigin(offered), nonce: connect.nonce, host, lastSignIn };
+    const { host = null, lastSignIn = null, history: handed, zoom, scheme, updates } = connect.payload;
+    shell = { origin: exactOrigin(offered), nonce: connect.nonce, host, lastSignIn, updates: updates === 'board' };
     // A history the board hands back (this pane's content moved to this
     // frame): adopted only if this page is its current page, so it can never
     // describe somewhere the pane is not.
@@ -261,6 +301,8 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     // whose answer would carry a nonce no longer heard: ask again here, after
     // the page's state, so the page has heard it first.
     pending?.ask();
+    pendingUpgrade?.ask();
+    tellWaiting(true);
     opts.onConnect?.({ host, lastSignIn });
   };
 
@@ -287,6 +329,33 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     () => {},
   );
 
+  // One request to the shell: `ask` sends `type` to the shell connected now,
+  // which has `SIGN_IN_REPLY_TIMEOUT_MS` to answer before `fallback` is the
+  // answer; `done` clears the slot that holds it once it is answered.
+  function ask<R>(type: 'sign-in' | 'upgrade', fallback: R, done: () => void): Pending<R> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let resolve: (r: R) => void = () => {};
+    let settled = false;
+    const promise = new Promise<R>((res) => { resolve = res; });
+    const settle = (r: R) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      done();
+      resolve(r);
+    };
+    return {
+      promise,
+      settle,
+      ask: () => {
+        if (!shell || settled) return;
+        clearTimeout(timer);
+        timer = setTimeout(() => settle(fallback), SIGN_IN_REPLY_TIMEOUT_MS);
+        sendFrame(window.parent, shell.origin, { boogy: PANE_PROTOCOL, type, nonce: shell.nonce, payload: {} } as Frame);
+      },
+    };
+  }
+
   const handle: PaneHandle = {
     get host() {
       return shell?.host ?? null;
@@ -294,27 +363,24 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     get lastSignIn() {
       return shell?.lastSignIn ?? null;
     },
+    get boardShowsUpdates() {
+      return shell?.updates ?? false;
+    },
     requestSignIn: () => {
       if (pending) return pending.promise;
       if (!shell) return Promise.resolve('unavailable');
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let resolve: (r: PaneSignInResult) => void = () => {};
-      const promise = new Promise<PaneSignInResult>((r) => { resolve = r; });
-      const settle = (r: PaneSignInResult) => {
-        clearTimeout(timer);
-        if (pending?.promise === promise) pending = null;
-        resolve(r);
-      };
-      // Asked of the shell connected now, which has this long to answer.
-      const ask = () => {
-        if (!shell) return;
-        clearTimeout(timer);
-        timer = setTimeout(() => settle('unavailable'), SIGN_IN_REPLY_TIMEOUT_MS);
-        sendFrame(window.parent, shell.origin, { boogy: PANE_PROTOCOL, type: 'sign-in', nonce: shell.nonce, payload: {} });
-      };
-      pending = { promise, settle, ask };
-      ask();
-      return promise;
+      const made = ask<PaneSignInResult>('sign-in', 'unavailable', () => { pending = null; });
+      pending = made;
+      made.ask();
+      return made.promise;
+    },
+    requestUpgrade: () => {
+      if (pendingUpgrade) return pendingUpgrade.promise;
+      if (!shell?.updates) return Promise.resolve('unavailable');
+      const made = ask<PaneUpgradeResult | 'unavailable'>('upgrade', 'unavailable', () => { pendingUpgrade = null; });
+      pendingUpgrade = made;
+      made.ask();
+      return made.promise;
     },
     reportAuthState: (signedIn) => report('auth-state', { signedIn }),
     reportTitle: (text) => report('title', { text }),
@@ -354,12 +420,28 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
       live = false;
       shell = null;
       pending?.settle('unavailable');
+      pendingUpgrade?.settle('unavailable');
+      tellWaiting(false);
       clearHostZoom();
       clearBoardBackground();
       window.removeEventListener('message', onMessage);
       if (holder()[PANE_SLOT] === slot) delete holder()[PANE_SLOT];
     },
   };
+
+  connections.set(handle, (ms) => {
+    if (shell) return Promise.resolve(true);
+    if (!live || !framed) return Promise.resolve(false);
+    return new Promise<boolean>((resolve) => {
+      const tell = (connected: boolean) => {
+        clearTimeout(timer);
+        waiting.delete(tell);
+        resolve(connected);
+      };
+      const timer = setTimeout(() => tell(false), ms);
+      waiting.add(tell);
+    });
+  });
 
   const slot: PaneSlot = {
     kind,

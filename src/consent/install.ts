@@ -11,6 +11,7 @@
 import { button } from '../components/button';
 import { pill } from '../components/pill';
 import { sheet, field, section } from '../components/sheet';
+import { el, postJson, titled, type Child } from './dom';
 
 /** The platform's own pages: dark, neutral, the SDK's accent. Plus the few
  *  text styles no component owns. Adopted on mount. */
@@ -18,15 +19,21 @@ export const INSTALL_CONSENT_CSS = `@layer boogy.components {
   :root { --scheme: dark; --tint: 0; }
   [data-install="byline"] { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-2); font-size: var(--fs-detail); }
   [data-install="byline"] strong { color: var(--text-1); font-weight: 600; }
-  [data-install="text"] { margin: 0; color: var(--text-2); }
+  :is([data-install="text"], [data-install="notes"]) { margin: 0; color: var(--text-2); }
+  /* An author's notes keep their line breaks. */
+  [data-install="notes"] { white-space: pre-line; }
   [data-install="list"] { margin: 0; padding-inline-start: var(--space-4); color: var(--text-1); }
+  /* A change the person should look at before agreeing: in the accent. */
+  [data-install="list"] > [data-tone="attention"] { color: var(--accent); }
+  /* A change's detail, on its own line under its label. */
+  [data-install="detail"] { display: block; color: var(--text-2); font-size: var(--fs-detail); }
   [data-install="note"] { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
   [data-install="status"] { margin: 0; color: var(--text-2); font-size: var(--fs-detail); }
   [data-install="status"]:empty { display: none; }
 }`;
 
 let consentSheet: CSSStyleSheet | null = null;
-function adoptConsentCss(): void {
+export function adoptConsentCss(): void {
   if (consentSheet || typeof CSSStyleSheet === 'undefined' || !('adoptedStyleSheets' in document)) return;
   consentSheet = new CSSStyleSheet();
   consentSheet.replaceSync(INSTALL_CONSENT_CSS);
@@ -121,19 +128,6 @@ export function serviceIdProblem(id: string): string | null {
   return null;
 }
 
-type Child = Node | string | null | false;
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {},
-  ...children: Child[]
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-  for (const c of children) if (c) node.append(c);
-  return node;
-}
-
 /** Where redirect mode returns to: `redirect` as a path on the app's origin.
  *  Anything that would resolve elsewhere (`//host`, `/\host`, an absolute or
  *  `javascript:` URL) falls back to the app's root. */
@@ -168,10 +162,6 @@ function makeField(label: string, name: string): Field {
       else { node.removeAttribute('data-invalid'); input.removeAttribute('aria-invalid'); }
     },
   };
-}
-
-function titled(header: string, ...children: Child[]): HTMLElement {
-  return el('section', { ...section() }, el('h2', { 'data-slot': 'header' }, header), ...children);
 }
 
 /** Render the confirmation into `root`. Returns a function that removes it. */
@@ -325,22 +315,11 @@ export const INSTALL_DATA_ID = 'boogy-install-data';
 export const INSTALL_ROOT_ID = 'boogy-install';
 
 async function postInstall(req: InstallRequest): Promise<InstallResult> {
-  const res = await fetch('/install', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(req),
-  });
-  const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-  if (res.ok && body && typeof body.service_id === 'string' && typeof body.url === 'string') {
-    return { ok: true, service_id: body.service_id, url: body.url };
+  const out = await postJson('/install', req);
+  if (out.ok && typeof out.body.service_id === 'string' && typeof out.body.url === 'string') {
+    return { ok: true, service_id: out.body.service_id, url: out.body.url };
   }
-  const words = body?.message ?? body?.detail;
-  return {
-    ok: false,
-    error: typeof body?.error === 'string' ? body.error : `http_${res.status}`,
-    message: typeof words === 'string' ? words : `The platform refused (${res.status}).`,
-  };
+  return out.ok ? { ok: false, error: 'http_200', message: 'The platform refused (200).' } : out;
 }
 
 /**

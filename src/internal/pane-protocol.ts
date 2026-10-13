@@ -29,7 +29,9 @@ export type PaneMessageType =
   | 'history-state'
   | 'zoom'
   | 'sign-in'
-  | 'sign-in-result';
+  | 'sign-in-result'
+  | 'upgrade'
+  | 'upgrade-result';
 
 /** Where an app is shown when it is framed: in a board, beside other apps. An
  *  app shown alone is at its own address, unframed, so no page frames it
@@ -57,6 +59,12 @@ const LAST_SIGN_INS: readonly PaneLastSignIn[] = ['cancelled', 'failed'];
  *  - `'unavailable'`: no page framing the app can sign it in (none connected,
  *    none answered, or it does not sign apps in). */
 export type PaneSignInResult = 'leaving' | 'already_signed_in' | 'unavailable' | { busy: number };
+
+/** What a board did with a pane's request to show its update: `'opened'` (its
+ *  confirmation is open), `'none'` (nothing to show, or it cannot), `'busy'`
+ *  (another confirmation is open already). */
+export type PaneUpgradeResult = 'opened' | 'none' | 'busy';
+const UPGRADE_OUTCOMES: readonly PaneUpgradeResult[] = ['opened', 'none', 'busy'];
 
 /** The longest wait a `busy` answer may name. */
 export const MAX_SIGN_IN_WAIT_MS = 3_600_000;
@@ -91,6 +99,11 @@ export interface ConnectPayload {
   /** The framing page's colour scheme. Absent from a page that does not say,
    *  or says something this version does not know. */
   scheme?: PaneScheme;
+  /** The page shows this pane's available update itself (in its header), so
+   *  the app asks it (`upgrade`) rather than opening its own confirmation.
+   *  Absent from a page that does not say, or says something this version does
+   *  not know. */
+  updates?: 'board';
 }
 /** `hello` (pane → board: "I am listening now") and `ready` both name the service. */
 export interface ReadyPayload {
@@ -141,6 +154,15 @@ export interface SignInResultPayload {
   retryAfterMs?: number;
 }
 
+/** Pane → board: the person chose to update this app. It names nothing: the
+ *  board updates the one app it registered for this pane. */
+export type UpgradePayload = Record<string, never>;
+
+/** Board → pane: what became of its request to update. */
+export interface UpgradeResultPayload {
+  outcome: PaneUpgradeResult;
+}
+
 export type Frame =
   | Envelope<'hello', ReadyPayload>
   | Envelope<'connect', ConnectPayload>
@@ -152,7 +174,9 @@ export type Frame =
   | Envelope<'history-state', HistoryStatePayload>
   | Envelope<'zoom', ZoomPayload>
   | Envelope<'sign-in', SignInPayload>
-  | Envelope<'sign-in-result', SignInResultPayload>;
+  | Envelope<'sign-in-result', SignInResultPayload>
+  | Envelope<'upgrade', UpgradePayload>
+  | Envelope<'upgrade-result', UpgradeResultPayload>;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -195,6 +219,7 @@ function connectPayload(p: unknown): ConnectPayload | null {
   }
   if (isZoomFactor(p.zoom)) out.zoom = p.zoom as number;
   if (SCHEMES.includes(p.scheme as PaneScheme)) out.scheme = p.scheme as PaneScheme;
+  if (p.updates === 'board') out.updates = 'board';
   return out;
 }
 
@@ -222,6 +247,10 @@ function payloadOk(type: PaneMessageType, p: unknown): boolean {
       return isZoomFactor(p.factor);
     case 'sign-in':
       return Object.keys(p).length === 0;
+    case 'upgrade':
+      return Object.keys(p).length === 0;
+    case 'upgrade-result':
+      return UPGRADE_OUTCOMES.includes(p.outcome as PaneUpgradeResult);
     case 'sign-in-result':
       if (p.outcome === 'busy') return isSignInWait(p.retryAfterMs);
       return (
@@ -243,6 +272,8 @@ const TYPES: readonly PaneMessageType[] = [
   'zoom',
   'sign-in',
   'sign-in-result',
+  'upgrade',
+  'upgrade-result',
 ];
 
 /** The single entry point for an inbound frame. `null` means "not ours". A

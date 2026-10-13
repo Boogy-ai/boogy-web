@@ -14,7 +14,7 @@
 
 import {
   PANE_PROTOCOL, isSignInWait, parseFrame, toResultPayload,
-  type Frame, type PaneHistory, type PaneHost, type PaneScheme, type PaneLastSignIn, type PaneSignInResult,
+  type Frame, type PaneUpgradeResult, type PaneHistory, type PaneHost, type PaneScheme, type PaneLastSignIn, type PaneSignInResult,
 } from './internal/pane-protocol';
 import { exactOrigin, sendFrame, receiveFrames, type ExactOrigin } from './internal/pane-messaging';
 import { isRestorablePath } from './internal/pane-paths';
@@ -70,6 +70,8 @@ export interface PaneRegistration {
   lastSignIn?: PaneLastSignIn;
 }
 
+export type { PaneUpgradeResult };
+
 export interface ShellEvents {
   /** The pane speaks the protocol, and names the service it believes it is,
    *  and whether its app signs people in (`ConnectPaneOptions.signsIn`; only a
@@ -97,6 +99,13 @@ export interface ShellEvents {
    *  and limit how often: an app can ask as often as it likes. Return what
    *  became of it, now or later; the shell sends that back to the page. */
   onSignInRequested(id: string): PaneSignInResult | Promise<PaneSignInResult>;
+  /** The pane's app asked its board to show its update (`ShellOptions.updates`
+   *  says the board does). Heard under the same rules as a sign-in request,
+   *  and only once the page named the service registered for it; before that
+   *  it is answered `'none'` without asking. Open the update's confirmation
+   *  for that registered app (the request names nothing) and return what
+   *  became of it, now or later; the shell sends that back to the page. */
+  onUpgradeRequested(id: string): PaneUpgradeResult | Promise<PaneUpgradeResult>;
 }
 
 export interface ShellOptions {
@@ -107,6 +116,10 @@ export interface ShellOptions {
   /** The scheme this page is drawn in, told to each pane on connect. Absent:
    *  not said. */
   scheme?: PaneScheme;
+  /** `board`: this page shows each pane's available update itself, told to
+   *  each pane on connect so its app asks the page (`requestUpgrade`) instead
+   *  of opening a confirmation of its own. Absent: the app handles it. */
+  updates?: 'board';
 }
 
 export interface Shell {
@@ -169,6 +182,11 @@ function usableResult(r: unknown): PaneSignInResult {
   return 'unavailable';
 }
 
+/** `r` if it is a result a pane can be sent, `'none'` otherwise. */
+function usableUpgradeResult(r: unknown): PaneUpgradeResult {
+  return r === 'opened' || r === 'busy' ? r : 'none';
+}
+
 function newNonce(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -178,6 +196,7 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
   const panes = new Map<string, Entry>();
   const host: PaneHost = options.host ?? 'board';
   const scheme = options.scheme;
+  const updates = options.updates;
 
   // The board's zoom and each pane's override. Overrides are kept by pane id,
   // apart from the registration, so a pane registered again keeps its own.
@@ -212,6 +231,9 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
         return;
       case 'sign-in':
         answerSignIn(entry);
+        return;
+      case 'upgrade':
+        answerUpgrade(entry);
         return;
       case 'auth-state':
         // Only from a page that has said which app it is, and been believed.
@@ -266,6 +288,30 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
     void Promise.resolve(decided).then(
       (r) => reply(usableResult(r)),
       () => reply('unavailable'),
+    );
+  };
+
+  // An update request, answered to the page that asked, like a sign-in's.
+  const answerUpgrade = (entry: Entry) => {
+    const nonce = entry.nonce;
+    const reply = (result: PaneUpgradeResult) => {
+      const target = entry.iframe.contentWindow;
+      if (panes.get(entry.pane.id) !== entry || entry.nonce !== nonce || !target) return;
+      sendFrame(target as Window, entry.exact, {
+        boogy: PANE_PROTOCOL, type: 'upgrade-result', nonce, payload: { outcome: result },
+      });
+    };
+    const decide = events.onUpgradeRequested;
+    if (!entry.ready || !decide) return reply('none');
+    let decided: PaneUpgradeResult | Promise<PaneUpgradeResult>;
+    try {
+      decided = decide(entry.pane.id);
+    } catch {
+      return reply('none');
+    }
+    void Promise.resolve(decided).then(
+      (r) => reply(usableUpgradeResult(r)),
+      () => reply('none'),
     );
   };
 
@@ -333,6 +379,7 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
             ...(entry.history ? { history: entry.history } : {}),
             ...(zoomFor(pane.id) !== 1 ? { zoom: zoomFor(pane.id) } : {}),
             ...(scheme ? { scheme } : {}),
+            ...(updates ? { updates } : {}),
           },
         });
       };

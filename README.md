@@ -765,6 +765,48 @@ signInButton.onclick = async () => {
   never lets a pane navigate the whole tab, and always lets it open a real
   window (`PANE_SANDBOX`, below).
 
+### Updating your app from a pane
+
+When a newer version of an app a person runs is available, they can move to
+it from the app, or from the board showing it.
+
+```ts
+import { checkForUpdate, installUpdate } from "@boogy/web";
+
+const update = await checkForUpdate({ pane });   // null: nothing to offer, or the board shows it
+if (update) {
+  // From a click: in a board it asks the board, alone it opens the platform's confirmation.
+  button.onclick = () =>
+    installUpdate(update, { pane }).catch((e) => {
+      if (e.code === "popup_blocked") button.textContent = "Allow pop-ups to update";
+      else if (e.code !== "upgrade_aborted") throw e; // upgrade_aborted: closed unanswered, a "no"
+    });
+}
+```
+
+- **`checkForUpdate({ pane })`** resolves the update (`serviceId`, `current`,
+  `version`, `bump`, `publishedAt`, `notes`, `items`) or `null`: nothing is
+  available, the person does not own this app, the check failed, or the board
+  framing your app shows the update in its own header
+  (`pane.boardShowsUpdates`), in which case it asks nobody. Show no update
+  control of your own then. `notes` is text, never markup. In a frame it
+  waits for the board to connect (at most `SIGN_IN_REPLY_TIMEOUT_MS`), so call
+  it straight after `connectPane`.
+- **`installUpdate(update, { pane })`** in a board that shows updates asks it
+  (`pane.requestUpgrade()`) and resolves `'opened'`, `'none'` or `'busy'`.
+  Otherwise it opens the platform's confirmation in a window and resolves
+  `'upgraded'` (the page reloads to run the new version) or `'cancelled'`; it
+  rejects `popup_blocked` when the browser blocked the window, so call it from
+  a click, and `upgrade_aborted` when the window was closed before the person
+  answered (treat it as a "no").
+- **`pane.requestUpgrade()`** resolves `'unavailable'`, sending nothing,
+  unless the board said it shows updates, and also when it did not answer in
+  `SIGN_IN_REPLY_TIMEOUT_MS`.
+- A page that frames apps passes `updates: 'board'` to `createShell` and
+  answers each pane's request with `onUpgradeRequested(id)`.
+- A `TopBar` item can pass `attention` to carry a small dot on its button, and
+  on More while it sits in the menu.
+
 ### Sizing with the frame
 
 A frame can be any size, from a narrow column to most of the screen. To have
@@ -1164,6 +1206,18 @@ its `line-height` is `normal`, not inherited. A stat whose number used to wrap
 onto a second line, or sit in a tall inherited line box, now stays on one line
 at a size between the `min` and `max` you give it. Give a row of stats one
 `group` name and they share one size.
+
+**Touch screens.** A touch screen is read at arm's length whatever its size, so
+under `pointer: coarse` a scaled page's unit stops at `1rem` (the reader's
+default text size) instead of following a phone's small window down; the zoom
+still multiplies below it. An icon-only button's glyph there is at least half a
+finger's target (`--icon-touch`), except inside a `TopBar`, whose height sets
+its buttons: they keep their drawn size there, so a bar of tools stays compact.
+
+**An accent of its own.** Give an element `data-accent` and its own `--accent`,
+and the accent's derived tokens (`--accent-hover`, `--accent-soft`,
+`--ring-color`) follow it inside that element, as they follow the page's accent
+everywhere else.
 
 ## Pitfalls
 

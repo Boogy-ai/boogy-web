@@ -13,6 +13,7 @@ export class BoogyError extends Error {
     | 'network'
     | 'install_cancelled'
     | 'install_aborted'
+    | 'upgrade_aborted'
     | 'sign_in_unavailable'
     | 'sign_in_busy'
     | 'sign_in_required'

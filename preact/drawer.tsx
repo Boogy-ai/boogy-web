@@ -9,7 +9,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact
 import { Button } from './button';
 import { Glyph } from './glyphs';
 import { TAB_STOPS } from './tab-stops';
-import { drawerItem, drawerLayout, drawerMode, monogram, type DrawerBreakpoint, type DrawerItemVariant, type DrawerSide } from '@boogy/web';
+import { drawerItem, drawerLayout, drawerMode, monogram, type ButtonSize, type DrawerBreakpoint, type DrawerItemVariant, type DrawerSide } from '@boogy/web';
 
 interface DrawerState {
   expanded: boolean;
@@ -257,7 +257,11 @@ function Chevron() {
   return <Glyph shape="back" data-slot="chevron" />;
 }
 
-export type DrawerToggleProps = { children?: ComponentChildren } & JSX.HTMLAttributes<HTMLButtonElement>;
+export type DrawerToggleProps = {
+  children?: ComponentChildren;
+  /** Its button's size: `sm` among a dense bar's buttons. Default `md`. */
+  size?: ButtonSize;
+} & Omit<JSX.HTMLAttributes<HTMLButtonElement>, 'size'>;
 
 /** One button for both modes: it expands/collapses a docked drawer and
  *  opens/closes an overlaid one, whichever the stylesheet says applies. */

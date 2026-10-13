@@ -75,7 +75,21 @@ const BUTTON_CSS = `
      at least 44px. A device capability, not a layout breakpoint. */
   @media (pointer: coarse) {
     [data-boogy="button"] { min-height: var(--touch-min); }
-    [data-boogy="button"][data-shape="icon"] { min-width: var(--touch-min); }
+    /* ...and its glyph grows with it, or a 44px box holds a caption-sized
+       glyph: an icon drawn at 1em takes the font size, the SDK's own glyph
+       its width. */
+    [data-boogy="button"][data-shape="icon"] {
+      --_glyph: max(var(--icon-md), var(--icon-touch));
+      min-width: var(--touch-min);
+      font-size: var(--_glyph);
+    }
+    [data-boogy="button"][data-shape="icon"] > [data-boogy="glyph"] { width: var(--_glyph); height: var(--_glyph); }
+    /* In a bar the bar sets the size: the touch minimum neither makes it
+       taller nor spaces its tools apart (a small control is still the 24px
+       target WCAG asks for), and an icon keeps its own size's glyph. */
+    [data-boogy="top-bar"] [data-boogy="button"] { min-height: 0; }
+    [data-boogy="top-bar"] [data-boogy="button"][data-shape="icon"] { min-width: 0; --_glyph: var(--icon-md); }
+    [data-boogy="top-bar"] [data-boogy="button"][data-shape="icon"][data-size="sm"] { --_glyph: var(--icon-sm); }
   }
 
   /* A glyph the SDK draws: sized from the icon tokens. */
@@ -245,7 +259,11 @@ const DRAWER_CSS = `
     position: relative;
     display: flex;
     min-height: 0;
+    /* Clipped, and never scrolled: a control focused past its edge (or the
+       off-canvas drawer) would otherwise scroll the whole layout over by that
+       much, and leave it there. */
     overflow: hidden;
+    overflow: clip;
   }
   [data-boogy="drawer-layout"][data-side="end"] { flex-direction: row-reverse; }
   [data-boogy="drawer-main"] { flex: 1 1 auto; min-width: 0; min-height: 0; }
@@ -270,6 +288,9 @@ const DRAWER_CSS = `
     overflow-x: hidden;
     overflow-y: auto;
     background: var(--ground-raised);
+    /* Its edge, as when docked: over a page of its own ground (a dark one,
+       where no shadow shows), the edge is what tells the two apart. */
+    border-inline-end: 1px var(--drawer-edge-style, solid) var(--drawer-edge);
     box-shadow: var(--overlay-shadow);
     translate: -100% 0;
     visibility: hidden;
@@ -279,6 +300,8 @@ const DRAWER_CSS = `
     inset-inline-start: auto;
     inset-inline-end: 0;
     translate: 100% 0;
+    border-inline-end: none;
+    border-inline-start: 1px var(--drawer-edge-style, solid) var(--drawer-edge);
   }
   [data-boogy="drawer-layout"][data-open="true"] > [data-boogy="drawer"] {
     translate: none;
@@ -683,6 +706,18 @@ const SHEET_CSS = `
   [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"],
   [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar-stack"] > [data-boogy="top-bar"],
   [data-boogy="top-bar"][data-inset] { padding-inline: var(--top-bar-inset); }
+  /* AN EDGE-TO-EDGE BAR'S END BUTTONS line their glyphs up with its padding,
+     the edge the page's content keeps: a Back or a More reaches into the
+     padding by the space around its glyph, rather than drawing that space
+     inside it. */
+  :is([data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"], [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar-stack"] > [data-boogy="top-bar"], [data-boogy="top-bar"][data-inset])
+    > [data-slot="leading"] > [data-boogy="button"][data-shape="icon"]:first-child {
+    margin-inline-start: calc((var(--_glyph, var(--icon-md)) - var(--_h)) / 2);
+  }
+  :is([data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"], [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar-stack"] > [data-boogy="top-bar"], [data-boogy="top-bar"][data-inset])
+    > [data-slot="actions"] > [data-boogy="button"][data-shape="icon"]:last-child {
+    margin-inline-end: calc((var(--_glyph, var(--icon-md)) - var(--_h)) / 2);
+  }
   [data-boogy="sheet"] > [data-slot="body"] {
     flex: 1 1 auto;
     min-height: 0;
@@ -1839,10 +1874,32 @@ const TABS_CSS = `
     cursor: pointer;
   }
   [data-boogy="tab-list"] > [data-slot="tab"]:hover { color: var(--text-1); }
+  /* A tab's own control (TabItem's action), right after it: one piece with
+     its tab, on the same line (the selected tab's lights under both), its
+     label's padding between them given up. */
+  [data-boogy="tab-list"] > [data-slot="tab-action"] {
+    flex: none;
+    display: flex;
+    align-items: center;
+    padding-inline-end: var(--space-1);
+    border-bottom: var(--underline) solid transparent;
+    background-position: bottom;
+    background-size: 100% var(--underline);
+    background-repeat: no-repeat;
+    background-origin: border-box;
+  }
+  [data-boogy="tab-list"] > [data-slot="tab"]:has(+ [data-slot="tab-action"]) { padding-inline-end: 0; }
+  [data-boogy="tab-list"] > [data-slot="tab-action"][data-selected] { background-image: linear-gradient(var(--accent), var(--accent)); }
+  [data-boogy="tab-list"][data-paged] > [data-slot="tab-action"][data-selected] { background-image: none; }
+  [data-boogy="tab-list"][data-edge="top"] > [data-slot="tab-action"] {
+    border-bottom: none;
+    border-top: var(--underline) solid transparent;
+    background-position: top;
+  }
   /* A faint divider between neighbouring tabs, short of the row's top and
      bottom. The tabs sit edge to edge (no gap), so it is exactly between two;
      each tab's padding spaces the labels. */
-  [data-boogy="tab-list"] > [data-slot="tab"] + [data-slot="tab"]::before {
+  [data-boogy="tab-list"] > :is([data-slot="tab"], [data-slot="tab-action"]) + [data-slot="tab"]::before {
     content: "";
     position: absolute;
     inset-block: var(--space-2);
@@ -1869,6 +1926,29 @@ const TABS_CSS = `
     outline: var(--ring) solid var(--ring-color);
     outline-offset: -1px;
   }
+  /* Over a pager, one underline slides with the swipe (TabList places it)
+     instead of the selected tab's own. */
+  [data-boogy="tab-list"] > [data-slot="indicator"] { display: none; }
+  [data-boogy="tab-list"][data-paged] > [data-slot="indicator"] {
+    display: block;
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    block-size: var(--underline);
+    background: var(--accent);
+    pointer-events: none;
+  }
+  [data-boogy="tab-list"][data-paged] > [data-slot="tab"][aria-selected="true"] { background-image: none; }
+  /* A row below what it controls (edge: top): its lines run along its top
+     edge, the side that meets its panel, and so does a bar's it heads. */
+  [data-boogy="tab-list"][data-edge="top"],
+  [data-boogy="tab-list"][data-edge="top"] > [data-slot="tab"],
+  [data-boogy="top-bar"]:has(> [data-slot="heading"] > [data-boogy="tab-list"][data-edge="top"]) { background-position: top; }
+  [data-boogy="tab-list"][data-edge="top"] > [data-slot="tab"] {
+    border-bottom: none;
+    border-top: var(--underline) solid transparent;
+  }
+  [data-boogy="tab-list"][data-edge="top"][data-paged] > [data-slot="indicator"] { bottom: auto; top: 0; }
   [data-boogy="tab-panel"] { outline: none; }
   /* A tab row as a TopBar's heading (its \`tabs\`) fills the bar's height, so the
      selected tab's line is the bar's bottom edge. */
@@ -2255,6 +2335,30 @@ const TOP_BAR_CSS = `
      :is(), whose forgiving list drops it, and the rule then matches nothing. */
   [data-boogy="top-bar"] > [data-slot="actions"] > [data-item],
   [data-boogy="top-bar"] > [data-slot="measure"] > div > [data-item] { display: flex; flex: none; align-items: center; }
+  /* An item that asks for attention carries a small dot in the accent on its
+     button; More carries it while such an item is in its menu, and the row
+     carries it after its label. */
+  [data-boogy="top-bar"] [data-boogy="button"][data-attention] { position: relative; }
+  [data-boogy="top-bar"] [data-boogy="button"][data-attention]::after {
+    content: '';
+    position: absolute;
+    inset-block-start: var(--space-1);
+    inset-inline-end: var(--space-1);
+    inline-size: var(--space-2);
+    block-size: var(--space-2);
+    border-radius: 50%;
+    background: var(--accent);
+    pointer-events: none;
+  }
+  [data-boogy="menu"] > [data-slot="row"][data-attention] > [data-slot="label"]::after {
+    content: '';
+    display: inline-block;
+    inline-size: var(--space-2);
+    block-size: var(--space-2);
+    margin-inline-start: var(--space-2);
+    border-radius: 50%;
+    background: var(--accent);
+  }
   [data-boogy="top-bar"] > [data-slot="measure"] {
     position: absolute;
     inset-block-start: 0;
@@ -2286,7 +2390,33 @@ const TOP_BAR_CSS = `
   }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, BUTTON_GROUP_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, COLOR_PICKER_CSS, TABS_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
+// --- TabPager (see tab-pager.ts) ---
+// One row of pages, each the pager's full size, placed by its index
+// (`grid-column`, set by tabPage()), so no page moves when others come and go.
+// The swipe is native scrolling that snaps to a page, one page per fling; at
+// either end it stays in the pager rather than becoming the browser's back.
+const TAB_PAGER_CSS = `
+  [data-boogy="tab-pager"] {
+    display: grid;
+    grid-template-rows: 100%;
+    grid-auto-columns: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  [data-boogy="tab-pager"]::-webkit-scrollbar { display: none; }
+  [data-boogy="tab-pager"] > [data-slot="page"] {
+    grid-row: 1;
+    min-inline-size: 0;
+    min-block-size: 0;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+`;
+
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, BUTTON_GROUP_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, COLOR_PICKER_CSS, TABS_CSS, TAB_PAGER_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
 
 export const COMPONENTS_CSS = `${FILL_GRID_PROPERTIES}
 @layer boogy.components {
@@ -2306,6 +2436,7 @@ ${INLINE_EDIT_CSS}
 ${SWATCH_CSS}
 ${COLOR_PICKER_CSS}
 ${TABS_CSS}
+${TAB_PAGER_CSS}
 ${SECTION_CSS}
 ${THUMBNAIL_CSS}
 ${TILE_CSS}

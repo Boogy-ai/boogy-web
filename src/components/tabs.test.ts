@@ -9,6 +9,11 @@ describe('tabs', () => {
     expect(tabList()).toEqual({ 'data-boogy': 'tab-list', role: 'tablist' });
     expect(tabList({ fill: true })).toEqual({ 'data-boogy': 'tab-list', role: 'tablist', 'data-fill': 'true' });
   });
+  it('edge: a row below what it controls runs its lines along its top; the bottom is the default and needs no mark', () => {
+    expect(tabList({ edge: 'top' })).toEqual({ 'data-boogy': 'tab-list', role: 'tablist', 'data-edge': 'top' });
+    expect(tabList({ edge: 'bottom' })).toEqual({ 'data-boogy': 'tab-list', role: 'tablist' });
+    expect(tabList({ fill: true, edge: 'top' })).toEqual({ 'data-boogy': 'tab-list', role: 'tablist', 'data-fill': 'true', 'data-edge': 'top' });
+  });
   it('a panel shown apart from its row is a tabpanel; a tab is found from its panel', () => {
     expect(tabPanel()).toEqual({ 'data-boogy': 'tab-panel', role: 'tabpanel' });
     expect(tabId('home', 'buddies')).toBe('home--buddies');

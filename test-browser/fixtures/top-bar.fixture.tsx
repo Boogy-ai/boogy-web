@@ -10,7 +10,7 @@ import { render } from 'preact';
 import { useState } from 'preact/hooks';
 import { installFoundation, oklchToHex, zoomState, type PopoverVariant } from '../../src/index';
 import { setHostZoom } from '../../src/layout/zoom';
-import { ColorPicker, TopBar, ZoomControls, type TopBarItem } from '../../preact/index';
+import { BackButton, Button, ColorPicker, Glyph, TopBar, ZoomControls, type TopBarItem } from '../../preact/index';
 
 const noop = () => {};
 const ITEMS: TopBarItem[] = [
@@ -124,6 +124,88 @@ const rect = (el: Element | null) => {
           line: { content: line.content, height: line.height, top: line.top, color: line.backgroundColor, left: line.left, right: line.right },
         };
       }),
+    };
+  },
+};
+
+// --- An item that asks for attention ---
+
+(window as unknown as Record<string, unknown>).topBarAttentionFixture = {
+  mount(width: number) {
+    installFoundation();
+    document.body.innerHTML = `<div id="host" style="width:${width}px"></div>`;
+    render(
+      <TopBar title="T" zoom={false} items={[{ id: 'update', label: 'Update', priority: 1, attention: true, onAction: noop }]} />,
+      host(),
+    );
+  },
+  /** The dot on the Update button: its box against the button's, and its colour against the accent. */
+  report() {
+    const btn = host().querySelector<HTMLElement>('[data-slot="actions"] button[data-attention]')!;
+    const dot = getComputedStyle(btn, '::after');
+    const box = btn.getBoundingClientRect();
+    const probe = document.createElement('i');
+    probe.style.background = 'var(--accent)';
+    document.body.append(probe);
+    const accent = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return {
+      width: Number.parseFloat(dot.width),
+      height: Number.parseFloat(dot.height),
+      top: Number.parseFloat(dot.top),
+      right: Number.parseFloat(dot.right),
+      color: dot.backgroundColor,
+      accent,
+      overflow: getComputedStyle(btn).overflow,
+      buttonWidth: box.width,
+    };
+  },
+};
+
+// --- An edge-to-edge bar, and an icon button on its own ---
+//
+// An inset bar led by a Back button, with an icon-only action and More (for an
+// item kept in its menu) at its end; below it, an icon button in no bar.
+// `report` measures the bar's content edges, each button and its glyph, and
+// the tokens they are sized from.
+
+const EDIT_GLYPH = glyph(['M4 20h4L19 9l-4-4L4 16z']);
+const EDGE_ITEMS: TopBarItem[] = [
+  { id: 'edit', label: 'Edit', priority: 1, place: 'bar', icon: EDIT_GLYPH, onAction: noop },
+  { id: 'link', label: 'Copy link', priority: 2, place: 'menu', onAction: noop },
+];
+
+(window as unknown as Record<string, unknown>).topBarEdgeFixture = {
+  mount(width: number, size: 'sm' | 'md') {
+    installFoundation();
+    document.body.innerHTML = `<div id="host" style="width:${width}px"></div>`;
+    render(
+      <>
+        <TopBar inset size={size} title="A page" leading={<BackButton onClick={noop} />} items={EDGE_ITEMS} zoom={false} />
+        <Button id="alone" variant="quiet" shape="icon" label="Alone"><Glyph shape="more" /></Button>
+      </>,
+      host(),
+    );
+  },
+  report() {
+    const bar = host().querySelector<HTMLElement>('[data-boogy="top-bar"]')!;
+    const cs = getComputedStyle(bar);
+    const box = bar.getBoundingClientRect();
+    const probe = document.createElement('i');
+    probe.style.cssText = 'position:absolute;display:block;height:0';
+    bar.append(probe);
+    const token = (t: string) => { probe.style.width = `var(${t})`; return probe.getBoundingClientRect().width; };
+    const tokens = Object.fromEntries(['--touch-min', '--icon-md', '--icon-sm', '--control-md', '--control-sm'].map((t) => [t, token(t)]));
+    probe.remove();
+    const button = (el: Element) => ({ box: rect(el)!, glyph: rect(el.querySelector('svg'))! });
+    return {
+      coarse: matchMedia('(pointer: coarse)').matches,
+      content: { left: box.left + Number.parseFloat(cs.borderLeftWidth) + Number.parseFloat(cs.paddingLeft), right: box.right - Number.parseFloat(cs.borderRightWidth) - Number.parseFloat(cs.paddingRight) },
+      back: button(bar.querySelector('[data-slot="leading"] > [data-boogy="button"]')!),
+      edit: button(bar.querySelector('[data-slot="actions"] [data-item="edit"] [data-boogy="button"]')!),
+      more: button(bar.querySelector('[data-slot="actions"] > [data-slot="more"]')!),
+      alone: button(document.getElementById('alone')!),
+      tokens,
     };
   },
 };

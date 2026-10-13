@@ -249,8 +249,11 @@ describe('<Popover> page mode (small screens)', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  // The browser taking a step back: popstate, with no traversal of jsdom's own.
+  const stepTaken = () => window.dispatchEvent(new PopStateEvent('popstate'));
+
   it('closing it any other way steps back, so no dead history entry is left', () => {
-    const back = vi.spyOn(history, 'back').mockImplementation(() => {});
+    const back = vi.spyOn(history, 'back').mockImplementation(stepTaken);
     const { setOpen } = mount();
     setOpen(false);
     expect(back).toHaveBeenCalledTimes(1);
@@ -262,6 +265,70 @@ describe('<Popover> page mode (small screens)', () => {
     const back = vi.spyOn(history, 'back').mockImplementation(() => {});
     setOpen(false);
     expect(back).not.toHaveBeenCalled();
+  });
+
+  // Two pages, A then B in the tree; `show` opens one (closing the other) in a single render.
+  function twoPages(onB: (open: boolean) => void) {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    let show: (which: 'a' | 'b' | null) => void = () => {};
+    function App() {
+      const a = useRef<HTMLButtonElement>(null);
+      const b = useRef<HTMLButtonElement>(null);
+      const [open, setOpen] = useState<'a' | 'b' | null>('a');
+      show = setOpen;
+      return (
+        <div>
+          <button ref={a}>A</button>
+          <button ref={b}>B</button>
+          <Popover triggerRef={a} isOpen={open === 'a'} onOpenChange={(v) => { if (!v) setOpen(null); }} aria-label="A"><input /></Popover>
+          <Popover triggerRef={b} isOpen={open === 'b'} onOpenChange={(v) => { onB(v); if (!v) setOpen(null); }} aria-label="B"><input /></Popover>
+        </div>
+      );
+    }
+    act(() => render(<App />, root));
+    return { show: (which: 'a' | 'b' | null) => act(() => show(which)) };
+  }
+  const entry = () => (history.state as { boogyPopover?: string } | null)?.boogyPopover;
+
+  it("a page opened as another closes adds its entry only after that page's step back: it stays open, with one entry of its own, and Back closes it", async () => {
+    // A browser takes the step later, not within back(): the traversal, then popstate.
+    const step = history.back.bind(history);
+    vi.spyOn(history, 'back').mockImplementation(() => { setTimeout(step, 0); });
+    const onB = vi.fn();
+    const { show } = twoPages(onB);
+    const a = entry();
+    const length = history.length;
+    show('b');
+    await act(() => new Promise<void>((r) => setTimeout(r, 20)));
+    expect(onB).not.toHaveBeenCalled();
+    expect(document.querySelector('[aria-label="B"]')).not.toBeNull();
+    expect(entry()).toBeDefined();
+    expect(entry()).not.toBe(a);
+    // B's entry took A's place: none left behind, none extra.
+    expect(history.length).toBe(length);
+    await act(goBack);
+    expect(onB).toHaveBeenCalledWith(false);
+    expect(document.querySelector('[aria-label="B"]')).toBeNull();
+  });
+
+  it('when that step back never comes (no popstate), the new page still adds its entry, after a short wait', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(history, 'back').mockImplementation(() => {});
+      const { show } = twoPages(vi.fn());
+      const a = entry();
+      const length = history.length;
+      show('b');
+      await act(() => vi.advanceTimersByTimeAsync(299));
+      expect(entry()).toBe(a);
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(entry()).toBeDefined();
+      expect(entry()).not.toBe(a);
+      expect(history.length).toBe(length + 1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('is anchored when fullscreenBelow is false, whatever the width', () => {

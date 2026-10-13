@@ -378,6 +378,54 @@ describe('connectPane', () => {
     pane.disconnect();
   });
 
+  it('requestUpgrade: unavailable, sending nothing, unless the board said it shows updates', async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    expect(pane.boardShowsUpdates).toBe(false);
+    await expect(pane.requestUpgrade()).resolves.toBe('unavailable');
+    fromShell({ boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n5', payload: { shellOrigin: SHELL, host: 'board' } });
+    await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(pane.boardShowsUpdates).toBe(false);
+    await expect(pane.requestUpgrade()).resolves.toBe('unavailable');
+    expect(post.mock.calls.filter((c) => (c[0] as { type: string }).type === 'upgrade')).toHaveLength(0);
+    pane.disconnect();
+  });
+
+  it('requestUpgrade asks a board that shows updates, and resolves with its answer', async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    fromShell({ boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n5', payload: { shellOrigin: SHELL, host: 'board', updates: 'board' } });
+    await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(pane.boardShowsUpdates).toBe(true);
+    const asked = pane.requestUpgrade();
+    expect(post.mock.calls.slice(1).map((c) => [c[0], c[1]])).toEqual([
+      [{ boogy: PANE_PROTOCOL, type: 'upgrade', nonce: 'n5', payload: {} }, SHELL],
+    ]);
+    fromShell({ boogy: PANE_PROTOCOL, type: 'upgrade-result', nonce: 'n4', payload: { outcome: 'none' } });
+    fromShell({ boogy: PANE_PROTOCOL, type: 'upgrade-result', nonce: 'n5', payload: { outcome: 'opened' } });
+    await expect(asked).resolves.toBe('opened');
+    pane.disconnect();
+  });
+
+  it('requestUpgrade: a board that never answers is unavailable after the wait', async () => {
+    const post = spyPost();
+    const pane = await started(post);
+    fromShell({ boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n5', payload: { shellOrigin: SHELL, host: 'board', updates: 'board' } });
+    await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      let settled: unknown = 'pending';
+      void pane.requestUpgrade().then((r) => { settled = r; });
+      await vi.advanceTimersByTimeAsync(SIGN_IN_REPLY_TIMEOUT_MS - 1);
+      expect(settled).toBe('pending');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe('unavailable');
+    } finally {
+      vi.useRealTimers();
+    }
+    pane.disconnect();
+  });
+
   // A request is an event, not a state: one made before any shell connects is
   // not replayed later, so the app is told it went nowhere.
   it('asks nothing, and says so, while no shell is connected', async () => {

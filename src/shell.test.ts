@@ -465,6 +465,90 @@ describe('createShell', () => {
     shell.destroy();
   });
 
+  // An app asks its board to show its update. Answered to the page that asked.
+  const upgradeResults = (f: ReturnType<typeof fakeFrame>) =>
+    f.post.mock.calls.filter((c) => c[0].type === 'upgrade-result').map((c) => c[0] as { nonce: string; payload: { outcome: string } });
+
+  it('answers an upgrade request with what the board did, once the page is ready', async () => {
+    const onUpgradeRequested = vi.fn(() => 'opened' as const);
+    const shell = createShell({ onUpgradeRequested });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    deliver(a.win, frame('ready', a.nonce(), { service: 'squad' }));
+    deliver(a.win, frame('upgrade', a.nonce(), {}));
+    await vi.waitFor(() => expect(upgradeResults(a)).toHaveLength(1));
+    expect(onUpgradeRequested).toHaveBeenCalledExactlyOnceWith('p1');
+    expect(upgradeResults(a)[0]).toMatchObject({ nonce: a.nonce(), payload: { outcome: 'opened' } });
+    expect(a.post.mock.calls.find((c) => c[0].type === 'upgrade-result')![1]).toBe(ORIGIN);
+    shell.destroy();
+  });
+
+  it('answers none, without asking the board, before the page is ready or when nothing handles it', async () => {
+    const onUpgradeRequested = vi.fn(() => 'opened' as const);
+    const shell = createShell({ onUpgradeRequested });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    deliver(a.win, frame('upgrade', a.nonce(), {}));
+    await vi.waitFor(() => expect(upgradeResults(a).map((r) => r.payload.outcome)).toEqual(['none']));
+    expect(onUpgradeRequested).not.toHaveBeenCalled();
+    shell.destroy();
+    const bare = createShell({});
+    const b = fakeFrame();
+    bare.registerPane(b.el, reg('p2', 'squad'));
+    deliver(b.win, frame('ready', b.nonce(), { service: 'squad' }));
+    deliver(b.win, frame('upgrade', b.nonce(), {}));
+    await vi.waitFor(() => expect(upgradeResults(b).map((r) => r.payload.outcome)).toEqual(['none']));
+    bare.destroy();
+  });
+
+  it('a late upgrade answer never goes to a page the frame loaded since, and a bad one is none', async () => {
+    let decide: (r: 'busy') => void = () => {};
+    const shell = createShell({ onUpgradeRequested: () => new Promise((r) => { decide = r; }) });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    deliver(a.win, frame('ready', a.nonce(), { service: 'squad' }));
+    deliver(a.win, frame('upgrade', a.nonce(), {}));
+    a.load(); // a new page, a new nonce
+    decide('busy');
+    await Promise.resolve(); await Promise.resolve();
+    expect(upgradeResults(a)).toHaveLength(0);
+    shell.destroy();
+    const odd = createShell({ onUpgradeRequested: () => 'bogus' as never });
+    const b = fakeFrame();
+    odd.registerPane(b.el, reg('p2', 'squad'));
+    deliver(b.win, frame('ready', b.nonce(), { service: 'squad' }));
+    deliver(b.win, frame('upgrade', b.nonce(), {}));
+    await vi.waitFor(() => expect(upgradeResults(b).map((r) => r.payload.outcome)).toEqual(['none']));
+    odd.destroy();
+  });
+
+  it('never answers an upgrade request carrying another pane\'s nonce', async () => {
+    const shell = createShell({ onUpgradeRequested: () => 'opened' });
+    const a = fakeFrame();
+    const b = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    shell.registerPane(b.el, reg('p2', 'squad'));
+    deliver(a.win, frame('ready', a.nonce(), { service: 'squad' }));
+    deliver(a.win, frame('upgrade', b.nonce(), {}));
+    await Promise.resolve();
+    expect(upgradeResults(a)).toHaveLength(0);
+    expect(upgradeResults(b)).toHaveLength(0);
+    shell.destroy();
+  });
+
+  it('tells each pane in its connect that the board shows updates, only when told to', () => {
+    const shell = createShell({}, { updates: 'board' });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('p1', 'squad'));
+    expect(a.connects()[0].frame.payload.updates).toBe('board');
+    shell.destroy();
+    const plain = createShell({});
+    const b = fakeFrame();
+    plain.registerPane(b.el, reg('p2', 'squad'));
+    expect('updates' in b.connects()[0].frame.payload).toBe(false);
+    plain.destroy();
+  });
+
   // An app that has not said whether anyone is signed in cannot ask to be
   // signed in, and one that says someone is, is told so: neither reaches the
   // board, so neither can send the person to sign in.

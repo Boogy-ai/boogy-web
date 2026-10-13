@@ -41,6 +41,8 @@ export { hexToHsv, hsvToHex, hexToOklch, oklchToHex, cssColorToHex } from './com
 export type { Hsv, Oklch } from './components/color-math';
 export { tabs, tab, tabKey, tabList, tabPanel, tabId, tabRowMore, tabRowWheel } from './components/tabs';
 export type { TabsAttrs, TabAttrs, TabsOptions, TabListAttrs, TabPanelAttrs } from './components/tabs';
+export { tabPager, tabPage, pagerPosition, connectTabPager } from './components/tab-pager';
+export type { TabPagerAttrs, TabPageAttrs, TabPagerOptions, TabPagerController } from './components/tab-pager';
 export { COMPONENTS_CSS } from './components/components-css';
 export { drawerLayout, drawerItem, drawerMode, monogram, DRAWER_ITEM_VARIANTS } from './components/drawer';
 export type { DrawerBreakpoint, DrawerSide, DrawerLayoutOptions, DrawerLayoutAttrs, DrawerItemVariant, DrawerItemAttrs } from './components/drawer';
@@ -68,6 +70,24 @@ export type {
   InstallResult,
   InstallMessage,
 } from './consent/install';
+export {
+  mountUpgradeConsent,
+  bootUpgradeConsent,
+  UPGRADE_DATA_ID,
+  UPGRADE_ROOT_ID,
+} from './consent/upgrade';
+export type {
+  UpgradeData,
+  UpgradeDeps,
+  UpgradeItem,
+  UpgradeMessage,
+  UpgradeRefusal,
+  UpgradeRequest,
+  UpgradeResult as UpgradeConsentResult,
+} from './consent/upgrade';
+export type { UpgradeOptions, UpgradeResult } from './internal/upgrade-flow';
+export { checkForUpdate, installUpdate } from './update';
+export type { Update, UpdateItem } from './update';
 export type { ModuleRef, InstallModuleOptions, Installed } from './internal/install-flow';
 export { sheet, field, section } from './components/sheet';
 export { emptyState } from './components/empty-state';
@@ -104,7 +124,7 @@ export { createShell, MAX_TITLE_LENGTH, PANE_SANDBOX, TRIP_COOLDOWN_MS } from '.
 export { isServiceLabel } from './internal/service-label';
 export type { Shell, ShellEvents, ShellOptions, PaneRegistration } from './shell';
 export { PANE_PROTOCOL } from './internal/pane-protocol';
-export type { PaneHost, PaneScheme, PaneLastSignIn, PaneSignInResult } from './internal/pane-protocol';
+export type { PaneHost, PaneScheme, PaneLastSignIn, PaneSignInResult, PaneUpgradeResult } from './internal/pane-protocol';
 export { openStream, parseEnvelope, REMINT_AT } from './stream';
 export type { StreamTicket, StreamEnvelope, StreamStatus, StreamSocket, StreamConnect, StreamOptions } from './stream';
 export { runRounds, flushRounds, setFrameScheduler, observeSize, resolveLength, measurePadding, measureContentBox } from './components/measure';

@@ -76,6 +76,14 @@ describe('DrawerLayout and friends', () => {
     expect(root.querySelector('[data-slot="chevron"]')).toBeNull();
   });
 
+  it("the toggle's button takes its size: sm among a dense bar's buttons, md by default", () => {
+    const root = document.createElement('div');
+    act(() => render(<DrawerLayout><Drawer label="x" /><DrawerToggle size="sm" /></DrawerLayout>, root));
+    expect(root.querySelector('[data-role="drawer-toggle"]')!.getAttribute('data-size')).toBe('sm');
+    const { q } = setup({ mode: 'docked' });
+    expect(q('[data-role="drawer-toggle"]').getAttribute('data-size')).toBe('md');
+  });
+
   it('animate={false} reaches the layout element', () => {
     const root = document.createElement('div');
     act(() => render(<DrawerLayout animate={false}><Drawer label="x" /></DrawerLayout>, root));

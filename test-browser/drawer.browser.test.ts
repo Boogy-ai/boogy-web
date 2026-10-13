@@ -135,3 +135,41 @@ describe('the title entry', () => {
     expect((await rect('#tmark')).w).toBe(0);
   });
 });
+
+describe('the drawer edge', () => {
+  const edges = () => page.$eval('#D', (el) => [getComputedStyle(el).borderLeftWidth, getComputedStyle(el).borderRightWidth]);
+
+  it("off-canvas, it draws the drawer edge on its inline end, as docked; on the end side, on its start", async () => {
+    await layout(600, { 'data-open': 'true' });
+    expect(await edges()).toEqual(['0px', '1px']);
+    await layout(600, { 'data-open': 'true', 'data-side': 'end' });
+    expect(await edges()).toEqual(['1px', '0px']);
+  });
+
+  it('docked, the docked edge still applies, and a resizable expanded drawer leaves its edge to the handle', async () => {
+    await layout(1000, { 'data-expanded': 'false', 'data-resizable': 'true' });
+    expect(await edges()).toEqual(['0px', '1px']);
+    await layout(1000, { 'data-expanded': 'false', 'data-side': 'end' });
+    expect(await edges()).toEqual(['1px', '0px']);
+    await layout(1000, { 'data-expanded': 'true', 'data-resizable': 'true' });
+    expect(await edges()).toEqual(['0px', '0px']);
+  });
+});
+
+describe('the layout never scrolls', () => {
+  it('focusing a control that stands past its bottom edge leaves it where it is', async () => {
+    await page.evaluate(() => {
+      document.body.innerHTML = `
+        <div id="L" data-boogy="drawer-layout" data-collapse-at="md" style="width:1000px;height:300px">
+          <nav id="D" data-boogy="drawer"></nav>
+          <main data-boogy="drawer-main"><div style="height:600px"></div><button id="far">Far</button></main>
+        </div>`;
+    });
+    // It does stand past the edge: something a scroller would bring into view.
+    const [far, edge] = await page.evaluate(() => [document.getElementById('far')!.getBoundingClientRect().top, document.getElementById('L')!.getBoundingClientRect().bottom]);
+    expect(far).toBeGreaterThan(edge);
+    await page.focus('#far');
+    expect(await page.$eval('#far', (el) => el === document.activeElement)).toBe(true);
+    expect(await page.$eval('#L', (el) => [el.scrollTop, el.scrollLeft])).toEqual([0, 0]);
+  });
+});

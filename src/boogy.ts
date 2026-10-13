@@ -1,6 +1,7 @@
 import type { BoogyOptions, CurrentUser, Grant } from './types';
 import { BoogyError } from './errors';
 import { parseApp, appOrigin, appBaseUrl, authOrigin } from './internal/urls';
+import { runUpgradeFlow, type UpgradeOptions, type UpgradeResult } from './internal/upgrade-flow';
 import { runInstallFlow, takeInstalled, type InstallModuleOptions, type Installed } from './internal/install-flow';
 import { loadPlatformConfig, type PlatformConfig } from './internal/platform-config';
 import { requestSignInFromFramer } from './pane';
@@ -262,6 +263,18 @@ export class Boogy {
    */
   install(options: InstallModuleOptions): Promise<Installed> {
     return runInstallFlow(options, this.authMode);
+  }
+
+  /**
+   * Ask the person to move an app they run to a newer version.
+   *
+   * Opens the platform's update page in a popup, where the person sees what
+   * changes and confirms. Resolves `{ outcome: 'upgraded', version }` once
+   * they do, or `{ outcome: 'cancelled' }` if they decline. Rejects
+   * `popup_blocked`, or `upgrade_aborted` if they close the window.
+   */
+  upgrade(options: UpgradeOptions): Promise<UpgradeResult> {
+    return runUpgradeFlow(options);
   }
 
   /**

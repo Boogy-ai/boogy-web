@@ -2,7 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'preact';
 import { useState } from 'preact/hooks';
 import { act } from 'preact/test-utils';
-import { TabList, TabPanel, Tabs } from './index';
+import { TabList, TabPager, TabPanel, Tabs } from './index';
+import { tabPage } from '@boogy/web';
 
 afterEach(() => { document.body.replaceChildren(); });
 
@@ -100,4 +101,136 @@ describe('<Tabs>', () => {
     expect(r.textContent).toContain('panel for three');
   });
 
+});
+
+describe('<TabList> edge', () => {
+  it('edge="top" reaches the row, so its lines run along its top', () => {
+    const r = mount(<TabList label="Pick" items={ITEMS} selected="one" onSelect={() => {}} edge="top" panel="pick" />);
+    expect(r.querySelector('[data-boogy="tab-list"]')!.getAttribute('data-edge')).toBe('top');
+  });
+});
+
+// happy-dom lays nothing out: each tab's place and width, the row's and the
+// pager's are set here as a layout engine would report them.
+const place = (el: Element, left: number, width: number) => {
+  Object.defineProperty(el, 'offsetLeft', { configurable: true, get: () => left });
+  Object.defineProperty(el, 'offsetWidth', { configurable: true, get: () => width });
+};
+const size = (el: Element, client: number, scroll: number) => {
+  Object.defineProperty(el, 'clientWidth', { configurable: true, get: () => client });
+  Object.defineProperty(el, 'scrollWidth', { configurable: true, get: () => scroll });
+};
+
+describe('<TabList> over a pager', () => {
+  type Item = { id: string; label: string; action?: preact.ComponentChildren };
+  function Paged({ items = ITEMS as Item[] }: { items?: Item[] }) {
+    return (
+      <>
+        <TabList label="Pick" items={items} selected="one" onSelect={() => {}} panel="pages" />
+        <TabPager id="pages" index={0} onIndexChange={() => {}}>
+          {items.map((t, i) => <div key={t.id} {...tabPage(i, { current: i === 0 })}>{t.label}</div>)}
+        </TabPager>
+      </>
+    );
+  }
+  const indicator = (r: HTMLElement) => r.querySelector<HTMLElement>('[data-boogy="tab-list"] > [data-slot="indicator"]')!;
+  /** The pager scrolled to `left`, 300px a page. */
+  const scrollPager = (left: number) => {
+    const pager = document.getElementById('pages')!;
+    size(pager, 300, 900);
+    pager.scrollLeft = left;
+    act(() => { pager.dispatchEvent(new Event('scroll')); });
+  };
+
+  it('is marked paged, and draws one line at the blended place and width of the two tabs the pager lies between', () => {
+    const r = mount(<Paged />);
+    expect(r.querySelector('[data-boogy="tab-list"]')!.hasAttribute('data-paged')).toBe(true);
+    const [one, two, three] = tabsOf(r);
+    place(one, 0, 60);
+    place(two, 60, 100);
+    place(three, 160, 80);
+    scrollPager(150); // halfway from the first page to the second
+    expect(indicator(r).style.transform).toBe('translateX(30px)');
+    expect(indicator(r).style.width).toBe('80px');
+    scrollPager(450); // halfway from the second to the third
+    expect(indicator(r).style.transform).toBe('translateX(110px)');
+    expect(indicator(r).style.width).toBe('90px');
+    // Written to the element: the selection is untouched.
+    expect(tabsOf(r)[0].getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('scrolls the row to keep that line in its middle', () => {
+    const r = mount(<Paged />);
+    const row = r.querySelector<HTMLElement>('[data-boogy="tab-list"]')!;
+    size(row, 200, 400);
+    const [one, two, three] = tabsOf(r);
+    place(one, 0, 60);
+    place(two, 60, 100);
+    place(three, 160, 80);
+    scrollPager(450); // the line from 110 to 200: its middle, 155, to the row's
+    expect(row.scrollLeft).toBe(55);
+  });
+
+  it("a tab's action is one piece with its tab: the line spans them both", () => {
+    const items = [{ id: 'one', label: 'One' }, { id: 'two', label: 'Two', action: <button id="act">⋮</button> }, { id: 'three', label: 'Three' }];
+    const r = mount(<Paged items={items} />);
+    const [one, two, three] = tabsOf(r);
+    place(one, 0, 60);
+    place(two, 60, 100);
+    place(r.querySelector('[data-slot="tab-action"]')!, 160, 30);
+    place(three, 190, 80);
+    scrollPager(300);
+    expect(indicator(r).style.transform).toBe('translateX(60px)');
+    expect(indicator(r).style.width).toBe('130px');
+  });
+
+  it('a row whose panel is not a pager is not paged', () => {
+    const r = mount(
+      <>
+        <TabList label="Pick" items={ITEMS} selected="one" onSelect={() => {}} panel="plain" />
+        <TabPanel id="plain" selected="one"><p>x</p></TabPanel>
+      </>,
+    );
+    expect(r.querySelector('[data-boogy="tab-list"]')!.hasAttribute('data-paged')).toBe(false);
+    const none = mount(<TabList label="Pick" items={ITEMS} selected="one" onSelect={() => {}} panel="nowhere" />);
+    expect(none.querySelector('[data-boogy="tab-list"]')!.hasAttribute('data-paged')).toBe(false);
+  });
+});
+
+describe("<TabList> a tab's action", () => {
+  const items = [
+    { id: 'one', label: 'One', action: <button id="a1" tabIndex={-1}>⋮</button> },
+    { id: 'two', label: 'Two', action: <button id="a2" tabIndex={-1}>⋮</button> },
+    { id: 'three', label: 'Three' },
+  ];
+
+  it('comes right after its tab, marked selected with it', () => {
+    const r = mount(<TabList label="Pick" items={items} selected="one" onSelect={() => {}} panel="pick" />);
+    const [one, two, three] = tabsOf(r);
+    const a1 = one.nextElementSibling as HTMLElement;
+    const a2 = two.nextElementSibling as HTMLElement;
+    expect(a1.dataset.slot).toBe('tab-action');
+    expect(a1.querySelector('#a1')).not.toBeNull();
+    expect(a1.hasAttribute('data-selected')).toBe(true);
+    expect(a2.querySelector('#a2')).not.toBeNull();
+    expect(a2.hasAttribute('data-selected')).toBe(false);
+    expect(three.nextElementSibling?.getAttribute('data-slot')).not.toBe('tab-action');
+  });
+
+  it('keeps its keys: Left and Right pressed on it do not change the tab, as they do on a tab', () => {
+    const onSelect = vi.fn();
+    const r = mount(<TabList label="Pick" items={items} selected="one" onSelect={onSelect} panel="pick" />);
+    key(r.querySelector('#a1')!, 'ArrowRight');
+    key(r.querySelector('#a1')!, 'ArrowLeft');
+    expect(onSelect).not.toHaveBeenCalled();
+    key(tabsOf(r)[0], 'ArrowRight');
+    expect(onSelect).toHaveBeenCalledWith('two');
+  });
+
+  it('is pressed without choosing its tab', () => {
+    const onSelect = vi.fn();
+    const r = mount(<TabList label="Pick" items={items} selected="one" onSelect={onSelect} panel="pick" />);
+    act(() => r.querySelector<HTMLElement>('#a2')!.click());
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

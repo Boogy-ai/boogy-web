@@ -111,6 +111,23 @@ describe('parseFrame', () => {
     expect(r({})).toBeNull();
   });
 
+  // An app asks its board to show its update; the board says what it did.
+  it('accepts upgrade with an empty payload and upgrade-result with a known outcome', () => {
+    const f = (type: string, payload: unknown) => parseFrame({ boogy: PANE_PROTOCOL, type, nonce: 'n', payload });
+    expect(f('upgrade', {})).not.toBeNull();
+    expect(f('upgrade', { to: '9.9.9' })).toBeNull();
+    for (const outcome of ['opened', 'none', 'busy']) expect(f('upgrade-result', { outcome }), outcome).not.toBeNull();
+    for (const bad of ['unavailable', 'leaving', 1, undefined]) expect(f('upgrade-result', { outcome: bad }), String(bad)).toBeNull();
+  });
+
+  it('connect keeps updates only when it is "board"', () => {
+    const u = (updates: unknown) =>
+      (parseFrame({ boogy: PANE_PROTOCOL, type: 'connect', nonce: 'n', payload: { shellOrigin: 'https://b.example', updates } })
+        ?.payload as { updates?: unknown } | undefined)?.updates;
+    expect(u('board')).toBe('board');
+    for (const other of ['app', true, 1, null]) expect(u(other), String(other)).toBeUndefined();
+  });
+
   // A history that is not one is dropped; the connect is not refused for it.
   it('connect may carry a history to hand back, bounded and consistent', () => {
     const c = { ...good, type: 'connect', payload: { shellOrigin: 'https://b.example', host: 'board', history: { entries: ['/a', '/a/1'], index: 1 } } };
