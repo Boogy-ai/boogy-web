@@ -14,7 +14,7 @@ import {
 import { exactOrigin, sendFrame, type ExactOrigin } from './internal/pane-messaging';
 import { loadPlatformConfig } from './internal/platform-config';
 import { setHostZoom, clearHostZoom } from './layout/zoom';
-import { setBoardBackground, clearBoardBackground } from './layout/board-background';
+import { setBoardBackground, clearBoardBackground, setBoardGround } from './layout/board-background';
 
 export interface PaneHandle {
   /** Whether this module has a signed-in person. Nothing more: no id, no name. */
@@ -171,7 +171,7 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
 }
 
 function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHandle {
-  let shell: { origin: ExactOrigin; nonce: string; host: PaneHost | null; lastSignIn: PaneLastSignIn | null; updates: boolean } | null = null;
+  let shell: { origin: ExactOrigin; nonce: string; host: PaneHost | null; lastSignIn: PaneLastSignIn | null; updates: boolean; seeThrough?: boolean } | null = null;
   // The request waiting for its answer, one per kind at a time. `ask` sends
   // it to the shell connected now, with a fresh wait for the answer.
   interface Pending<R> { promise: Promise<R>; settle(r: R): void; ask(): void }
@@ -240,6 +240,11 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
           setHostZoom(frame.payload.factor);
           return;
         }
+        if (frame.type === 'ground') {
+          // Only a page drawing the board's background takes its colour.
+          if (shell.seeThrough) setBoardGround(frame.payload.colour);
+          return;
+        }
         if (frame.type === 'sign-in-result') {
           pending?.settle(fromResultPayload(frame.payload));
           return;
@@ -286,6 +291,7 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     // until then, so the first frame anyone sees is already see-through. A
     // board that names no scheme (an older one) gets the app as it is.
     const seeThrough = host === 'board' && scheme !== undefined && config.boardBackground === 'board';
+    shell.seeThrough = seeThrough;
     if (seeThrough) setBoardBackground(scheme);
     else clearBoardBackground();
     sendFrame(window.parent, shell.origin, {

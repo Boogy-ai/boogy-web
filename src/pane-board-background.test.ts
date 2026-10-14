@@ -86,3 +86,55 @@ describe('an app that shows the board background', () => {
     pane.disconnect();
   });
 });
+
+describe("the board's colour", () => {
+  const ground = (colour: unknown, nonce = 'n1') =>
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: SHELL, source: window.parent,
+      data: { boogy: PANE_PROTOCOL, type: 'ground', nonce, payload: { colour } },
+    }));
+  // The palette is written into the SDK's own layer, never inline, so an app's
+  // own (unlayered) tokens still outrank it.
+  const sheet = () => document.getElementById('boogy-board-palette')?.textContent ?? '';
+  const prop = (name: string) => new RegExp(`${name}:\\s*([^;]+);`).exec(sheet())?.[1]?.trim() ?? '';
+
+  it('a see-through app takes its palette from the colour, follows it live, and lets it go with the background', async () => {
+    const post = spyPost();
+    const pane = connectPane({ service: 'polls' });
+    connect({ host: 'board', scheme: 'dark' });
+    await vi.waitFor(() => expect(readyOf(post)).toBeTruthy());
+    ground('#1e3833');
+    expect(prop('--board-ground')).toBe('#1e3833');
+    expect(prop('--ground-solid')).toBe('#1e3833');
+    expect(prop('--accent')).toMatch(/^#[0-9a-f]{6}$/);
+    expect(prop('--hue')).not.toBe('');
+    expect(sheet()).toMatch(/^@layer boogy\.foundation \{\s*:root\[data-board-background\] \{/);
+    expect(root.style.getPropertyValue('--accent')).toBe('');
+    ground('#3e2a2e');
+    expect(prop('--board-ground')).toBe('#3e2a2e');
+    pane.disconnect();
+    expect(prop('--board-ground')).toBe('');
+    expect(prop('--accent')).toBe('');
+  });
+
+  it('an app that draws its own background ignores it', async () => {
+    const post = spyPost();
+    const pane = connectPane({ service: 'polls' });
+    connect({ host: 'board' });
+    await vi.waitFor(() => expect(readyOf(post)).toBeTruthy());
+    ground('#1e3833');
+    expect(prop('--board-ground')).toBe('');
+    pane.disconnect();
+  });
+
+  it('a colour that is not a #rrggbb is dropped', async () => {
+    const post = spyPost();
+    const pane = connectPane({ service: 'polls' });
+    connect({ host: 'board', scheme: 'dark' });
+    await vi.waitFor(() => expect(readyOf(post)).toBeTruthy());
+    ground('url(javascript:alert(1))');
+    ground('#1e383');
+    expect(prop('--board-ground')).toBe('');
+    pane.disconnect();
+  });
+});

@@ -112,24 +112,38 @@ function oklchToLinear(l: number, c: number, h: number): [number, number, number
 const GAMUT_SLACK = 1e-6;
 const inGamut = (rgb: number[]) => rgb.every((v) => v >= -GAMUT_SLACK && v <= 1 + GAMUT_SLACK);
 
+/** The most chroma, up to `upTo`, that sRGB shows at lightness `l` and hue
+ *  `h`: `upTo` itself when that is in gamut, else bisected (a grey always is). */
+function largestChroma(l: number, upTo: number, h: number): number {
+  const top = Math.max(0, upTo);
+  if (inGamut(oklchToLinear(l, top, h))) return top;
+  let lo = 0;
+  let hi = top;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (inGamut(oklchToLinear(l, mid, h))) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** The most chroma a screen (sRGB) can show at OKLCH lightness `l` and hue
+ *  `h`. Lightness is clamped to 0–1; no number counts as 0. */
+export function maxChroma(l: number, h: number): number {
+  const light = clamp(finite(l), 0, 1);
+  // Black and white have no chroma (the gamut's slack would admit a trace).
+  if (light === 0 || light === 1) return 0;
+  // No sRGB colour reaches 0.4 chroma: a ceiling every hue's maximum is under.
+  return largestChroma(light, 0.4, finite(h));
+}
+
 /** An OKLCH colour as a `#rrggbb`. Lightness is clamped to 0–1; a colour
  *  outside sRGB keeps its lightness and hue and loses chroma until a screen
  *  can show it. A component that is no number (NaN, an infinity) counts as 0. */
 export function oklchToHex({ l, c, h: hue }: Oklch): string {
   const light = clamp(finite(l), 0, 1);
   const h = finite(hue);
-  let chroma = Math.max(0, finite(c));
-  if (!inGamut(oklchToLinear(light, chroma, h))) {
-    // Bisect: `lo` is in gamut (a grey always is), `hi` is not.
-    let lo = 0;
-    let hi = chroma;
-    for (let i = 0; i < 24; i++) {
-      const mid = (lo + hi) / 2;
-      if (inGamut(oklchToLinear(light, mid, h))) lo = mid;
-      else hi = mid;
-    }
-    chroma = lo;
-  }
+  const chroma = Math.min(Math.max(0, finite(c)), largestChroma(light, finite(c), h));
   const [r, g, b] = oklchToLinear(light, chroma, h).map(fromLinear);
   return toHex(r, g, b);
 }

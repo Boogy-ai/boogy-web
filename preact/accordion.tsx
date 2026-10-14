@@ -1,5 +1,5 @@
-import type { ComponentChildren, JSX } from 'preact';
-import { useRef, useState } from 'preact/hooks';
+import { createContext, type ComponentChildren, type JSX } from 'preact';
+import { useContext, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { accordion } from '@boogy/web';
 import { Glyph } from './glyphs';
 
@@ -9,6 +9,9 @@ import { Glyph } from './glyphs';
 export type AccordionItem = {
   id: string;
   label: ComponentChildren;
+  /** A glyph drawn before the label (`<Glyph shape="pencil" />`), muted, at
+   *  the icon size; hidden from assistive tech, as the label names the item. */
+  icon?: ComponentChildren;
   meta?: ComponentChildren;
   content: ComponentChildren;
 };
@@ -25,16 +28,48 @@ export type AccordionProps = {
   onOpenChange?: (open: string[]) => void;
   /** Only one item open at a time: opening one closes the others. */
   single?: boolean;
+  /** How an item opens the Accordion nested in it, each time it is opened:
+   *  `"all"` its items open, `"first"` only its first, `"none"` all closed.
+   *  Unset, the nested one keeps its own `defaultOpen`. A nested Accordion
+   *  given `open` is the app's, and is left alone. */
+  nestedOpen?: NestedOpen;
 } & Omit<JSX.HTMLAttributes<HTMLDivElement>, 'label' | 'open'>;
+
+export type NestedOpen = 'all' | 'first' | 'none';
+
+/** What an item tells the Accordion nested in it: the mode, and how many
+ *  times the item has opened, so each opening applies it afresh. Every
+ *  Accordion provides its own to its items (null without `nestedOpen`), so it
+ *  reaches one level down, never two. */
+const Nested = createContext<{ mode: NestedOpen; opened: number } | null>(null);
+
+const openFor = (mode: NestedOpen, ids: readonly string[]): string[] =>
+  mode === 'all' ? [...ids] : mode === 'first' ? ids.slice(0, 1) : [];
 
 /** The headers of THIS level: a nested Accordion's are its own. */
 const triggersOf = (root: HTMLElement) =>
   Array.from(root.querySelectorAll<HTMLElement>(':scope > details > summary[data-slot="trigger"]'));
 
 /** Items that open and close in place. See `accordion()`. */
-export function Accordion({ label, items, open, defaultOpen = [], onOpenChange, single = false, ...rest }: AccordionProps) {
+export function Accordion({ label, items, open, defaultOpen = [], onOpenChange, single = false, nestedOpen, ...rest }: AccordionProps) {
   const [kept, setKept] = useState<readonly string[]>(defaultOpen);
   const shown = open ?? kept;
+  // THE TIMES EACH ITEM HAS OPENED, counted as it appears among the open ones
+  // (by a press, or by the app's `open`), for the Accordion nested in it.
+  const opened = useRef(new Map<string, number>());
+  const wasShown = useRef<readonly string[]>([]);
+  for (const id of shown) if (!wasShown.current.includes(id)) opened.current.set(id, (opened.current.get(id) ?? 0) + 1);
+  wasShown.current = shown;
+  // As a nested Accordion: each opening of the item holding it applies its
+  // mode, before the browser paints the item open.
+  const nested = useContext(Nested);
+  const ids = items.map((it) => it.id).join('\n');
+  useLayoutEffect(() => {
+    if (!nested || open !== undefined) return;
+    const next = openFor(nested.mode, items.map((it) => it.id));
+    latest.current = next;
+    setKept(next);
+  }, [nested?.opened, nested?.mode, ids]);
   // THE LATEST, not this render's: closing the others (single) fires their own
   // toggle events, whose handlers would otherwise read the list from before.
   const latest = useRef(shown);
@@ -77,11 +112,16 @@ export function Accordion({ label, items, open, defaultOpen = [], onOpenChange, 
           onToggle={(e) => change(it.id, (e.currentTarget as HTMLDetailsElement).open)}
         >
           <summary data-slot="trigger">
+            {it.icon !== undefined && <span data-slot="icon" aria-hidden="true">{it.icon}</span>}
             <span data-slot="label">{it.label}</span>
             {it.meta !== undefined && <span data-slot="meta">{it.meta}</span>}
             <Glyph shape="forward" size="sm" data-slot="chevron" />
           </summary>
-          <div data-slot="content">{it.content}</div>
+          <div data-slot="content">
+            <Nested.Provider value={nestedOpen ? { mode: nestedOpen, opened: opened.current.get(it.id) ?? 0 } : null}>
+              {it.content}
+            </Nested.Provider>
+          </div>
         </details>
       ))}
     </div>

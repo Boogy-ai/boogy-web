@@ -830,6 +830,10 @@ const FIELD_CSS = `
   [data-boogy="field"][data-size="lg"] > [data-slot="label"] { font-size: var(--fs-body); }
   /* One clear button: the field's own, never the browser's beside it. */
   [data-boogy="field"] [data-slot="control"]::-webkit-search-cancel-button { display: none; }
+  /* The placeholder in the theme's quiet text, so it follows the theme's tint
+     (and a board's hue, where a host re-derives --text-3) rather than staying
+     the browser's own grey. Opaque: Firefox dims it with opacity otherwise. */
+  [data-boogy="field"] [data-slot="control"]::placeholder { color: var(--text-3); opacity: 1; }
   /* A fixed prefix inside the control's frame (a site address before an
      editable path, say): the group carries the edge, the input inside it
      does not. */
@@ -1552,7 +1556,9 @@ const PICKER = '[data-boogy="color-picker"]';
 const SAMPLES = '[data-boogy="sample-grid"]';
 // The size controls' slider shares the picker's track and thumb.
 const ZOOM_SLIDER = '[data-boogy="zoom-controls"] > [data-slot="slider"]';
-const SLIDERS = `:is(${PICKER} :is([data-slot="hue"], [data-slot="opacity"] > input), ${ZOOM_SLIDER})`;
+// A Slider (slider.ts), the picker's transparency slider among them.
+const SLIDER = '[data-boogy="slider"]';
+const SLIDERS = `:is(${PICKER} [data-slot="hue"], ${SLIDER} > [data-slot="input"], ${ZOOM_SLIDER})`;
 const LENS = `
     box-sizing: border-box;
     inline-size: var(--slider-track);
@@ -1569,8 +1575,10 @@ const pickerTrack = (pseudo: string) => `
     box-shadow: inset 0 0 0 var(--hairline) var(--edge);
   }
   ${ZOOM_SLIDER}${pseudo} { background: var(--fill-selected); }
+  /* --slider-paint: the track's own paint, set on the Slider (a hue strip's rainbow). */
+  ${SLIDER} > [data-slot="input"]${pseudo} { background: var(--slider-paint, var(--fill-selected)); }
   ${PICKER} [data-slot="hue"]${pseudo} { background: var(--color-picker-rainbow); }
-  ${PICKER} [data-slot="opacity"] > input${pseudo} {
+  ${PICKER} [data-slot="opacity"] > [data-slot="input"]${pseudo} {
     background: linear-gradient(to right, var(--color-picker-current), transparent), var(--checker) 0 0 / var(--space-2) var(--space-2);
   }`;
 // A slider's thumb: a plain filled circle in the ink, a hairline of the
@@ -1581,11 +1589,14 @@ const DOT = `
     block-size: var(--slider-track);
     border: 0;
     border-radius: var(--radius-full);
-    background: var(--text-1);
+    background: var(--slider-thumb, var(--text-1));
     box-shadow: 0 0 0 var(--hairline) var(--ground-solid);`;
 const pickerThumb = (pseudo: string, reset = '') => `
   ${SLIDERS}${pseudo} {${reset}${DOT}
-  }`;
+  }
+  /* A thumb in the slider's own colour (--slider-thumb) is ringed in the ink,
+     so a dark colour reads on a dark track and a light one on a light track. */
+  ${SLIDER} > [data-slot="input"][data-thumb]${pseudo} { border: var(--ring) solid var(--text-1); }`;
 const COLOR_PICKER_CSS = `
   ${PICKER} {
     --color-picker-radius: var(--radius-1);
@@ -1605,8 +1616,8 @@ const COLOR_PICKER_CSS = `
 
   /* Accordion: a column of native details, a rule between each two. A trigger
      is a large control holding the label, a trailing note pushed to the end
-     and a chevron that turns as the item opens; a nested level is a step
-     quieter and indented. */
+     and a chevron that turns as the item opens, after an optional icon; a
+     nested level is a step quieter and indented beside a guide line. */
   [data-boogy="accordion"] { display: flex; flex-direction: column; min-inline-size: 0; }
   [data-boogy="accordion"] > [data-slot="item"] + [data-slot="item"] { border-top: var(--rule); }
   [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] {
@@ -1628,6 +1639,11 @@ const COLOR_PICKER_CSS = `
     outline: var(--ring) solid var(--ring-color);
     outline-offset: calc(-1 * var(--ring));
   }
+  [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] > [data-slot="icon"] {
+    flex: none;
+    display: inline-flex;
+    color: var(--text-2);
+  }
   [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] > [data-slot="label"] { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] > [data-slot="meta"] {
     margin-inline-start: auto;
@@ -1647,7 +1663,19 @@ const COLOR_PICKER_CSS = `
     [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] > [data-slot="chevron"] { transition: none; }
   }
   [data-boogy="accordion"] > [data-slot="item"] > [data-slot="content"] { padding-block-end: var(--space-2); }
-  [data-boogy="accordion"] [data-boogy="accordion"] { padding-inline-start: var(--space-3); }
+  /* A nested level hangs from a guide line down its side, as a file tree
+     does: from under the parent's label (the trigger's own inset), or under
+     the middle of its icon when it has one, in the strong edge so it reads
+     as a guide on a dark ground. Its items stand a gap clear of the line, so
+     a row's hover fill and the rules between rows never touch it. */
+  [data-boogy="accordion"] [data-boogy="accordion"] {
+    margin-inline-start: var(--space-3);
+    border-inline-start: 1px solid var(--edge-strong);
+    padding-inline-start: var(--space-2);
+  }
+  [data-boogy="accordion"] > [data-slot="item"]:has(> [data-slot="trigger"] > [data-slot="icon"]) > [data-slot="content"] > [data-boogy="accordion"] {
+    margin-inline-start: calc(var(--space-3) + var(--icon-md) / 2);
+  }
   [data-boogy="accordion"] [data-boogy="accordion"] > [data-slot="item"] > [data-slot="trigger"] {
     min-block-size: var(--control-md);
     font-weight: 500;
@@ -1668,6 +1696,8 @@ const COLOR_PICKER_CSS = `
     overscroll-behavior: contain;
     padding: var(--ring);
   }
+  /* rows="all": as tall as its tiles; what holds it scrolls. */
+  ${SAMPLES}[data-rows="all"] { max-block-size: none; overflow-y: visible; }
   [data-boogy="popover"][data-variant="flat"] ${SAMPLES} { --sample-grid-radius: 0; }
   ${SAMPLES} > [data-slot="sample"] {
     box-sizing: border-box;
@@ -1777,18 +1807,18 @@ const COLOR_PICKER_CSS = `
     color: var(--danger);
   }
 
-  ${PICKER} > [data-slot="opacity"] {
+  ${SLIDER} {
     display: grid;
     gap: var(--space-2);
   }
-  ${PICKER} > [data-slot="opacity"] > label {
+  ${SLIDER} > label {
     display: flex;
     justify-content: space-between;
     gap: var(--space-2);
     color: var(--text-2);
     font-size: var(--fs-detail);
   }
-  ${PICKER} [data-slot="opacity-value"] {
+  ${SLIDER} > label > [data-slot="value"] {
     color: var(--text-1);
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
@@ -2416,7 +2446,85 @@ const TAB_PAGER_CSS = `
   }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, BUTTON_GROUP_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, COLOR_PICKER_CSS, TABS_CSS, TAB_PAGER_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
+// SidePanel (see side-panel.ts): in the top layer, as a popover is. The element
+// is the window behind the panel, clear unless it has a scrim; the panel is
+// docked to the inline-end edge and slides in from it, and fills the window
+// when `full`. Its Sheet fills the panel rather than the window, on the
+// opaque solid ground so the page does not show through it.
+const SIDE_PANEL_CSS = `
+  [data-boogy="side-panel"] {
+    --side-panel-width: calc(var(--u) * 25);
+    box-sizing: border-box;
+    position: fixed;
+    inset: 0;
+    inline-size: auto;
+    block-size: auto;
+    max-inline-size: none;
+    max-block-size: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    background: transparent;
+  }
+  [data-boogy="side-panel"]::backdrop { background: transparent; }
+  [data-boogy="side-panel"][data-scrim] { background: color-mix(in oklch, black 45%, transparent); }
+  [data-boogy="side-panel"] > [data-slot="panel"] {
+    box-sizing: border-box;
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: min(100%, var(--side-panel-width));
+    box-shadow: var(--overlay-shadow);
+    transition: translate var(--dur-base) ease-out;
+  }
+  @starting-style {
+    [data-boogy="side-panel"] > [data-slot="panel"] { translate: 100% 0; }
+    [dir="rtl"] [data-boogy="side-panel"] > [data-slot="panel"] { translate: -100% 0; }
+  }
+  [data-boogy="side-panel"][data-full] > [data-slot="panel"] { inline-size: 100%; box-shadow: none; }
+  /* bordered: a line on the edge facing the page, in the app's colour for it
+     if it sets one; a panel filling the window faces no page. */
+  [data-boogy="side-panel"][data-bordered]:not([data-full]) > [data-slot="panel"] {
+    border-inline-start: 1px solid var(--side-panel-edge, var(--edge-strong));
+  }
+  [data-boogy="side-panel"] > [data-slot="panel"] > [data-boogy="sheet"] {
+    position: absolute;
+    inset: 0;
+    background: var(--sheet-ground, var(--ground-solid));
+  }
+  /* Its contents, once it has slid in (data-ready), fade in. */
+  [data-boogy="side-panel"][data-ready] > [data-slot="panel"] > [data-boogy="sheet"] > [data-slot="body"] {
+    animation: boogy-side-panel-reveal var(--dur-base) ease-out;
+  }
+  @keyframes boogy-side-panel-reveal { from { opacity: 0; } }
+  [data-boogy="side-panel"] > [data-slot="panel"]:focus { outline: none; }
+  @media (prefers-reduced-motion: reduce) {
+    [data-boogy="side-panel"] > [data-slot="panel"] { transition: none; }
+    [data-boogy="side-panel"][data-ready] > [data-slot="panel"] > [data-boogy="sheet"] > [data-slot="body"] { animation: none; }
+  }
+`;
+
+// Divider (see divider.ts): a hairline in the edge colour. Vertical, it
+// stands the height of the bar it divides, a small space either side of it;
+// horizontal, it runs the width of its column.
+const DIVIDER_CSS = `
+  [data-boogy="divider"] {
+    flex: none;
+    background: var(--edge);
+  }
+  [data-boogy="divider"][aria-orientation="vertical"] {
+    inline-size: 1px;
+    align-self: stretch;
+    margin-inline: var(--space-1);
+  }
+  [data-boogy="divider"][aria-orientation="horizontal"] {
+    block-size: 1px;
+    margin-block: var(--space-1);
+  }
+`;
+
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, BUTTON_GROUP_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, SIDE_PANEL_CSS, DIVIDER_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, COLOR_PICKER_CSS, TABS_CSS, TAB_PAGER_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
 
 export const COMPONENTS_CSS = `${FILL_GRID_PROPERTIES}
 @layer boogy.components {
@@ -2427,6 +2535,8 @@ ${DRAWER_CSS}
 ${POPOVER_CSS}
 ${MENU_CSS}
 ${SHEET_CSS}
+${SIDE_PANEL_CSS}
+${DIVIDER_CSS}
 ${EMPTY_STATE_CSS}
 ${FIELD_CSS}
 ${AVATAR_CSS}

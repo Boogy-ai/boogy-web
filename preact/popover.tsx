@@ -13,7 +13,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preac
 import { Button } from './button';
 import { BackButton } from './back-button';
 import { Glyph } from './glyphs';
-import { TAB_STOPS } from './tab-stops';
+import { TAB_STOPS, trapTab } from './tab-stops';
+import { useBelow } from './use-below';
+import { useBackCloses } from './use-back-closes';
 import { DRAWER_BREAKPOINTS, place, popover, type DrawerBreakpoint, type PopoverMode, type PopoverPlacement, type PopoverVariant } from '@boogy/web';
 
 
@@ -72,34 +74,7 @@ export type PopoverProps = {
  *  in the top layer, outside every container, so the viewport is the one box
  *  it can be measured against — hence a media query here, not a container one. */
 function useMode(below: DrawerBreakpoint | false): PopoverMode {
-  const query = below ? `(width < ${DRAWER_BREAKPOINTS[below]})` : null;
-  const read = () => (query && typeof window.matchMedia === 'function' && window.matchMedia(query).matches ? 'page' : 'anchored');
-  const [mode, setMode] = useState<PopoverMode>(read);
-  useEffect(() => {
-    if (!query || typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia(query);
-    const on = () => setMode(mq.matches ? 'page' : 'anchored');
-    on();
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, [query]);
-  return mode;
-}
-
-/** The step back a closed page asked for, until the browser has taken it: a
- *  page that opens meanwhile adds its own entry only after it, or that step
- *  would land on the new entry and close the new page. */
-let stepping: Promise<void> | null = null;
-function stepBack() {
-  const step = new Promise<void>((resolve) => {
-    const done = () => { window.removeEventListener('popstate', done); clearTimeout(timer); resolve(); };
-    // No history to step through fires no popstate.
-    const timer = window.setTimeout(done, 300);
-    window.addEventListener('popstate', done);
-  });
-  stepping = step;
-  void step.then(() => { if (stepping === step) stepping = null; });
-  history.back();
+  return useBelow(below) ? 'page' : 'anchored';
 }
 
 export function Popover({
@@ -129,6 +104,8 @@ export function Popover({
   // The latest close, for listeners installed once per opening.
   const closeRef = useRef(close);
   closeRef.current = close;
+  // A page: Back closes it; any other close steps back.
+  useBackCloses(isOpen && mode === 'page', () => closeRef.current());
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -217,12 +194,7 @@ export function Popover({
       if (e.defaultPrevented) return;
       if (e.key !== 'Tab' || !el.contains(document.activeElement)) return;
       // Focus stays inside while it is open.
-      const items = Array.from(el.querySelectorAll<HTMLElement>(TAB_STOPS));
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      trapTab(e, el);
     };
     const onPress = (e: Event) => {
       const target = e.target as Node;
@@ -245,25 +217,6 @@ export function Popover({
     document.addEventListener('pointerdown', onPress, true);
     window.addEventListener('blur', onBlur);
 
-    // HISTORY (page only): back closes it; any other close steps back.
-    let pushed = false;
-    let live = true;
-    const onPop = () => {
-      if (!pushed || (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) return;
-      pushed = false;
-      closeRef.current();
-    };
-    if (mode === 'page') {
-      const push = () => {
-        if (!live) return;
-        history.pushState({ ...(history.state as object | null), boogyPopover: id.current }, '');
-        pushed = true;
-        window.addEventListener('popstate', onPop);
-      };
-      if (stepping) void stepping.then(push);
-      else push();
-    }
-
     return () => {
       window.removeEventListener('resize', position);
       window.removeEventListener('scroll', position, true);
@@ -272,9 +225,6 @@ export function Popover({
       document.removeEventListener('pointerdown', onPress, true);
       window.removeEventListener('blur', onBlur);
       clearTimeout(blurCheck);
-      live = false;
-      window.removeEventListener('popstate', onPop);
-      if (pushed && (history.state as { boogyPopover?: string } | null)?.boogyPopover === id.current) stepBack();
       if (el.contains(document.activeElement) || document.activeElement === document.body) trigger?.focus();
     };
   }, [isOpen, mode, centered, centerY]);

@@ -775,3 +775,73 @@ describe('createShell zoom', () => {
     shell.destroy();
   });
 });
+
+describe('createShell ground', () => {
+  const sent = (f: ReturnType<typeof fakeFrame>) => f.post.mock.calls.filter((c) => c[0].type === 'ground').map((c) => c[0]);
+  const grounds = (f: ReturnType<typeof fakeFrame>) => sent(f).map((m) => m.payload.colour as string);
+  const ready = (f: ReturnType<typeof fakeFrame>, service: string, background?: 'board') =>
+    deliver(f.win, frame('ready', f.nonce(), { service, ...(background ? { background } : {}) }));
+
+  it("tells a pane that shows the board's background its colour, once it says so in its ready", () => {
+    const shell = createShell({}, { scheme: 'dark' });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    shell.setGround('a', '#1e3833');
+    expect(grounds(a)).toEqual([]);
+    ready(a, 'notes', 'board');
+    expect(grounds(a)).toEqual(['#1e3833']);
+    shell.setGround('a', '#232f47');
+    expect(grounds(a)).toEqual(['#1e3833', '#232f47']);
+    shell.destroy();
+  });
+
+  it('never tells a pane that draws its own background', () => {
+    const shell = createShell({}, { scheme: 'dark' });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    ready(a, 'notes');
+    shell.setGround('a', '#1e3833');
+    expect(grounds(a)).toEqual([]);
+    shell.destroy();
+  });
+
+  it('a pane reloaded tells it again after its fresh ready; a colour set while it loads waits for it', () => {
+    const shell = createShell({}, { scheme: 'dark' });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    ready(a, 'notes', 'board');
+    shell.setGround('a', '#1e3833');
+    a.load();
+    shell.setGround('a', '#3e2a2e');
+    ready(a, 'notes', 'board');
+    expect(grounds(a).at(-1)).toBe('#3e2a2e');
+    expect(sent(a).at(-1)!.nonce).toBe(a.nonce());
+    shell.destroy();
+  });
+
+  it('a colour for one pane reaches only that pane; null sends nothing more', () => {
+    const shell = createShell({}, { scheme: 'dark' });
+    const a = fakeFrame();
+    const b = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    shell.registerPane(b.el, reg('b', 'squad'));
+    ready(a, 'notes', 'board');
+    ready(b, 'squad', 'board');
+    shell.setGround('a', '#1e3833');
+    shell.setGround('a', null);
+    expect(grounds(a)).toEqual(['#1e3833']);
+    expect(grounds(b)).toEqual([]);
+    shell.destroy();
+  });
+
+  it('a malformed colour is never sent', () => {
+    const shell = createShell({}, { scheme: 'dark' });
+    const a = fakeFrame();
+    shell.registerPane(a.el, reg('a', 'notes'));
+    ready(a, 'notes', 'board');
+    shell.setGround('a', 'red');
+    shell.setGround('a', '#FFF');
+    expect(grounds(a)).toEqual([]);
+    shell.destroy();
+  });
+});

@@ -28,6 +28,7 @@ export type PaneMessageType =
   | 'history'
   | 'history-state'
   | 'zoom'
+  | 'ground'
   | 'sign-in'
   | 'sign-in-result'
   | 'upgrade'
@@ -143,6 +144,15 @@ export interface ZoomPayload {
   factor: number;
 }
 
+/** Board → pane: the colour painted behind this pane, a `#rrggbb`. Sent only to
+ *  a pane that draws the board's background, and again whenever it changes. */
+export interface GroundPayload {
+  colour: string;
+}
+
+/** A colour a `ground` may carry: `#` and six lowercase hex digits, nothing else. */
+export const GROUND_COLOUR = /^#[0-9a-f]{6}$/;
+
 /** Pane → shell: the person chose to sign in. It names nothing: the shell
  *  signs in the one app it registered for this pane, never one the pane names. */
 export type SignInPayload = Record<string, never>;
@@ -173,6 +183,7 @@ export type Frame =
   | Envelope<'history', HistoryPayload>
   | Envelope<'history-state', HistoryStatePayload>
   | Envelope<'zoom', ZoomPayload>
+  | Envelope<'ground', GroundPayload>
   | Envelope<'sign-in', SignInPayload>
   | Envelope<'sign-in-result', SignInResultPayload>
   | Envelope<'upgrade', UpgradePayload>
@@ -245,6 +256,8 @@ function payloadOk(type: PaneMessageType, p: unknown): boolean {
       return historyOk(p.entries, p.index);
     case 'zoom':
       return isZoomFactor(p.factor);
+    case 'ground':
+      return typeof p.colour === 'string' && GROUND_COLOUR.test(p.colour);
     case 'sign-in':
       return Object.keys(p).length === 0;
     case 'upgrade':
@@ -270,6 +283,7 @@ const TYPES: readonly PaneMessageType[] = [
   'history',
   'history-state',
   'zoom',
+  'ground',
   'sign-in',
   'sign-in-result',
   'upgrade',

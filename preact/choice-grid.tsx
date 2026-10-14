@@ -7,9 +7,13 @@
 //   * Arrow keys move focus between tiles (`moveInGrid`); Enter or Space
 //     chooses. A key with Alt, Ctrl or Meta held is left to the page.
 //   * Choosing the tile already chosen calls nothing.
+//   * `lazy`: every tile is there from the start, named and reachable, but its
+//     paint (its `style`) waits until it comes near the view, is chosen, or
+//     takes focus. A tile still waiting is marked `data-pending`.
 import type { JSX, Ref } from 'preact';
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { moveInGrid } from '@boogy/web';
+import { useRevealed } from './use-revealed';
 
 export const modified = (e: KeyboardEvent | PointerEvent) => e.altKey || e.ctrlKey || e.metaKey;
 
@@ -24,9 +28,11 @@ type ChoiceGridProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, 'ref'> & {
   tileSlot: string;
   onChoose: (id: string) => void;
   gridRef?: Ref<HTMLDivElement>;
+  /** Paint each tile only once it comes near the view. */
+  lazy?: boolean;
 };
 
-export function ChoiceGrid({ tiles, chosen, columns, tileSlot, onChoose, gridRef, ...rest }: ChoiceGridProps) {
+export function ChoiceGrid({ tiles, chosen, columns, tileSlot, onChoose, gridRef, lazy = false, ...rest }: ChoiceGridProps) {
   const [focused, setFocused] = useState<number | null>(null);
   const stop = Math.min(focused ?? Math.max(chosen, 0), tiles.length - 1);
   const choose = (id: string) => { if (tiles[chosen]?.id !== id) onChoose(id); };
@@ -68,18 +74,39 @@ export function ChoiceGrid({ tiles, chosen, columns, tileSlot, onChoose, gridRef
       }}
     >
       {tiles.map((t, i) => (
-        <button
+        <Tile
           key={t.id}
-          type="button"
-          data-slot={tileSlot}
-          aria-label={t.label}
-          title={t.label}
-          aria-pressed={i === chosen ? 'true' : 'false'}
-          tabIndex={i === stop ? 0 : -1}
-          style={t.style}
+          tile={t}
+          slot={tileSlot}
+          pressed={i === chosen}
+          tabStop={i === stop}
+          // The chosen and the focused tile are seen: painted whatever the scroll.
+          lazy={lazy && i !== chosen && i !== focused}
           onClick={() => choose(t.id)}
         />
       ))}
     </div>
+  );
+}
+
+function Tile({ tile, slot, pressed, tabStop, lazy, onClick }: {
+  tile: ChoiceTile; slot: string; pressed: boolean; tabStop: boolean; lazy: boolean; onClick: () => void;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const revealed = useRevealed(ref, { enabled: lazy });
+  const painted = revealed || !lazy;
+  return (
+    <button
+      ref={ref}
+      type="button"
+      data-slot={slot}
+      data-pending={painted ? undefined : ''}
+      aria-label={tile.label}
+      title={tile.label}
+      aria-pressed={pressed ? 'true' : 'false'}
+      tabIndex={tabStop ? 0 : -1}
+      style={painted ? tile.style : undefined}
+      onClick={onClick}
+    />
   );
 }

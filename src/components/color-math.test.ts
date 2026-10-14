@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cssColorToHex, hexToHsv, hexToOklch, hsvToHex, oklchToHex } from './color-math';
+import { cssColorToHex, hexToHsv, hexToOklch, hsvToHex, maxChroma, oklchToHex } from './color-math';
 
 /** The largest difference, in 8-bit steps, between two `#rrggbb`s' channels. */
 const channelGap = (a: string, b: string) =>
@@ -135,5 +135,26 @@ describe('cssColorToHex', () => {
     expect(cssColorToHex('var(--x)')).toBeNull();
     expect(cssColorToHex('lab(50 20 30)')).toBeNull();
     expect(cssColorToHex('rgb(1, 2)')).toBeNull();
+  });
+});
+
+describe('maxChroma', () => {
+  const inGamut = (l: number, c: number, h: number) => {
+    const hex = oklchToHex({ l, c, h });
+    return Math.abs(hexToOklch(hex).c - c) < 0.004;
+  };
+  it('is the most chroma a screen shows at that lightness and hue: that much holds, a little more does not', () => {
+    for (let h = 0; h < 360; h += 30) {
+      const c = maxChroma(0.5, h);
+      expect(c, `h ${h}`).toBeGreaterThan(0.05);
+      expect(inGamut(0.5, c, h), `h ${h} at max`).toBe(true);
+      expect(inGamut(0.5, c + 0.02, h), `h ${h} past max`).toBe(false);
+    }
+  });
+  it('black has none, white next to none, and lightness outside 0–1 is clamped', () => {
+    expect(maxChroma(0, 120)).toBe(0);
+    expect(maxChroma(1, 120)).toBeLessThan(0.001);
+    expect(maxChroma(-1, 120)).toBe(0);
+    expect(maxChroma(Number.NaN, 120)).toBe(0);
   });
 });

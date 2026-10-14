@@ -2,10 +2,11 @@ import type { JSX } from 'preact';
 import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import {
   clampPercent, colorPicker, cssColorToHex, hexToHsv, hsvToHex, MAX_HUE, parseHexColor,
-  stepArea, stepHue, stepPercent, type ColorSwatch, type Hsv,
+  stepArea, stepHue, type ColorSwatch, type Hsv,
 } from '@boogy/web';
 import { useId } from './use-id';
 import { ChoiceGrid, modified } from './choice-grid';
+import { Slider, useCommit } from './slider';
 
 export type ColorPickerProps = {
   /** The group's name ("Fill colour"). */
@@ -90,23 +91,6 @@ function paintedColor(el: Element | undefined): string | null {
   }
 }
 
-/** A ref that calls `commit` with an input's value on its native `change`:
- *  the slider released. Not `onChange`: where preact/compat is loaded (this
- *  package's own Button loads it), `onChange` on a range input is rewritten to
- *  `input`, which fires on every step of a drag. */
-function useCommit(commit: (value: string) => void) {
-  const latest = useRef(commit);
-  latest.current = commit;
-  const on = useRef<{ el: HTMLInputElement; listener: () => void } | null>(null);
-  return useCallback((el: HTMLInputElement | null) => {
-    if (on.current) on.current.el.removeEventListener('change', on.current.listener);
-    on.current = null;
-    if (!el) return;
-    const listener = () => latest.current(el.value);
-    el.addEventListener('change', listener);
-    on.current = { el, listener };
-  }, []);
-}
 
 /** A swatch grid, a custom colour (a saturation and brightness area, a hue
  *  strip, a hex field) and an optional transparency slider, in sections. See
@@ -271,28 +255,8 @@ export function ColorPicker({
     commitColor(next);
   };
 
-  // The slider shows transparency; what is stored is opacity. While it is
-  // dragged or a key is held it shows where it is; committed, it shows
-  // `opacity` again. A move is kept with the opacity it began from, so a new
-  // opacity from outside always shows — even after a drag that ended where
-  // it began, which fires no `change` to end it.
-  const [dragged, setDragged] = useState<{ from: number; at: number } | null>(null);
+  // The slider shows transparency; what is stored is opacity.
   const opaque = clampPercent(opacity ?? 100);
-  const clear = dragged?.from === opaque ? dragged.at : 100 - opaque;
-  const clearRef = useRef(clear);
-  clearRef.current = clear;
-  const sliderPending = useRef(false);
-  const slide = (to: number) => {
-    clearRef.current = to;
-    setDragged({ from: opaque, at: to });
-  };
-  const commitClear = (transparency: number) => {
-    sliderPending.current = false;
-    setDragged(null);
-    const next = 100 - clampPercent(transparency);
-    if (next !== opaque) onOpacityChange?.(next);
-  };
-  const sliderRef = useCommit((v) => commitClear(Number(v)));
 
   return (
     <div
@@ -390,42 +354,13 @@ export function ColorPicker({
         {custom && <span id={`${base}-chosen`} hidden>{chosenLabel}</span>}
       </div>
       {onOpacityChange && (
-        <div data-slot="opacity">
-          <label for={`${base}-opacity`}>
-            <span data-slot="opacity-label" id={`${base}-opacity-label`}>{opacityLabel}</span>
-            <span data-slot="opacity-value">{clear}%</span>
-          </label>
-          <input
-            id={`${base}-opacity`}
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={clear}
-            aria-labelledby={`${base}-opacity-label`}
-            aria-valuetext={`${clear}%`}
-            ref={sliderRef}
-            onInput={(e) => slide(clampPercent(Number(e.currentTarget.value)))}
-            onKeyDown={(e) => {
-              if (modified(e)) return;
-              const next = stepPercent(e.key, clearRef.current);
-              if (next === null) return;
-              // Stepped here, so the key can be marked handled: a native step
-              // would need the key left unhandled, and a menu around the
-              // slider would then act on it too. Shown now, committed on the
-              // key's release: a held key is one commit, not one per repeat.
-              e.preventDefault();
-              sliderPending.current = true;
-              slide(next);
-            }}
-            onKeyUp={(e) => {
-              if (modified(e) || stepPercent(e.key, 0) === null) return;
-              e.preventDefault();
-              if (sliderPending.current) commitClear(clearRef.current);
-            }}
-            onBlur={() => { if (sliderPending.current) commitClear(clearRef.current); }}
-          />
-        </div>
+        <Slider
+          data-slot="opacity"
+          label={opacityLabel}
+          value={100 - opaque}
+          format={(v) => `${v}%`}
+          onValueChange={(clear) => onOpacityChange(100 - clear)}
+        />
       )}
     </div>
   );

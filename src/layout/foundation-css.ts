@@ -173,7 +173,10 @@ ${ACCENT_DERIVED}
      --sheet-ground covers with it (the sheet's own rule). Only page paint is
      redefined here: a token also used as a colour (an ink, a solid ground)
      must stay opaque, or what it colours vanishes with the page. */
-  :root[data-board-background] { --ground: transparent; }
+  /* In a board, a form field is a light translucent wash over what the board
+     paints behind the pane (its colour, when the board tells it: --board-field),
+     never the near-opaque sunken ground. */
+  :root[data-board-background] { --ground: transparent; --ground-sunken: var(--board-field, color-mix(in oklch, white 7%, transparent)); }
   :root[data-board-background],
   :root[data-board-background] > body { background: transparent; }
 

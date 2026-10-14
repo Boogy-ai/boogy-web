@@ -13,7 +13,7 @@
 // address is dropped, and a title is trimmed and capped before it is shown.
 
 import {
-  PANE_PROTOCOL, isSignInWait, parseFrame, toResultPayload,
+  GROUND_COLOUR, PANE_PROTOCOL, isSignInWait, parseFrame, toResultPayload,
   type Frame, type PaneUpgradeResult, type PaneHistory, type PaneHost, type PaneScheme, type PaneLastSignIn, type PaneSignInResult,
 } from './internal/pane-protocol';
 import { exactOrigin, sendFrame, receiveFrames, type ExactOrigin } from './internal/pane-messaging';
@@ -133,6 +133,10 @@ export interface Shell {
   setZoom(factor: number): void;
   /** One pane's zoom, outranking the board's; `null` makes it follow the board again. */
   setPaneZoom(id: string, factor: number | null): void;
+  /** The colour painted behind one pane, a `#rrggbb`: told to the pane while
+   *  it draws the board's background, now and whenever it changes. `null`
+   *  forgets it. Anything not a `#rrggbb` is ignored. */
+  setGround(id: string, colour: string | null): void;
   destroy(): void;
 }
 
@@ -151,6 +155,9 @@ interface Entry {
   /** Whether the page connected now has named the service registered for
    *  this pane. Cleared on every connect: each page names itself. */
   ready: boolean;
+  /** Whether the page connected now said in its ready that it draws the
+   *  board's background. Cleared on every connect. */
+  boardBackground?: boolean;
   /** What the page connected now last said about being signed in; null until
    *  it says. Cleared on every connect: each page reports for itself. */
   signedIn: boolean | null;
@@ -212,6 +219,18 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
     });
   };
 
+  // The colour painted behind each pane, by pane id, apart from the
+  // registration (as zoom overrides are), so a pane registered again keeps it.
+  const grounds = new Map<string, string>();
+  const sendGround = (entry: Entry) => {
+    const target = entry.iframe.contentWindow;
+    const colour = grounds.get(entry.pane.id);
+    if (!target || !entry.nonce || !entry.boardBackground || !colour) return;
+    sendFrame(target as Window, entry.exact, {
+      boogy: PANE_PROTOCOL, type: 'ground', nonce: entry.nonce, payload: { colour },
+    });
+  };
+
   const handle = (entry: Entry, frame: Frame) => {
     const pane = entry.pane;
     switch (frame.type) {
@@ -224,6 +243,8 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
           return;
         }
         entry.ready = true;
+        entry.boardBackground = frame.payload.background === 'board';
+        sendGround(entry);
         events.onReady?.(pane.id, frame.payload.service, {
           signsIn: frame.payload.signsIn === true,
           boardBackground: frame.payload.background === 'board',
@@ -358,6 +379,7 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
         const nonce = newNonce();
         entry.nonce = nonce;
         entry.ready = false;
+        entry.boardBackground = false;
         entry.signedIn = null;
         entry.off();
         entry.off = receiveFrames(window, {
@@ -431,6 +453,17 @@ export function createShell(events: Partial<ShellEvents>, options: ShellOptions 
       }
       const entry = panes.get(id);
       if (entry) sendZoom(entry);
+    },
+
+    setGround(id, colour) {
+      if (colour === null) {
+        grounds.delete(id);
+        return;
+      }
+      if (!GROUND_COLOUR.test(colour) || grounds.get(id) === colour) return;
+      grounds.set(id, colour);
+      const entry = panes.get(id);
+      if (entry) sendGround(entry);
     },
 
     destroy() {

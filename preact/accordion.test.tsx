@@ -95,3 +95,95 @@ describe('<Accordion>', () => {
     expect(document.activeElement).toBe(inner[1]);
   });
 });
+
+describe('<Accordion> nestedOpen: how an item opens its sub-accordion', () => {
+  const SUB = (props: Partial<preact.ComponentProps<typeof Accordion>> = {}) => (
+    <Accordion label="Background" className="sub" defaultOpen={['x', 'y']} {...props} items={[
+      { id: 'x', label: 'Base', content: <p>base</p> },
+      { id: 'y', label: 'Pattern', content: <p>pattern</p> },
+      { id: 'z', label: 'Extra', content: <p>extra</p> },
+    ]} />
+  );
+  const tree = (nestedOpen?: 'all' | 'first' | 'none', sub = SUB()) => (
+    <Accordion label="Settings" className="top" nestedOpen={nestedOpen} items={[
+      { id: 'name', label: 'Name', content: <p>name</p> },
+      { id: 'bg', label: 'Background', content: sub },
+    ]} />
+  );
+  const top = (r: Element) => [...r.querySelectorAll<HTMLDetailsElement>('.top > details')];
+  const sub = (r: Element) => [...r.querySelectorAll<HTMLDetailsElement>('.sub > details')].map((d) => d.open);
+
+  it('"none": opening the item shows its sub-items all collapsed, whatever their defaultOpen', () => {
+    const r = mount(tree('none'));
+    toggle(top(r)[1]);
+    expect(sub(r)).toEqual([false, false, false]);
+  });
+
+  it('"first": only the first sub-item open', () => {
+    const r = mount(tree('first'));
+    toggle(top(r)[1]);
+    expect(sub(r)).toEqual([true, false, false]);
+  });
+
+  it('"all": every sub-item open', () => {
+    const r = mount(tree('all'));
+    toggle(top(r)[1]);
+    expect(sub(r)).toEqual([true, true, true]);
+  });
+
+  it('applies on every opening: a sub-item opened by hand is collapsed again when the item is reopened', () => {
+    const r = mount(tree('none'));
+    toggle(top(r)[1]);
+    toggle(r.querySelectorAll<HTMLDetailsElement>('.sub > details')[2]);
+    expect(sub(r)).toEqual([false, false, true]);
+    toggle(top(r)[1]);
+    toggle(top(r)[1]);
+    expect(sub(r)).toEqual([false, false, false]);
+  });
+
+  it('unset: the sub-accordion keeps its own defaultOpen, as before', () => {
+    const r = mount(tree(undefined));
+    toggle(top(r)[1]);
+    expect(sub(r)).toEqual([true, true, false]);
+  });
+
+  it('a controlled sub-accordion is the app\'s: nestedOpen leaves it alone', () => {
+    const r = mount(tree('none', SUB({ open: ['y'] })));
+    toggle(top(r)[1]);
+    expect(sub(r)).toEqual([false, true, false]);
+  });
+
+  it('reaches only its own sub-accordion, not one nested deeper', () => {
+    const deep = (
+      <Accordion label="Mid" className="sub" items={[
+        { id: 'x', label: 'Mid item', content: (
+          <Accordion label="Deep" className="deep" defaultOpen={['d1']} items={[{ id: 'd1', label: 'Deep item', content: <p>deep</p> }]} />
+        ) },
+      ]} />
+    );
+    const r = mount(tree('all', deep));
+    toggle(top(r)[1]);
+    expect(sub(r)).toEqual([true]);
+    expect([...r.querySelectorAll<HTMLDetailsElement>('.deep > details')].map((d) => d.open)).toEqual([true]);
+  });
+});
+
+describe('<Accordion> item icons', () => {
+  it('draws an item\'s icon before its label, at either level, hidden from assistive tech; none when not given', () => {
+    const r = mount(
+      <Accordion label="Settings" items={[
+        { id: 'a', label: 'Name', icon: <svg data-test="pencil" />, content: (
+          <Accordion label="Sub" items={[{ id: 's', label: 'Base', icon: <svg data-test="palette" />, content: <p /> }]} />
+        ) },
+        { id: 'b', label: 'Plain', content: <p /> },
+      ]} />,
+    );
+    const [a, s, b] = triggers(r);
+    const icon = a.querySelector(':scope > [data-slot="icon"]')!;
+    expect(icon.getAttribute('aria-hidden')).toBe('true');
+    expect(icon.querySelector('[data-test="pencil"]')).not.toBeNull();
+    expect(icon.nextElementSibling!.getAttribute('data-slot')).toBe('label');
+    expect(s.querySelector(':scope > [data-slot="icon"] [data-test="palette"]')).not.toBeNull();
+    expect(b.querySelector('[data-slot="icon"]')).toBeNull();
+  });
+});

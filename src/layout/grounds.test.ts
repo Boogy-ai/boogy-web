@@ -49,3 +49,9 @@ describe('the well', () => {
     expect(decl('--ground-well')).toBe('light-dark(oklch(calc(1 - var(--_step)) 0 0 / 0.85), oklch(0 0 0 / 0.6))');
   });
 });
+
+describe('grounds in a board', () => {
+  it("a form field is a light translucent wash over the board's background, with or without the board's colour", () => {
+    expect(FOUNDATION_CSS).toMatch(/:root\[data-board-background\] \{[^}]*--ground-sunken:\s*var\(--board-field, color-mix\(in oklch, white 7%, transparent\)\);/);
+  });
+});

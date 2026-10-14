@@ -40,8 +40,10 @@ describe('drawer animation switch', () => {
   it('data-animate="false" removes every drawer transition, after the rules that set them', () => {
     const sel = '[data-boogy="drawer-layout"][data-animate="false"] > :is([data-boogy="drawer"], [data-boogy="drawer-backdrop"])';
     expect(ruleFor(sel)).toMatch(/transition:\s*none/);
-    expect(CODE.lastIndexOf(sel)).toBeGreaterThan(CODE.lastIndexOf('transition: width'));
-    expect(CODE.lastIndexOf(sel)).toBeGreaterThan(CODE.lastIndexOf('transition: translate'));
+    // Within the drawer's own rules: another component's transitions are not its.
+    const drawer = COMPONENTS_CSS_PARTS.DRAWER_CSS;
+    expect(drawer.lastIndexOf(sel)).toBeGreaterThan(drawer.lastIndexOf('transition: width'));
+    expect(drawer.lastIndexOf(sel)).toBeGreaterThan(drawer.lastIndexOf('transition: translate'));
   });
 });
 
@@ -798,6 +800,22 @@ describe('accordion', () => {
     expect(nested).toMatch(/min-block-size:\s*var\(--control-md\)/);
     expect(nested).toMatch(/font-weight:\s*500/);
   });
+  it('a nested level hangs from a guide line down its side, as a file tree does: under the parent\'s label, or its icon when it has one', () => {
+    const level = ruleFor(`${A} ${A}`);
+    // Stronger than the rule between items: it must read as a guide on a dark ground.
+    expect(level).toMatch(/border-inline-start:\s*1px solid var\(--edge-strong\)/);
+    expect(level).toMatch(/margin-inline-start:\s*var\(--space-3\)/);
+    // A gap between the line and its items: their rows, hover fill and rules start clear of it.
+    expect(level).toMatch(/padding-inline-start:\s*var\(--space-2\)/);
+    const underIcon = ruleFor(`${A} > [data-slot="item"]:has(> [data-slot="trigger"] > [data-slot="icon"]) > [data-slot="content"] > ${A}`);
+    expect(underIcon).toMatch(/margin-inline-start:\s*calc\(var\(--space-3\) \+ var\(--icon-md\) \/ 2\)/);
+  });
+  it('an item\'s icon sits before its label, muted, never shrinking', () => {
+    const icon = ruleFor(`${A} > [data-slot="item"] > [data-slot="trigger"] > [data-slot="icon"]`);
+    expect(icon).toMatch(/flex:\s*none/);
+    expect(icon).toMatch(/color:\s*var\(--text-2\)/);
+    expect(icon).toMatch(/display:\s*inline-flex/);
+  });
 });
 
 describe('sample grid', () => {
@@ -827,14 +845,32 @@ describe('sample grid', () => {
   });
 });
 
+describe('slider', () => {
+  const S = '[data-boogy="slider"]';
+  it('is its label row over its track: the name in the quiet ink, the value in the full ink, in figures that do not jump', () => {
+    expect(ruleFor(S)).toMatch(/display:\s*grid/);
+    const row = ruleFor(`${S} > label`);
+    expect(row).toMatch(/justify-content:\s*space-between/);
+    expect(row).toMatch(/color:\s*var\(--text-2\)/);
+    const value = ruleFor(`${S} > label > [data-slot="value"]`);
+    expect(value).toMatch(/color:\s*var\(--text-1\)/);
+    expect(value).toMatch(/font-variant-numeric:\s*tabular-nums/);
+  });
+  it("paints its track the selected fill, or the Slider's own --slider-paint", () => {
+    for (const pseudo of ['::-webkit-slider-runnable-track', '::-moz-range-track']) {
+      expect(ruleFor(`${S} > [data-slot="input"]${pseudo}`), pseudo).toMatch(/background:\s*var\(--slider-paint, var\(--fill-selected\)\)/);
+    }
+  });
+});
+
 describe('color picker', () => {
   const P = '[data-boogy="color-picker"]';
   /** Every rule whose selector names the picker: [selector, body]. */
   const rules = [...CODE.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
     .filter((m) => m[1].includes(P))
     .map((m) => [m[1].trim(), m[2]] as const);
-  // The picker's sliders share their track and thumb with the size controls' slider.
-  const SLIDERS = `:is(${P} :is([data-slot="hue"], [data-slot="opacity"] > input), [data-boogy="zoom-controls"] > [data-slot="slider"])`;
+  // The picker's sliders share their track and thumb with every Slider and the size controls' slider.
+  const SLIDERS = `:is(${P} [data-slot="hue"], [data-boogy="slider"] > [data-slot="input"], [data-boogy="zoom-controls"] > [data-slot="slider"])`;
 
   it('has its rules', () => {
     expect(rules.length).toBeGreaterThan(10);
@@ -905,7 +941,7 @@ describe('color picker', () => {
       const strip = ruleFor(`${SLIDERS}${pseudo}`);
       expect(strip, pseudo).toMatch(/block-size:\s*var\(--slider-track\)/);
       expect(ruleFor(`${P} [data-slot="hue"]${pseudo}`), pseudo).toMatch(/background:\s*var\(--color-picker-rainbow\)/);
-      expect(ruleFor(`${P} [data-slot="opacity"] > input${pseudo}`), pseudo)
+      expect(ruleFor(`${P} [data-slot="opacity"] > [data-slot="input"]${pseudo}`), pseudo)
         .toMatch(/background:\s*linear-gradient\(to right, var\(--color-picker-current\), transparent\), var\(--checker\)/);
     }
     expect(ruleFor(SLIDERS)).toMatch(/block-size:\s*var\(--slider-track\)/);
@@ -925,7 +961,9 @@ describe('color picker', () => {
       expect(dot, pseudo).toMatch(/inline-size:\s*var\(--slider-track\)/);
       expect(dot, pseudo).toMatch(/block-size:\s*var\(--slider-track\)/);
       expect(dot, pseudo).toMatch(/border-radius:\s*var\(--radius-full\)/);
-      expect(dot, pseudo).toMatch(/background:\s*var\(--text-1\)/);
+      // The ink, unless the Slider gives its thumb a colour of its own.
+      expect(dot, pseudo).toMatch(/background:\s*var\(--slider-thumb, var\(--text-1\)\)/);
+      expect(ruleFor(`[data-boogy="slider"] > [data-slot="input"][data-thumb]${pseudo}`), pseudo).toMatch(/border:\s*var\(--ring\) solid var\(--text-1\)/);
       expect(dot, pseudo).toMatch(/border:\s*0/);
       expect(dot, pseudo).not.toMatch(/inset/);
     }
@@ -1082,5 +1120,67 @@ describe('tab pager', () => {
     const page = ruleFor('[data-boogy="tab-pager"] > [data-slot="page"]');
     expect(page).toMatch(/scroll-snap-align:\s*start/);
     expect(page).toMatch(/scroll-snap-stop:\s*always/);
+  });
+});
+
+describe('side panel', () => {
+  it('bordered: a line on the edge facing the page, in --side-panel-edge (the strong edge unless the app sets it); none when it fills the window', () => {
+    const edge = ruleFor('[data-boogy="side-panel"][data-bordered]:not([data-full]) > [data-slot="panel"]');
+    expect(edge).toMatch(/border-inline-start:\s*1px solid var\(--side-panel-edge, var\(--edge-strong\)\)/);
+    expect(ruleFor('[data-boogy="side-panel"] > [data-slot="panel"]')).toMatch(/box-sizing:\s*border-box/);
+  });
+
+  it('docked to the inline-end edge at its own width, filling the window when full', () => {
+    expect(ruleFor('[data-boogy="side-panel"] > [data-slot="panel"]')).toMatch(/inset-inline-end:\s*0/);
+    expect(ruleFor('[data-boogy="side-panel"] > [data-slot="panel"]')).toMatch(/inline-size:\s*min\(100%,\s*var\(--side-panel-width\)\)/);
+    expect(ruleFor('[data-boogy="side-panel"][data-full] > [data-slot="panel"]')).toMatch(/inline-size:\s*100%/);
+  });
+  it('clear behind unless it has a scrim', () => {
+    expect(ruleFor('[data-boogy="side-panel"]::backdrop')).toMatch(/background:\s*transparent/);
+    expect(ruleFor('[data-boogy="side-panel"][data-scrim]')).toMatch(/background:/);
+  });
+  it('its Sheet fills the panel, not the window, on the opaque ground', () => {
+    const body = ruleFor('[data-boogy="side-panel"] > [data-slot="panel"] > [data-boogy="sheet"]');
+    expect(body).toMatch(/position:\s*absolute/);
+    expect(body).toMatch(/--ground-solid/);
+  });
+  it('slides in, and not under reduced motion', () => {
+    expect(COMPONENTS_CSS).toMatch(/@starting-style\s*{\s*\[data-boogy="side-panel"\] > \[data-slot="panel"\] { translate: 100% 0; }/);
+    expect(COMPONENTS_CSS).toMatch(/prefers-reduced-motion: reduce\)\s*{\s*\[data-boogy="side-panel"\] > \[data-slot="panel"\] { transition: none; }/);
+  });
+});
+
+describe('sample grid, every row', () => {
+  it('rows="all": no height limit and no scroll of its own', () => {
+    const body = ruleFor('[data-boogy="sample-grid"][data-rows="all"]');
+    expect(body).toMatch(/max-block-size:\s*none/);
+    expect(body).toMatch(/overflow-y:\s*visible/);
+  });
+});
+
+describe('divider', () => {
+  it('a hairline in the edge colour: across a bar when vertical, along a column when horizontal', () => {
+    const v = ruleFor('[data-boogy="divider"][aria-orientation="vertical"]');
+    expect(v).toMatch(/inline-size:\s*1px/);
+    expect(v).toMatch(/align-self:\s*stretch/);
+    const h = ruleFor('[data-boogy="divider"][aria-orientation="horizontal"]');
+    expect(h).toMatch(/block-size:\s*1px/);
+    expect(ruleFor('[data-boogy="divider"]')).toMatch(/background:\s*var\(--edge\)/);
+  });
+});
+
+describe('side panel contents', () => {
+  it('fade in once it has slid in, and not under reduced motion', () => {
+    expect(ruleFor('[data-boogy="side-panel"][data-ready] > [data-slot="panel"] > [data-boogy="sheet"] > [data-slot="body"]')).toMatch(/animation:\s*boogy-side-panel-reveal/);
+    expect(COMPONENTS_CSS).toMatch(/@keyframes boogy-side-panel-reveal\s*{\s*from\s*{\s*opacity:\s*0/);
+  });
+});
+
+describe('a field placeholder', () => {
+  it("is the theme's quiet text, never the browser's own grey", () => {
+    const body = ruleFor('[data-boogy="field"] [data-slot="control"]::placeholder');
+    expect(body).toMatch(/color:\s*var\(--text-3\)/);
+    // Firefox dims a placeholder with opacity by default; the colour is the whole of it.
+    expect(body).toMatch(/opacity:\s*1/);
   });
 });

@@ -8,7 +8,7 @@ import { createContext, type ComponentChildren, type JSX } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Button } from './button';
 import { Glyph } from './glyphs';
-import { TAB_STOPS } from './tab-stops';
+import { TAB_STOPS, trapTab } from './tab-stops';
 import { drawerItem, drawerLayout, drawerMode, monogram, type ButtonSize, type DrawerBreakpoint, type DrawerItemVariant, type DrawerSide } from '@boogy/web';
 
 interface DrawerState {
@@ -196,14 +196,7 @@ export function Drawer({ label, children, ...rest }: DrawerProps) {
       s.setOpen(false);
       return;
     }
-    if (e.key === 'Tab') {
-      const items = Array.from(s.drawer.current!.querySelectorAll<HTMLElement>(TAB_STOPS));
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    }
+    trapTab(e, s.drawer.current!);
   };
 
   return (
