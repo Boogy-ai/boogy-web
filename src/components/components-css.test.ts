@@ -32,7 +32,8 @@ describe('drawer head', () => {
   it('the toggle chevron is icon-md and turns to point where the drawer will go', () => {
     expect(ruleFor('[data-role="drawer-toggle"] > [data-slot="chevron"]')).toMatch(/width:\s*var\(--icon-md\)/);
     expect(ruleFor('[data-role="drawer-toggle"][aria-expanded="false"] > [data-slot="chevron"]')).toMatch(/scale:\s*-1 1/);
-    expect(ruleFor('[data-side="end"] [data-role="drawer-toggle"] > [data-slot="chevron"]')).toMatch(/scale:\s*-1 1/);
+    // The toggle's own drawer's side (it may sit inside another side's layout).
+    expect(ruleFor('[data-role="drawer-toggle"][data-side="end"] > [data-slot="chevron"]')).toMatch(/scale:\s*-1 1/);
   });
 });
 
@@ -1020,12 +1021,12 @@ describe("an edge-to-edge bar's end buttons", () => {
   const BLEED = /calc\(\(var\(--_glyph, var\(--icon-md\)\) - var\(--_h\)\) \/ 2\)/;
 
   it("the first leading icon button reaches into the bar's padding by the space around its glyph", () => {
-    const lead = ruleFor(`${EDGE_TO_EDGE}\n    > [data-slot="leading"] > [data-boogy="button"][data-shape="icon"]:first-child`);
+    const lead = ruleFor(`${EDGE_TO_EDGE}\n    > [data-slot="leading"] > [data-boogy="button"][data-shape="icon"]:nth-child(1 of :not([data-boogy="popover"]))`);
     expect(lead).toMatch(new RegExp(`margin-inline-start:\\s*${BLEED.source}`));
   });
 
   it('so does the last action icon button, at the other end', () => {
-    const last = ruleFor(`${EDGE_TO_EDGE}\n    > [data-slot="actions"] > [data-boogy="button"][data-shape="icon"]:last-child`);
+    const last = ruleFor(`${EDGE_TO_EDGE}\n    > [data-slot="actions"] > [data-boogy="button"][data-shape="icon"]:nth-last-child(1 of :not([data-boogy="popover"]))`);
     expect(last).toMatch(new RegExp(`margin-inline-end:\\s*${BLEED.source}`));
   });
 });
@@ -1182,5 +1183,287 @@ describe('a field placeholder', () => {
     expect(body).toMatch(/color:\s*var\(--text-3\)/);
     // Firefox dims a placeholder with opacity by default; the colour is the whole of it.
     expect(body).toMatch(/opacity:\s*1/);
+  });
+});
+
+describe('translucent grounds over a board', () => {
+  it('a composer in a sheet foot is a light, frosted bar: half the well, over a blur of what is behind it', () => {
+    const bar = ruleFor('[data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"])')!;
+    expect(bar).toMatch(/background:\s*var\(--composer-ground\)/);
+    expect(bar).toMatch(/backdrop-filter:\s*blur\(var\(--blur-md\)\)/);
+    expect(FOUNDATION_CSS).toMatch(/--composer-ground:\s*color-mix\(in oklch, var\(--ground-well\) 50%, transparent\);/);
+  });
+
+  it('on a page showing the board, a drawer is frosted: its ground, partly see-through, over a blur', () => {
+    const drawer = ruleFor(':root[data-board-background] [data-boogy="drawer"]')!;
+    expect(drawer).toMatch(/background:\s*color-mix\(in oklch, var\(--drawer-ground, var\(--ground-raised\)\) var\(--panel-frost\), transparent\)/);
+    expect(drawer).toMatch(/backdrop-filter:\s*blur\(var\(--blur-md\)\)/);
+    // Enough of its ground stays for its text to read over a busy board.
+    expect(Number(/--panel-frost:\s*(\d+)%/.exec(FOUNDATION_CSS)![1])).toBeGreaterThanOrEqual(60);
+    // Elsewhere it is solid: there is nothing behind it worth showing.
+    expect(ruleFor('[data-boogy="drawer"]')).toMatch(/background:\s*var\(--drawer-ground, var\(--ground-raised\)\)/);
+  });
+
+  it("a field's suffix keeps off the frame, whatever the field's shape", () => {
+    expect(ruleFor('[data-boogy="field"] > [data-slot="group"] > [data-slot="suffix"]')).toMatch(/padding-inline-end:\s*var\(--space-1\)/);
+  });
+});
+
+describe('a composer as the bar that ends a page (variant="bar")', () => {
+  const css = COMPONENTS_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+  const listed = (variant: string, sheet: string) => css.includes(`${variant},\n  ${sheet} {`);
+  it("shares the sheet foot's bar: the same rules for its ground, its top edge on focus, and its dissolved frame", () => {
+    expect(listed('[data-boogy="field"][data-variant="bar"]', '[data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"])')).toBe(true);
+    expect(listed('[data-boogy="field"][data-variant="bar"]:focus-within', '[data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"]):focus-within')).toBe(true);
+    expect(listed('[data-boogy="field"][data-variant="bar"] > [data-slot="group"]', '[data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] > [data-slot="group"]')).toBe(true);
+    expect(listed('[data-boogy="field"][data-variant="bar"] > [data-slot="group"]:focus-within', '[data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] > [data-slot="group"]:focus-within')).toBe(true);
+  });
+  it('is its own foot: the foot\'s padding and top rule, its own height whatever is above it', () => {
+    const own = ruleFor('[data-boogy="field"][data-variant="bar"]')!;
+    expect(own).toMatch(/padding:\s*var\(--space-3\) var\(--space-4\)/);
+    expect(own).toMatch(/border-top:\s*var\(--rule\)/);
+    expect(own).toMatch(/flex:\s*none/);
+  });
+});
+
+describe('a bar composer put in a sheet foot', () => {
+  it('is not a second bar inside the first: no ground, blur, padding or rule of its own there', () => {
+    const r = ruleFor('[data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"][data-variant="bar"]')!;
+    for (const d of ['background: none', 'backdrop-filter: none', 'padding: 0', 'border-top: none']) expect(r).toContain(d);
+  });
+});
+
+describe("a drawer's strip folds a list and a section to what fits it", () => {
+  const D = '[data-collapse-at="md"][data-expanded="false"] > [data-boogy="drawer"]';
+  it('a list item is its media alone, centred, never wider than an entry', () => {
+    const item = ruleFor(`${D} [data-boogy="list-item"]`);
+    expect(item).toMatch(/justify-content:\s*center/);
+    expect(item).toMatch(/padding:\s*0;/);
+    // The list spaces them, so nothing pads the first one away from what is above it.
+    expect(ruleFor(`${D} [data-boogy="list"]`)).toMatch(/gap:\s*var\(--space-2\)/);
+    const media = ruleFor(`${D} [data-boogy="list-item"] > [data-slot="media"] > *`);
+    expect(media).toMatch(/max-width:\s*var\(--mark-lg\)/);
+    expect(media).toMatch(/max-height:\s*var\(--mark-lg\)/);
+    expect(ruleFor(`${D} [data-boogy="list-item"] > [data-slot="end"]`)).toMatch(/display:\s*none/);
+  });
+  it('the words it has no room for stay for assistive tech: an entry label, a list item text, a section title', () => {
+    const hidden = /\n\s*([^{}]+)\{[^}]*clip-path:\s*inset\(50%\)/.exec(CODE.slice(CODE.indexOf(`${D} [data-boogy="list-item"]`)))?.[1] ?? '';
+    for (const s of [`${D} [data-boogy="list-item"] > [data-slot="text"]`, `${D} [data-boogy="section"] [data-slot="header"] > [data-slot="title"]`, `${D} [data-slot="label"]`]) {
+      expect(hidden, s).toContain(s);
+    }
+  });
+  it("a section's head is its glyph over its meta, then a rule, with even space either side of the rule", () => {
+    // Above the rule: the head's padding under its meta, trimmed to its letters.
+    // Below: the section's gap, then a list item with no padding of its own.
+    const head = ruleFor(`${D} [data-boogy="section"] > [data-slot="head"]`);
+    expect(head).toMatch(/border-block-end:\s*var\(--rule\)/);
+    expect(head).toMatch(/padding-block-end:\s*var\(--space-3\)/);
+    expect(ruleFor(`${D} [data-boogy="section"] [data-slot="header"] > [data-slot="meta"]`)).toMatch(/text-box:\s*trim-both cap alphabetic/);
+    expect(ruleFor('[data-boogy="section"]')).toMatch(/gap:\s*var\(--space-3\)/);
+    const header = ruleFor(`${D} [data-boogy="section"] > [data-slot="head"] > [data-slot="header"]`);
+    expect(header).toMatch(/flex-direction:\s*column/);
+    expect(header).toMatch(/align-items:\s*center/);
+    expect(ruleFor(`${D} [data-boogy="section"] [data-slot="header"] > [data-slot="glyph"]`)).toMatch(/display:\s*block/);
+    expect(ruleFor(`${D} [data-boogy="section"] [data-slot="separator"]`)).toMatch(/display:\s*none/);
+    expect(ruleFor(`${D} [data-boogy="section"] > [data-slot="head"] > :not([data-slot="header"])`)).toMatch(/display:\s*none/);
+  });
+  it('a section with neither a glyph nor a meta has no head there at all', () => {
+    expect(ruleFor(`${D} [data-boogy="section"] > [data-slot="head"]:not(:has(> [data-slot="header"] > [data-slot="glyph"])):not(:has(> [data-slot="header"] > [data-slot="meta"]))`)).toMatch(/display:\s*none/);
+  });
+});
+
+describe("a drawer's foot", () => {
+  const D = '[data-collapse-at="md"][data-expanded="false"] > [data-boogy="drawer"]';
+  it("a head stays at the top on the drawer's own ground, over a body that scrolls, the section's gap below it", () => {
+    expect(ruleFor('[data-boogy="drawer"]:has(> [data-slot="body"])')).toMatch(/overflow-y:\s*hidden/);
+    const head = ruleFor('[data-boogy="drawer"] > [data-slot="head"]');
+    expect(head).toMatch(/flex:\s*none/);
+    expect(head).toMatch(/padding-block-end:\s*var\(--space-2\)/);
+    expect(head).not.toMatch(/background|position:\s*sticky/);
+  });
+
+  it("stays at the drawer's bottom edge on the drawer's own ground, under a body that scrolls", () => {
+    // The body scrolls, not the drawer, so the foot needs no ground of its own.
+    expect(ruleFor('[data-boogy="drawer"]:has(> [data-slot="body"])')).toMatch(/overflow-y:\s*hidden/);
+    expect(ruleFor('[data-boogy="drawer"]:has(> [data-slot="foot"])')).toMatch(/padding-block-end:\s*0/);
+    const body = ruleFor('[data-boogy="drawer"] > [data-slot="body"]');
+    expect(body).toMatch(/flex:\s*1 1 auto/);
+    expect(body).toMatch(/min-block-size:\s*0/);
+    expect(body).toMatch(/overflow-y:\s*auto/);
+    const foot = ruleFor('[data-boogy="drawer"] > [data-slot="foot"]');
+    expect(foot).toMatch(/border-block-start:\s*var\(--rule\)/);
+    expect(foot).not.toMatch(/background|position:\s*sticky/);
+    expect(COMPONENTS_CSS).not.toMatch(/\[data-slot="foot"\] \{[^}]*backdrop-filter/);
+  });
+  it('on the strip its body scrolls with no scrollbar to take the width the marks need', () => {
+    expect(ruleFor(`${D} > [data-slot="body"]`)).toMatch(/scrollbar-width:\s*none/);
+  });
+  it('on the strip it holds only what fits there: toggles and entries, centred', () => {
+    expect(ruleFor(`${D} > [data-slot="foot"]`)).toMatch(/align-items:\s*center/);
+    expect(ruleFor(`${D} > [data-slot="foot"] > :not([data-role="drawer-toggle"], [data-boogy="drawer-item"])`)).toMatch(/display:\s*none/);
+  });
+});
+
+describe('a drawer toggle shown in one state', () => {
+  it('collapsed-only shows only on the strip; expanded-only hides there', () => {
+    expect(ruleFor('[data-boogy="drawer-layout"] [data-role="drawer-toggle"][data-shown="collapsed"]')).toMatch(/display:\s*none/);
+    // Its own drawer's toggles only: a layout nested in its main keeps its own.
+    expect(ruleFor('[data-collapse-at="md"][data-expanded="false"] > [data-boogy="drawer"] [data-role="drawer-toggle"][data-shown="collapsed"]')).toMatch(/display:\s*inline-flex/);
+    expect(ruleFor('[data-collapse-at="md"][data-expanded="false"] > [data-boogy="drawer"] [data-role="drawer-toggle"][data-shown="expanded"]')).toMatch(/display:\s*none/);
+  });
+});
+
+describe('Count, and the segmented ChoiceGroup', () => {
+  it('a count is a badge of its own: its own wash, a full radius, sized from tokens, figures of one width', () => {
+    const r = ruleFor('[data-boogy="count"]');
+    expect(r).toMatch(/background:\s*var\(--fill-selected\)/);
+    expect(r).toMatch(/border-radius:\s*var\(--radius-full\)/);
+    expect(r).toMatch(/block-size:\s*var\(--count-block\)/);
+    expect(r).toMatch(/font-size:\s*var\(--fs-micro\)/);
+    expect(r).toMatch(/font-variant-numeric:\s*tabular-nums/);
+    expect(FOUNDATION_CSS).toMatch(/--count-block:/);
+    expect(FOUNDATION_CSS).toMatch(/--fs-micro:/);
+  });
+  it('in a selected tab or a chosen segment, the count takes the accent', () => {
+    const r = ruleFor(':is([data-boogy="tab-list"] > [data-slot="tab"][aria-selected="true"], [data-boogy="choice-group"] [data-slot="choice"] > input:checked + [data-slot="choice-label"]) > [data-boogy="count"]');
+    expect(r).toMatch(/--accent/);
+  });
+  it('segmented: one track; the radios hidden but still focusable; the chosen label filled; focus ringed', () => {
+    const S = '[data-boogy="choice-group"][data-variant="segmented"]';
+    const track = ruleFor(`${S} > [data-slot="choices"]`);
+    expect(track).toMatch(/display:\s*inline-flex/);
+    expect(track).toMatch(/background:\s*var\(--fill-hover\)/);
+    expect(ruleFor(`${S}[data-fill="true"] > [data-slot="choices"]`)).toMatch(/display:\s*flex/);
+    const input = ruleFor(`${S} [data-slot="choice"] > input`);
+    expect(input).toMatch(/opacity:\s*0/);
+    expect(input).not.toMatch(/display:\s*none|visibility:\s*hidden/);
+    expect(ruleFor(`${S} [data-slot="choice"] > input:checked + [data-slot="choice-label"]`)).toMatch(/background:\s*var\(--fill-strong\)/);
+    expect(ruleFor(`${S} [data-slot="choice"] > input:focus-visible + [data-slot="choice-label"]`)).toMatch(/outline:\s*var\(--ring\) solid var\(--ring-color\)/);
+  });
+});
+
+describe('Panel', () => {
+  it('a frosted, framed region that never scrolls itself', () => {
+    const r = ruleFor('[data-boogy="panel"]');
+    expect(r).toMatch(/display:\s*flex/);
+    expect(r).toMatch(/flex-direction:\s*column/);
+    expect(r).toMatch(/min-block-size:\s*0/);
+    expect(r).toMatch(/overflow:\s*hidden/);
+    expect(r).toMatch(/background:\s*color-mix\(in oklch, var\(--panel-ground, var\(--ground-raised\)\) var\(--panel-frost\), transparent\)/);
+    expect(r).toMatch(/backdrop-filter:\s*blur\(var\(--blur-md\)\)/);
+    expect(r).toMatch(/border-radius:\s*var\(--radius-2\)/);
+  });
+  it('its head and foot stay put; only the body scrolls, and only up and down', () => {
+    expect(ruleFor('[data-boogy="panel"] > :is([data-slot="head"], [data-slot="foot"])')).toMatch(/flex:\s*none/);
+    const body = ruleFor('[data-boogy="panel"] > [data-slot="body"]');
+    expect(body).toMatch(/flex:\s*1 1 auto/);
+    expect(body).toMatch(/min-block-size:\s*0/);
+    expect(body).toMatch(/overflow-y:\s*auto/);
+    expect(body).toMatch(/overflow-x:\s*hidden/);
+  });
+  it('grow: it takes the space its column leaves', () => {
+    const r = ruleFor('[data-boogy="panel"][data-grow="true"]');
+    expect(r).toMatch(/flex:\s*1 1 auto/);
+  });
+  it("content in the body that is not a list lines up with a list item's text", () => {
+    expect(ruleFor('[data-boogy="panel"] > [data-slot="body"] > :not([data-boogy="list"], [data-boogy="paged-list-end"])')).toMatch(/margin-inline:\s*var\(--space-2\)/);
+  });
+});
+
+describe('SplitView', () => {
+  it('measures its own width, never the window', () => {
+    const r = ruleFor('[data-boogy="split-view"]');
+    expect(r).toMatch(/container:\s*boogy-split \/ inline-size/);
+    expect(COMPONENTS_CSS).not.toMatch(/@media[^{]*width[^{]*\{\s*\[data-boogy="split-view"\]/);
+  });
+  it('narrow: only the selected region shows', () => {
+    expect(ruleFor('[data-boogy="split-view"] > [data-slot="regions"] > [data-slot="region"]:not([data-selected])')).toMatch(/display:\s*none/);
+  });
+  it('wide, at each breakpoint: no tabs, every region side by side, an aside at its own width', () => {
+    for (const [at, width] of [['sm', '40rem'], ['md', '48rem'], ['lg', '64rem']]) {
+      const block = blockOf(COMPONENTS_CSS, `@container boogy-split (min-width: ${width})`);
+      expect(block).toContain(`[data-boogy="split-view"][data-collapse-at="${at}"] > [data-slot="tabs"] { display: none; }`);
+      expect(block).toContain(`[data-boogy="split-view"][data-collapse-at="${at}"] > [data-slot="regions"] > [data-slot="region"] { display: flex; }`);
+      expect(block).toContain(`[data-boogy="split-view"][data-collapse-at="${at}"] > [data-slot="regions"] > [data-slot="region"][data-aside] { flex: none; inline-size: var(--aside-width); }`);
+    }
+    expect(FOUNDATION_CSS).toMatch(/--aside-width:/);
+  });
+});
+
+describe('SearchSelect', () => {
+  it('its trigger is a field control: the choice, cut short with an ellipsis, then a chevron at the end', () => {
+    const t = ruleFor('[data-boogy="field"] > button[data-slot="control"]');
+    expect(t).toMatch(/display:\s*flex/);
+    expect(t).toMatch(/text-align:\s*start/);
+    expect(t).toMatch(/cursor:\s*pointer/);
+    expect(ruleFor('[data-boogy="field"] > button[data-slot="control"] > [data-slot="value"]')).toMatch(/text-overflow:\s*ellipsis/);
+    expect(ruleFor('[data-boogy="field"] > button[data-slot="control"] > [data-slot="chevron"]')).toMatch(/margin-inline-start:\s*auto/);
+  });
+  it('open: its search stays at the top and only the list scrolls; the active option lit', () => {
+    const m = ruleFor('[data-boogy="search-select"]');
+    expect(m).toMatch(/display:\s*flex/);
+    expect(m).toMatch(/max-block-size:\s*var\(--select-height\)/);
+    expect(ruleFor('[data-boogy="search-select"] > [data-slot="search"]')).toMatch(/flex:\s*none/);
+    expect(ruleFor('[data-boogy="search-select"] > [data-slot="results"]')).toMatch(/overflow-y:\s*auto/);
+    expect(ruleFor('[data-boogy="search-select"] [role="option"][data-active="true"]')).toMatch(/background:\s*var\(--fill-hover\)/);
+    expect(FOUNDATION_CSS).toMatch(/--select-height:/);
+  });
+});
+
+describe('CodeBlock', () => {
+  it('monospace, scrolling sideways inside itself only', () => {
+    const pre = ruleFor('[data-boogy="code-block"] > [data-slot="code"]');
+    expect(pre).toMatch(/font-family:\s*var\(--font-mono\)/);
+    expect(pre).toMatch(/overflow-x:\s*auto/);
+    expect(pre).toMatch(/white-space:\s*pre/);
+    expect(pre).toMatch(/font-variant-ligatures:\s*none/);
+    expect(ruleFor('[data-boogy="code-block"]')).toMatch(/max-inline-size:\s*100%/);
+    expect(ruleFor('[data-boogy="code-block"]')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
+  });
+  it('collapsed: as tall as its first lines, the rest faded under its footer', () => {
+    const c = ruleFor('[data-boogy="code-block"][data-collapsed="true"] > [data-slot="code"]');
+    expect(c).toMatch(/max-block-size:\s*calc\(var\(--code-lines\) \* 1lh/);
+    expect(c).toMatch(/overflow-y:\s*hidden/);
+    expect(c).toMatch(/mask-image/);
+  });
+  it('its colours come from the accent, so they follow a board, where the browser can; fixed hues where not; comments are quiet', () => {
+    const relative = blockOf(COMPONENTS_CSS, '@supports (color: oklch(from red l c h))');
+    const base = ruleFor('[data-boogy="code-block"]');
+    for (const t of ['--code-keyword', '--code-string', '--code-number', '--code-title', '--code-type', '--code-attr']) {
+      expect(relative).toMatch(new RegExp(`${t}:[^;]*var\\(--accent\\)`));
+      expect(base).toMatch(new RegExp(`${t}:[^;]*oklch\\(0\\.7 0\\.14`));
+    }
+    expect(ruleFor(':is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-comment, .hljs-quote)')).toMatch(/color:\s*var\(--text-3\)/);
+    expect(ruleFor(':is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag)')).toMatch(/color:\s*var\(--code-keyword\)/);
+  });
+});
+
+describe('Markdown', () => {
+  it('reads as prose: headings set apart, wide tables and code scroll inside, links in the accent', () => {
+    expect(ruleFor('[data-boogy="markdown"]')).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(ruleFor('[data-boogy="markdown"] h1')).toMatch(/font-size:\s*var\(--fs-title\)/);
+    expect(ruleFor('[data-boogy="markdown"] table')).toMatch(/overflow-x:\s*auto/);
+    expect(ruleFor('[data-boogy="markdown"] pre')).toMatch(/overflow-x:\s*auto/);
+    expect(ruleFor('[data-boogy="markdown"] a')).toMatch(/color:\s*var\(--accent\)/);
+    expect(ruleFor('[data-boogy="markdown"] img')).toMatch(/max-inline-size:\s*100%/);
+  });
+  it("a markdown block's preview collapses as its code does", () => {
+    const c = ruleFor('[data-boogy="code-block"][data-collapsed="true"] > [data-slot="preview"]');
+    expect(c).toMatch(/max-block-size:\s*calc\(var\(--code-lines\) \* 1lh\)/);
+    expect(c).toMatch(/overflow:\s*hidden/);
+  });
+  it('code in a preview takes the same colours as a code block', () => {
+    expect(ruleFor(':is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-comment, .hljs-quote)')).toMatch(/color:\s*var\(--text-3\)/);
+  });
+});
+
+describe('ThreadView', () => {
+  it('scrolls up and down only and keeps the place itself; one gap for the thread and its pages', () => {
+    const v = ruleFor('[data-boogy="thread-view"]');
+    expect(v).toMatch(/overflow-y:\s*auto/);
+    expect(v).toMatch(/overflow-x:\s*hidden/);
+    expect(v).toMatch(/overflow-anchor:\s*none/);
+    expect(ruleFor('[data-boogy="thread"]')).toMatch(/gap:\s*var\(--thread-gap, var\(--space-2\)\)/);
+    expect(ruleFor('[data-boogy="thread"] > [data-slot="page"]')).toMatch(/gap:\s*var\(--thread-gap, var\(--space-2\)\)/);
   });
 });

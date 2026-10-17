@@ -85,8 +85,11 @@ export interface PaneHandle {
 }
 
 export interface ConnectPaneOptions {
-  /** This module's service id. */
-  service: string;
+  /** Optional, and only a fallback: the pane names the service its ORIGIN
+   *  serves, as the platform says (`/boogy/config`), so an app provisioned
+   *  under another id than the one it was written with still connects. Used
+   *  only where the origin names none. */
+  service?: string;
   /** This app signs people in and tells the board whether it is signed in
    *  (`reportAuthState`). A board then keeps the pane covered until the app
    *  reports signed in, signing it in meanwhile, so the person never sees the
@@ -168,6 +171,21 @@ export function connectPane(opts: ConnectPaneOptions): PaneHandle {
   // The app's own connection replaces the automatic one, which stops answering.
   if (held?.kind === 'auto') held.disconnect();
   return connectPaneAs('app', opts);
+}
+
+/** The service a pane names: its origin's own, as the platform says, else the
+ *  app's. Says once in the console when the two disagree, so an author can see
+ *  the id they wrote is not the one this instance runs as. */
+let warnedService = false;
+function paneService(config: { service?: string }, opts: ConnectPaneOptions): string {
+  if (config.service && opts.service && config.service !== opts.service && !warnedService) {
+    warnedService = true;
+    console.warn(
+      `[boogy] connectPane: this instance runs as service "${config.service}", not "${opts.service}"; ` +
+        `the pane names "${config.service}" (the id passed to connectPane is only a fallback).`,
+    );
+  }
+  return config.service || opts.service || '';
 }
 
 function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHandle {
@@ -297,7 +315,7 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
     sendFrame(window.parent, shell.origin, {
       boogy: PANE_PROTOCOL, type: 'ready', nonce: shell.nonce,
       payload: {
-        service: opts.service,
+        service: paneService(config, opts),
         ...(opts.signsIn ? { signsIn: true } : {}),
         ...(seeThrough ? { background: 'board' as const } : {}),
       },
@@ -325,7 +343,7 @@ function connectPaneAs(kind: PaneSlot['kind'], opts: ConnectPaneOptions): PaneHa
       for (const origin of config.shellOrigins) {
         try {
           sendFrame(window.parent, exactOrigin(origin), {
-            boogy: PANE_PROTOCOL, type: 'hello', nonce: 'hello', payload: { service: opts.service },
+            boogy: PANE_PROTOCOL, type: 'hello', nonce: 'hello', payload: { service: paneService(config, opts) },
           });
         } catch {
           // Not an origin: skip it.

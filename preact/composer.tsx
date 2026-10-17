@@ -17,13 +17,16 @@ export type ComposerProps = {
   placeholder?: string;
   /** The send button's accessible name. Default "Send". */
   sendLabel?: string;
+  /** `bar`: the bar that ends a page, as a composer in a sheet's foot is
+   *  (for a page that is not a sheet). Default: a framed field. */
+  variant?: 'bar';
 } & Omit<JSX.HTMLAttributes<HTMLFormElement>, 'label' | 'value' | 'onSubmit'>;
 
-export function Composer({ label, value, onValueChange, onSubmit, placeholder, sendLabel = 'Send', ...rest }: ComposerProps) {
+export function Composer({ label, value, onValueChange, onSubmit, placeholder, sendLabel = 'Send', variant, ...rest }: ComposerProps) {
   const blank = value.trim() === '';
   const send = () => { if (!blank) onSubmit(); };
   return (
-    <form {...rest} {...field()} onSubmit={(e) => { e.preventDefault(); send(); }}>
+    <form {...rest} {...field({ variant })} onSubmit={(e) => { e.preventDefault(); send(); }}>
       <div data-slot="group">
         <textarea
           data-slot="control"

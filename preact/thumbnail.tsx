@@ -2,22 +2,24 @@
 // tone from the label when there is no image or it fails to load.
 import type { JSX } from 'preact';
 import { usePicture } from './use-picture';
-import { initialsOf, thumbnail, type ThumbnailSize } from '@boogy/web';
+import { initialsOf, thumbnail, type ThumbnailGround, type ThumbnailSize } from '@boogy/web';
 
 export type ThumbnailProps = {
   /** What the image shows — its accessible name, and the initials' source. */
   label: string;
   src?: string;
   size?: ThumbnailSize;
+  /** What its image sits on: `fill` (default), `padded` or `none`. */
+  ground?: ThumbnailGround;
   /** Shown beside its own label (a tile, a row): hidden from assistive tech,
    *  so the name is read once rather than twice. */
   decorative?: boolean;
 } & Omit<JSX.HTMLAttributes<HTMLSpanElement>, 'size' | 'label'>;
 
-export function Thumbnail({ label, src, size, decorative, ...rest }: ThumbnailProps) {
+export function Thumbnail({ label, src, size, ground, decorative, ...rest }: ThumbnailProps) {
   const [image, onError] = usePicture(src);
   return (
-    <span {...rest} {...(decorative ? { 'aria-hidden': 'true' } : { role: 'img', 'aria-label': label })} {...thumbnail({ label, size, image })}>
+    <span {...rest} {...(decorative ? { 'aria-hidden': 'true' } : { role: 'img', 'aria-label': label })} {...thumbnail({ label, size, image, ground })}>
       {image ? <img src={src} alt="" onError={onError} /> : <span aria-hidden="true">{initialsOf(label)}</span>}
     </span>
   );

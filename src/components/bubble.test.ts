@@ -3,6 +3,9 @@ import { bubble, thread, BUBBLE_SIDES } from './bubble';
 import { notice } from './notice';
 import { ruleFor } from '../../test-support/rule-for';
 import { COMPONENTS_CSS } from './components-css';
+import { FOUNDATION_CSS } from '../layout/foundation-css';
+
+const token = (name: string) => FOUNDATION_CSS.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1];
 
 
 describe('bubble', () => {
@@ -25,12 +28,26 @@ describe('bubble', () => {
   });
   it('theirs on a faint fill with a faint edge; yours on the soft accent; both in the ink', () => {
     const theirs = ruleFor('[data-boogy="bubble"] > [data-slot="body"]');
-    expect(theirs).toContain('background: var(--fill-hover)');
+    expect(theirs).toContain('background: var(--bubble-ground-start)');
     expect(theirs).toContain('border: 1px solid var(--edge)');
     expect(theirs).toContain('color: var(--text-1)');
     const yours = ruleFor('[data-boogy="bubble"][data-side="end"] > [data-slot="body"]');
-    expect(yours).toContain('background: var(--accent-soft)');
+    expect(yours).toContain('background: var(--bubble-ground-end)');
     expect(yours).toContain('border-color: transparent');
+  });
+  it('each ground a notch more solid than the hover fill and the soft accent, so a bubble holds over a busy background', () => {
+    expect(token('--bubble-ground-start')).toBe('color-mix(in oklch, var(--text-1) 8%, transparent)');
+    expect(token('--fill-hover')).toBe('color-mix(in oklch, var(--text-1) 6%, transparent)');
+    expect(token('--bubble-ground-end')).toBe('oklch(from var(--accent) l c h / 0.2)');
+    expect(token('--accent-soft')).toBe('oklch(from var(--accent) l c h / 0.16)');
+  });
+  it("its foot corner on the sender's side is nearly square, pointing at whose it is", () => {
+    // Logical corners: bottom left for theirs and bottom right for yours in
+    // left-to-right text, mirrored in right-to-left.
+    expect(ruleFor('[data-boogy="bubble"] > [data-slot="body"]')).toContain('border-radius: var(--radius-3)');
+    expect(ruleFor('[data-boogy="bubble"][data-side="start"] > [data-slot="body"]')).toContain('border-end-start-radius: var(--radius-1)');
+    expect(ruleFor('[data-boogy="bubble"][data-side="end"] > [data-slot="body"]')).toContain('border-end-end-radius: var(--radius-1)');
+    expect(ruleFor('[data-boogy="bubble"][data-side="end"] > [data-slot="body"]')).not.toContain('border-end-start-radius');
   });
   it('its time beneath, small and dim, on its side', () => {
     const m = ruleFor('[data-boogy="bubble"] > [data-slot="meta"]');
@@ -41,12 +58,18 @@ describe('bubble', () => {
 });
 
 describe('thread', () => {
+  it('casts a subtle shadow under every bubble in it, when asked', () => {
+    expect(thread({ shadow: true })).toEqual({ 'data-boogy': 'thread', 'data-shadow': '' });
+    expect(thread({ shadow: false })).toEqual({ 'data-boogy': 'thread' });
+    expect(ruleFor('[data-boogy="thread"][data-shadow] [data-boogy="bubble"] > [data-slot="body"]')).toContain('box-shadow: var(--bubble-shadow)');
+    expect(ruleFor('[data-boogy="bubble"] > [data-slot="body"]')).not.toContain('box-shadow');
+  });
   it('marks a column of bubbles', () => {
     expect(thread()).toEqual({ 'data-boogy': 'thread' });
     const r = ruleFor('[data-boogy="thread"]');
     expect(r).toContain('display: flex');
     expect(r).toContain('flex-direction: column');
-    expect(r).toContain('gap: var(--space-2)');
+    expect(r).toContain('gap: var(--thread-gap, var(--space-2))');
   });
 });
 
@@ -54,7 +77,7 @@ describe('a multi-line field', () => {
   it('a textarea in a field group grows with its text, up to eight lines, never resized by hand', () => {
     const r = ruleFor('[data-boogy="field"] > [data-slot="group"] > textarea[data-slot="control"]');
     expect(r).toContain('field-sizing: content');
-    expect(r).toContain('max-height: 8lh');
+    expect(r).toContain('max-height: calc(7lh + var(--control-md))');
     expect(r).toContain('resize: none');
   });
   it('what sits beside it (a send button) stays at its bottom as it grows', () => {
@@ -101,8 +124,8 @@ describe('beside a multi-line field', () => {
 });
 
 describe('a composer in a sheet foot is the whole bar', () => {
-  it('the foot is a darker translucent well, and its top edge shows focus', () => {
-    expect(ruleFor('[data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"])')).toContain('background: var(--ground-well)');
+  it('the foot is a light, frosted well (--composer-ground), and its top edge shows focus', () => {
+    expect(ruleFor('[data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"])')).toContain('background: var(--composer-ground)');
     expect(ruleFor('[data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"]):focus-within')).toContain('border-top-color: var(--accent)');
   });
   it("the field's own frame dissolves into it: no border, background, corners, shadow or ring", () => {

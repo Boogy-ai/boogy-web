@@ -1015,7 +1015,10 @@ including when the server ends it — and hands you each typed event
 Your service mints the ticket from one of its own routes — the grant from
 `ws_mint_subscribe_grant(channel, ttl)` plus where to subscribe:
 `{ grant, ttl_secs, owner, service, channel }`, with `owner` and `service` taken
-from the service's own identity, never guessed from the hostname.
+from the service's own identity, never guessed from the hostname. For a
+per-person (`principal`) channel the ticket also carries `principal`, the
+recipient the grant was minted for (`ws_mint_principal_subscribe_grant`), and the
+subscribe names it.
 
 ```ts
 import { io } from 'socket.io-client';
@@ -1047,7 +1050,9 @@ just happened — a typing signal from then, say, is long over.
 
 For chat-shaped pages, `Bubble` takes a `status` (`sent`, `delivered` or
 `seen`) that draws delivery marks after its time, and `TypingBubble` shows the
-other person typing.
+other person typing. A bubble's foot corner on its sender's side is nearly
+square. `<Thread shadow>` gives every bubble in the thread a subtle shadow,
+which helps a conversation laid over a busy background, such as a board's.
 
 ## Errors
 

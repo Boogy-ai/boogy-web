@@ -1,11 +1,15 @@
 import { Fragment, type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { pagerPosition, tab, tabId, tabKey, tabList, tabPanel, tabRowMore, tabRowWheel, tabs } from '@boogy/web';
+import { Count } from './count';
 import { useId } from './use-id';
 
 export type TabItem = {
   id: string;
   label: ComponentChildren;
+  /** A count after the label, as a badge of its own (`Count`): how many the
+   *  tab holds. A stored total, never the rows loaded so far. */
+  count?: number;
   /** A glyph before the label, in the tab's colour. Decoration: the label is
    *  the tab's name. */
   icon?: ComponentChildren;
@@ -213,6 +217,7 @@ export function TabList({ label, items, selected, onSelect, fill, edge, panel }:
                   {...tab({ selected: i === at })} onClick={() => onSelect(t.id)}>
             {t.icon !== undefined && <span data-slot="icon" aria-hidden="true">{t.icon}</span>}
             {t.label}
+            {t.count !== undefined && <Count value={t.count} />}
           </button>
           {t.action !== undefined && (
             <span data-slot="tab-action" data-selected={i === at ? '' : undefined}>{t.action}</span>

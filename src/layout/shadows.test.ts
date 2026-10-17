@@ -5,8 +5,8 @@ import { COMPONENTS_CSS } from '../components/components-css';
 const token = (name: string) => FOUNDATION_CSS.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1];
 
 describe('shadow tokens (HeroUI v3 roles)', () => {
-  it('defines surface, overlay, field, bar, menu and avatar shadows, each for light and dark', () => {
-    for (const name of ['--surface-shadow', '--overlay-shadow', '--field-shadow', '--bar-shadow', '--menu-shadow', '--avatar-shadow']) {
+  it('defines surface, overlay, field, bar, menu, avatar and bubble shadows, each for light and dark', () => {
+    for (const name of ['--surface-shadow', '--overlay-shadow', '--field-shadow', '--bar-shadow', '--menu-shadow', '--avatar-shadow', '--bubble-shadow']) {
       expect(token(name), name).toMatch(/light-dark\(/);
     }
   });
@@ -17,6 +17,14 @@ describe('shadow tokens (HeroUI v3 roles)', () => {
   });
   it("a bar's shadow, asked for, shows in dark as in light: it is the bar's edge over what scrolls", () => {
     expect(token('--bar-shadow')).toMatch(/light-dark\([^,]+,\s*rgb\(0 0 0 \/ 0\.\d+\)\)/);
+  });
+  it("a bubble's shadow is subtle: close, soft and faint, and shows in dark as in light", () => {
+    const bubble = token('--bubble-shadow')!;
+    expect(bubble).toMatch(/light-dark\([^,]+,\s*rgb\(0 0 0 \/ 0\.\d+\)\)/);
+    const layers = [...bubble.matchAll(/0 (\d+)px (\d+)px/g)].map(([, y, blur]) => [Number(y), Number(blur)]);
+    expect(layers.length).toBeGreaterThan(0);
+    for (const [y, blur] of layers) { expect(y).toBeLessThanOrEqual(2); expect(blur).toBeLessThanOrEqual(6); }
+    for (const [, alpha] of bubble.matchAll(/\/ (0\.\d+)\)/g)) expect(Number(alpha)).toBeLessThanOrEqual(0.25);
   });
   it("an avatar's shadow is small, and shows in dark as in light", () => {
     const avatar = token('--avatar-shadow')!;
@@ -61,7 +69,7 @@ describe('components use the shadow tokens', () => {
       // A ring kept as a token (`var(--x-ring)`) is checked by its definition.
       const named = /^var\((--[\w-]+-ring)\)$/.exec(s);
       const value = named ? code.match(new RegExp(`${named[1]}:\\s*([^;]+);`))?.[1]?.trim() ?? '' : s;
-      expect(/^(none|var\(--(surface|overlay|field|bar|menu|avatar)-shadow\))$/.test(s) || isRing(value), s).toBe(true);
+      expect(/^(none|var\(--(surface|overlay|field|bar|menu|avatar|bubble)-shadow\))$/.test(s) || isRing(value), s).toBe(true);
     }
   });
   it('the popover and the overlaid drawer float on --overlay-shadow', () => {

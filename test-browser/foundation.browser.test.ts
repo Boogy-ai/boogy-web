@@ -303,17 +303,17 @@ describe('a scaled page', () => {
     await page.setViewport({ width: 800, height: 600 });
   });
 
-  it('tracks the viewport\'s shorter side: 4% of 300px is 12px, and plain text and tokens follow', async () => {
-    const r = await at(300, 800);
-    expect(r.u).toBeCloseTo(12, 1);
-    expect(r.body).toBeCloseTo(12, 1);
-    expect(r.title).toBeCloseTo(15, 1); // --fs-title = 1.25 * --u
+  it('tracks the viewport\'s shorter side: 1.6% of 1000px is 16px, and plain text and tokens follow', async () => {
+    const r = await at(1400, 1000);
+    expect(r.u).toBeCloseTo(16, 1);
+    expect(r.body).toBeCloseTo(16, 1);
+    expect(r.title).toBeCloseTo(20, 1); // --fs-title = 1.25 * --u
   });
-  it('stops at its cap on a large viewport', async () => {
-    expect((await at(1000, 800)).u).toBeCloseTo(17, 1); // 1.0625rem
+  it('grows with a large viewport, with no ceiling: a wall screen gets bigger type, as a phone gets smaller', async () => {
+    expect((await at(3000, 2000)).u).toBeCloseTo(32, 1);
   });
   it('stops at its floor on a small one', async () => {
-    expect((await at(200, 800)).u).toBeCloseTo(10, 1); // 0.625rem
+    expect((await at(300, 800)).u).toBeCloseTo(14, 1); // 0.875rem
   });
   it("on a touch screen it stops at the reader's text size however small the window; without touch it goes on down", async () => {
     expect(await touch.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);

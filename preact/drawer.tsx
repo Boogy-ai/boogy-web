@@ -9,7 +9,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact
 import { Button } from './button';
 import { Glyph } from './glyphs';
 import { TAB_STOPS, trapTab } from './tab-stops';
-import { drawerItem, drawerLayout, drawerMode, monogram, type ButtonSize, type DrawerBreakpoint, type DrawerItemVariant, type DrawerSide } from '@boogy/web';
+import { drawerItem, drawerLayout, drawerMode, monogram, type ButtonSize, type DrawerBreakpoint, type DrawerItemVariant, type DrawerSide, type DrawerVariant } from '@boogy/web';
 
 interface DrawerState {
   expanded: boolean;
@@ -18,6 +18,8 @@ interface DrawerState {
   setOpen: (v: boolean) => void;
   drawer: { current: HTMLElement | null };
   toggle: { current: HTMLElement | null };
+  /** The side its drawer is on: a toggle points the way it goes. */
+  side: DrawerSide;
 }
 
 const Ctx = createContext<DrawerState | null>(null);
@@ -25,6 +27,38 @@ function useDrawer(name: string): DrawerState {
   const s = useContext(Ctx);
   if (!s) throw new Error(`<${name}> must be inside <DrawerLayout>`);
   return s;
+}
+
+/** A layout's drawer, to drive from outside it: a toggle for rooms in a bar
+ *  that sits inside a nested layout (members), whose own drawer is nearer. */
+export type DrawerHandle = { readonly __drawer: DrawerState };
+
+/** The drawer of the layout around the caller, as a handle a `DrawerToggle`
+ *  anywhere can drive (`drawer={handle}`). */
+export function useDrawerHandle(): DrawerHandle {
+  return { __drawer: useDrawer('useDrawerHandle') };
+}
+
+/** The mode the stylesheet gives a drawer, `docked` beside the main area or
+ *  `overlay` laid over it, kept current as the layout is resized across its
+ *  breakpoint; `null` until the drawer is in the document. For what only a
+ *  laid-over drawer needs: a bar's button that opens it. Default the drawer
+ *  of the layout around the caller. */
+export function useDrawerMode(drawer?: DrawerHandle): 'docked' | 'overlay' | null {
+  const nearest = useContext(Ctx);
+  const s = drawer?.__drawer ?? nearest;
+  if (!s) throw new Error('useDrawerMode() must be inside <DrawerLayout>, or given a `drawer`');
+  const [mode, setMode] = useState<'docked' | 'overlay' | null>(null);
+  useLayoutEffect(() => {
+    const el = s.drawer.current;
+    const read = () => setMode(s.drawer.current ? drawerMode(s.drawer.current) : null);
+    read();
+    if (!el?.parentElement || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(read);
+    ro.observe(el.parentElement);
+    return () => ro.disconnect();
+  }, []);
+  return mode;
 }
 
 export type DrawerLayoutProps = {
@@ -71,6 +105,7 @@ export function DrawerLayout({
     else el.style.setProperty('--drawer-width', `${width}px`);
   }, [width]);
   const state: DrawerState = {
+    side: side ?? 'start',
     expanded, open, drawer, toggle,
     setExpanded: (v) => onExpandedChange?.(v),
     setOpen: (v) => onOpenChange?.(v),
@@ -165,10 +200,21 @@ function DrawerResizer({ layout, end, width, min, max, onWidthChange }: {
 export type DrawerProps = {
   /** The navigation landmark's name, e.g. "Boards". */
   label: string;
+  /** Its head: kept at the top, on the drawer's own ground, while what is
+   *  under it scrolls (a section's heading, say, with its count and toggle). */
+  head?: ComponentChildren;
+  /** Its foot: kept at the drawer's bottom edge, on the drawer's own ground,
+   *  while what is above it scrolls (actions, a toggle). On the collapsed
+   *  strip it shows only its toggles and entries. */
+  foot?: ComponentChildren;
+  /** `plain`: docked, it sits on the page's ground with only its edge between
+   *  (a second list beside the main one, a conversation's members); laid over
+   *  the main area it keeps a ground. Default `panel`, a ground of its own. */
+  variant?: DrawerVariant;
   children?: ComponentChildren;
 } & JSX.HTMLAttributes<HTMLElement>;
 
-export function Drawer({ label, children, ...rest }: DrawerProps) {
+export function Drawer({ label, head, foot, variant = 'panel', children, ...rest }: DrawerProps) {
   const s = useDrawer('Drawer');
   const overlayOpen = () => s.open && s.drawer.current !== null && drawerMode(s.drawer.current) === 'overlay';
 
@@ -203,12 +249,21 @@ export function Drawer({ label, children, ...rest }: DrawerProps) {
     <nav
       {...rest}
       data-boogy="drawer"
+      data-variant={variant === 'plain' ? 'plain' : undefined}
       aria-label={label}
       tabIndex={-1}
       ref={(el: HTMLElement | null) => { s.drawer.current = el; }}
       onKeyDown={onKeyDown}
     >
-      {children}
+      {(head != null && head !== false) || (foot != null && foot !== false) ? (
+        <>
+          {/* With a head or a foot, the body scrolls and they stay put, so
+              neither needs a ground of its own. */}
+          {head != null && head !== false && <div data-slot="head">{head}</div>}
+          <div data-slot="body">{children}</div>
+          {foot != null && foot !== false && <div data-slot="foot">{foot}</div>}
+        </>
+      ) : children}
     </nav>
   );
 }
@@ -254,37 +309,44 @@ export type DrawerToggleProps = {
   children?: ComponentChildren;
   /** Its button's size: `sm` among a dense bar's buttons. Default `md`. */
   size?: ButtonSize;
-} & Omit<JSX.HTMLAttributes<HTMLButtonElement>, 'size'>;
+  /** Shown in one state only: `expanded` while the drawer is open (docked
+   *  and expanded, or overlaid), `collapsed` only on its strip. Unset: both.
+   *  A drawer can then collapse from its head and expand from its foot. */
+  shown?: 'expanded' | 'collapsed';
+  /** Its accessible name, opening and closing. Default: "Show navigation" and
+   *  "Hide navigation". */
+  label?: { show: string; hide: string };
+  /** Something new behind it (a room with messages not read): a dot on it,
+   *  and "(new)" in its name. */
+  unread?: boolean;
+  /** The drawer it drives, from `useDrawerHandle`. Default the drawer of the
+   *  layout it is inside. */
+  drawer?: DrawerHandle;
+} & Omit<JSX.HTMLAttributes<HTMLButtonElement>, 'size' | 'label'>;
 
 /** One button for both modes: it expands/collapses a docked drawer and
  *  opens/closes an overlaid one, whichever the stylesheet says applies. */
-export function DrawerToggle({ children, ...rest }: DrawerToggleProps) {
-  const s = useDrawer('DrawerToggle');
+export function DrawerToggle({ children, shown, label = { show: 'Show navigation', hide: 'Hide navigation' }, unread = false, drawer, ...rest }: DrawerToggleProps) {
+  const nearest = useContext(Ctx);
+  const s = drawer?.__drawer ?? nearest;
+  if (!s) throw new Error('<DrawerToggle> must be inside <DrawerLayout>, or given a `drawer`');
   const docked = () => s.drawer.current !== null && drawerMode(s.drawer.current) === 'docked';
-  // The mode is only knowable once the drawer is in the document, and it
-  // changes when the layout is resized across its breakpoint.
-  const [isDocked, setDocked] = useState(false);
-  useLayoutEffect(() => {
-    const el = s.drawer.current;
-    setDocked(docked());
-    if (!el?.parentElement || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setDocked(docked()));
-    ro.observe(el.parentElement);
-    return () => ro.disconnect();
-  }, []);
-  const on = isDocked ? s.expanded : s.open;
+  const on = useDrawerMode(drawer) === 'docked' ? s.expanded : s.open;
   return (
     <Button
       {...rest}
       variant="quiet"
       shape="icon"
-      label={on ? 'Hide navigation' : 'Show navigation'}
+      label={`${on ? label.hide : label.show}${unread ? ' (new)' : ''}`}
       data-role="drawer-toggle"
+      data-side={s.side}
+      data-shown={shown}
       aria-expanded={on ? 'true' : 'false'}
       ref={(el: HTMLElement | null) => { s.toggle.current = el; }}
       onClick={() => (docked() ? s.setExpanded(!s.expanded) : s.setOpen(!s.open))}
     >
       {children ?? <Chevron />}
+      {unread && <span data-slot="unread" aria-hidden="true" />}
     </Button>
   );
 }

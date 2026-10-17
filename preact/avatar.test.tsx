@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { Avatar, SeededArt } from './index';
+import { seededFlat } from '@boogy/web';
 
 afterEach(() => { document.body.replaceChildren(); });
 const mount = (el: preact.ComponentChild) => { const r = document.createElement('div'); document.body.append(r); act(() => render(el, r)); return r; };
@@ -22,6 +23,15 @@ describe('<Avatar>', () => {
     expect(firstStop(mount(<Avatar name="carol" />))).toBe(byName);
     expect(firstStop(mount(<Avatar name="Carol D." seed="carol" />))).toBe(byName);
     expect(firstStop(mount(<Avatar name="carol" seed="boogy://carol/services/squad" />))).not.toBe(byName);
+  });
+  it("flat art: the seed's one bright colour behind its ink, no drawn art; the same seed, the same colour", () => {
+    const a = mount(<Avatar name="Scale check" seed="scale-check" art="flat" variant="rounded" />).querySelector('[data-boogy="avatar"]') as HTMLElement;
+    expect(a.dataset.art).toBe('flat');
+    expect(a.querySelector('[data-boogy="seeded-art"]')).toBeNull();
+    expect(a.querySelector('[data-slot="initials"]')!.textContent).toBe('SC');
+    const { fill, ink } = seededFlat('scale-check');
+    expect(a.style.getPropertyValue('--avatar-fill')).toBe(fill);
+    expect(a.style.getPropertyValue('--avatar-ink')).toBe(ink);
   });
   it('a picture replaces the art; if it fails to load, the art comes back', () => {
     const r = mount(<Avatar name="ada" src="/ada.png" variant="rounded" size="lg" />);

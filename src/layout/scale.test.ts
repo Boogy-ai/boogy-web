@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { scale, surface, withScale, DEFAULT_SCALE } from './scale';
 
 describe('scale', () => {
-  it('defaults to the safe axis and policy', () => {
+  it('defaults to following the shorter side both ways, with a floor and no ceiling', () => {
     const a = scale();
     expect(a['data-u-axis']).toBe('min');
-    expect(a['data-u-policy']).toBe('clamped');
-    expect(a.style).toEqual({ '--u-factor': '4', '--u-floor': '0.625rem', '--u-cap': '1.0625rem' });
+    expect(a['data-u-policy']).toBe('fluid');
+    expect(a.style).toEqual({ '--u-factor': '1.6', '--u-floor': '0.875rem', '--u-cap': '1.0625rem' });
   });
 
   it('carries every axis through', () => {

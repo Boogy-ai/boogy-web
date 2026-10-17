@@ -300,6 +300,25 @@ describe('<TopBar>', () => {
     expect(row.querySelector('[data-slot="label"]')!.textContent).toBe('Copy link');
   });
 
+  it('an action with a glyph shows the glyph beside its label in the bar, and leads its menu row with it', () => {
+    const items: TopBarItem[] = [
+      { id: 'a', label: 'New room', priority: 1, glyph: 'plus', onAction: vi.fn() },
+      { id: 'b', label: 'Members', priority: 2, place: 'menu', glyph: 'users', onAction: vi.fn() },
+    ];
+    const root = mount(<TopBar title="T" size="sm" items={items} zoom={false} />);
+    layout(root, 1000, { a: 90 });
+    const inBar = root.querySelector<HTMLButtonElement>('[data-slot="actions"] [data-item="a"] button')!;
+    expect(inBar.getAttribute('data-shape')).toBe('text');
+    expect(inBar.textContent).toBe('New room');
+    expect(inBar.querySelector('[data-boogy="glyph"]')!.getAttribute('data-size')).toBe('sm');
+    const measured = root.querySelector('[data-slot="measure"] [data-item="a"] [data-boogy="glyph"]');
+    expect(measured, 'the measuring row holds the glyph too, so its width counts').toBeTruthy();
+    act(() => more(root)!.click());
+    const row = menu()!.querySelector<HTMLElement>('[role="menuitem"]')!;
+    expect(row.querySelector('[data-slot="icon"] [data-boogy="glyph"]')).toBeTruthy();
+    expect(row.querySelector('[data-slot="label"]')!.textContent).toBe('Members');
+  });
+
   it("a widget with an icon leads its menu row with the glyph, before its label; one without has none", () => {
     const icon = <svg data-testid="wi" />;
     const items: TopBarItem[] = [
@@ -338,6 +357,17 @@ describe('<TopBar>', () => {
     const plain = mount(<TopBar title="T" items={items} zoom={false} />);
     layout(plain, 1000, {});
     expect(more(plain)!.querySelector('svg[data-boogy="glyph"]')).toBeTruthy();
+  });
+});
+
+describe('<TopBar> media', () => {
+  it('a mark (a logo) beside the title and its subtitle, before them', async () => {
+    const { Thumbnail } = await import('./index');
+    const root = mount(<TopBar title="Harbor Lane Studio" subtitle="Design and build crew" media={<Thumbnail label="Harbor Lane Studio" />} />);
+    const bar = root.querySelector('[data-boogy="top-bar"]')!;
+    const slots = [...bar.children].map((c) => c.getAttribute('data-slot'));
+    expect(slots.slice(0, 2)).toEqual(['media', 'heading']);
+    expect(bar.querySelector('[data-slot="media"] [data-boogy="thumbnail"]')).not.toBeNull();
   });
 });
 

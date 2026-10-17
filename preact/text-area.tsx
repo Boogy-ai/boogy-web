@@ -7,6 +7,7 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useId } from 'preact/hooks';
 import { field } from '@boogy/web';
+import { charCount, describedBy, FieldMessage, overLimit } from './field-message';
 
 export type TextAreaProps = {
   label: string;
@@ -21,13 +22,15 @@ export type TextAreaProps = {
   newlines?: boolean;
   /** `lg`: the field that is the main thing on its surface. */
   size?: 'md' | 'lg';
-} & Omit<JSX.TextareaHTMLAttributes<HTMLTextAreaElement>, 'label' | 'value' | 'onInput' | 'rows' | 'size' | 'style'>;
+  /** The most characters it takes: counted under it ("62 / 200"). */
+  maxLength?: number;
+} & Omit<JSX.TextareaHTMLAttributes<HTMLTextAreaElement>, 'label' | 'value' | 'onInput' | 'rows' | 'size' | 'style' | 'maxLength'>;
 
-export function TextArea({ label, value, onValueChange, message, invalid, rows = 2, newlines = true, size, onKeyDown, ...rest }: TextAreaProps) {
+export function TextArea({ label, value, onValueChange, message, invalid, rows = 2, newlines = true, size, onKeyDown, maxLength, ...rest }: TextAreaProps) {
   const id = useId();
   const messageId = `${id}-message`;
   return (
-    <div {...field({ invalid, size })}>
+    <div {...field({ invalid: invalid || overLimit(value, maxLength), size })}>
       <label data-slot="label" for={id}>{label}</label>
       <textarea
         {...rest}
@@ -36,15 +39,15 @@ export function TextArea({ label, value, onValueChange, message, invalid, rows =
         rows={rows}
         style={{ '--field-rows': String(rows) } as JSX.CSSProperties}
         value={value}
-        aria-invalid={invalid ? 'true' : undefined}
-        aria-describedby={message ? messageId : undefined}
+        aria-invalid={invalid || overLimit(value, maxLength) ? 'true' : undefined}
+        aria-describedby={describedBy(messageId, message, maxLength)}
         onKeyDown={(e: JSX.TargetedKeyboardEvent<HTMLTextAreaElement>) => {
           if (!newlines && e.key === 'Enter') e.preventDefault();
           (onKeyDown as ((e: JSX.TargetedKeyboardEvent<HTMLTextAreaElement>) => void) | undefined)?.(e);
         }}
         onInput={(e: JSX.TargetedEvent<HTMLTextAreaElement>) => onValueChange(e.currentTarget.value)}
       />
-      <span data-slot="message" id={messageId}>{message}</span>
+      <FieldMessage id={messageId} message={message} length={charCount(value)} maxLength={maxLength} />
     </div>
   );
 }

@@ -25,16 +25,16 @@ describe('button group CSS', () => {
   });
   it('squares every button corner, then rounds only the outer ends', () => {
     expect(ruleFor(B)).toMatch(/border-radius: 0/);
-    expect(ruleFor(`${B}:first-child`)).toMatch(/border-start-start-radius: var\(--_r\)[\s\S]*border-end-start-radius: var\(--_r\)/);
-    expect(ruleFor(`${B}:last-child`)).toMatch(/border-start-end-radius: var\(--_r\)[\s\S]*border-end-end-radius: var\(--_r\)/);
-    expect(ruleFor(`${B}:first-child`)).not.toMatch(/-end-radius/);
-    expect(ruleFor(`${B}:last-child`)).not.toMatch(/-start-radius/);
+    expect(ruleFor(`${B}:nth-child(1 of :not([data-boogy="popover"]))`)).toMatch(/border-start-start-radius: var\(--_r\)[\s\S]*border-end-start-radius: var\(--_r\)/);
+    expect(ruleFor(`${B}:nth-last-child(1 of :not([data-boogy="popover"]))`)).toMatch(/border-start-end-radius: var\(--_r\)[\s\S]*border-end-end-radius: var\(--_r\)/);
+    expect(ruleFor(`${B}:nth-child(1 of :not([data-boogy="popover"]))`)).not.toMatch(/-end-radius/);
+    expect(ruleFor(`${B}:nth-last-child(1 of :not([data-boogy="popover"]))`)).not.toMatch(/-start-radius/);
   });
   it('draws a faint hairline seam between neighbours only, from tokens', () => {
-    const seam = ruleFor(`${B} + [data-boogy="button"]`);
+    const seam = ruleFor(`${B}:not(:nth-child(1 of :not([data-boogy="popover"])))`);
     expect(seam).toMatch(/var\(--hairline\)/);
     expect(seam).toMatch(/var\(--edge-faint\)/);
-    expect(ruleFor(`${B}:first-child`)).not.toMatch(/--edge/);
+    expect(ruleFor(`${B}:nth-child(1 of :not([data-boogy="popover"]))`)).not.toMatch(/--edge/);
   });
   it('raises the focused button so its ring is not covered by a neighbour', () => {
     const r = ruleFor(`${B}:focus-visible`);

@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { stack, STACK_GAPS } from './stack';
-import { COMPONENTS_CSS } from './components-css';
-
-const CODE = COMPONENTS_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
-const rule = (sel: string) => { const at = CODE.indexOf(`${sel} {`); return at < 0 ? null : CODE.slice(at, CODE.indexOf('}', at)); };
+import { ruleFor as rule } from '../../test-support/rule-for';
 
 describe('stack', () => {
   it('is a column with the middle gap unless told otherwise', () => {

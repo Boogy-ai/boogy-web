@@ -24,6 +24,21 @@ describe('<Button>', () => {
     expect(el.getAttribute('title')).toBe('Delete board');
   });
 
+  it('a glyph leads its label: the SDK glyph, sized to the button, the text still its name', () => {
+    const small = mount(<Button size="sm" glyph="plus">New room</Button>);
+    const g = small.firstElementChild as HTMLElement;
+    expect(g.getAttribute('data-boogy')).toBe('glyph');
+    expect(g.getAttribute('data-size')).toBe('sm');
+    expect(g.getAttribute('aria-hidden')).toBe('true');
+    expect(small.textContent).toBe('New room');
+    expect(small.getAttribute('aria-label')).toBeNull();
+    expect(small.dataset.shape).toBe('text');
+    const medium = mount(<Button glyph="users">Members</Button>);
+    expect(medium.firstElementChild!.getAttribute('data-size')).toBe('md');
+    expect(medium.querySelectorAll('path').length).toBeGreaterThan(0);
+    expect(mount(<Button>Plain</Button>).querySelector('[data-boogy="glyph"]')).toBeNull();
+  });
+
   it('can be a link styled as a button, with no button type', () => {
     const el = mount(<Button as="a" href="/x" variant="solid" rounded>Open</Button>);
     expect(el.tagName).toBe('A');

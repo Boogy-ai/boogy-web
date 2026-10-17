@@ -14,6 +14,9 @@ import { DRAWER_BREAKPOINTS } from './components-css';
 
 export type DrawerBreakpoint = keyof typeof DRAWER_BREAKPOINTS;
 export type DrawerSide = 'start' | 'end';
+/** `panel` (the default): a ground of its own. `plain`: docked, the page's
+ *  ground, with only its edge between them; as an overlay it keeps a ground. */
+export type DrawerVariant = 'panel' | 'plain';
 
 export interface DrawerLayoutOptions {
   side?: DrawerSide;

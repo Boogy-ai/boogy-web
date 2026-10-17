@@ -16,7 +16,7 @@ import {
   type ButtonSize, type ButtonVariant, type PopoverVariant, type RoundJob, type TopBarPlace,
 } from '@boogy/web';
 import { Button } from './button';
-import { Glyph } from './glyphs';
+import { Glyph, type GlyphShape } from './glyphs';
 import { Popover } from './popover';
 import { TabList, type TabListProps } from './tabs';
 import { TAB_STOPS } from './tab-stops';
@@ -44,11 +44,20 @@ export type TopBarAction = ItemBase & {
   /** Its look in the bar. Default `quiet`; `danger` is also the menu item's. */
   variant?: ButtonVariant;
   disabled?: boolean;
-  /** A glyph. In the bar the action is then an icon-only button named by its label; in the menu the glyph leads its row. */
-  icon?: ComponentChildren;
   widget?: undefined;
   submenu?: undefined;
-};
+} & (
+  | {
+      /** A glyph. In the bar the action is then an icon-only button named by its label; in the menu the glyph leads its row. */
+      icon?: ComponentChildren;
+      glyph?: undefined;
+    }
+  | {
+      /** An SDK glyph beside its label: in the bar the button shows both; in the menu the glyph leads its row. */
+      glyph?: GlyphShape;
+      icon?: undefined;
+    }
+);
 export type TopBarWidget = ItemBase & {
   /** A group of controls (size buttons, a switch): as it is in the bar, and
    *  in a labelled row in the menu, where its controls join the menu's keys
@@ -91,6 +100,9 @@ export type TopBarProps = ({
   subtitle?: ComponentChildren;
   /** A control before the title: a Back or a Home. */
   leading?: ComponentChildren;
+  /** A mark beside the title and its subtitle, before them (a workspace's
+   *  logo, a person's avatar): a `Thumbnail` or an `Avatar`. */
+  media?: ComponentChildren;
   items?: readonly TopBarItem[];
   /** What the More button shows. Default the SDK's More glyph; an app may swap it for a moment to acknowledge an action taken from the menu. */
   moreGlyph?: ComponentChildren;
@@ -220,7 +232,7 @@ function InBar({ item, size, variant, ground }: { item: TopBarItem; size: Button
     );
   }
   return (
-    <Button variant={item.variant ?? 'quiet'} size={size} disabled={item.disabled} data-attention={item.attention ? '' : undefined} onClick={item.onAction}>
+    <Button variant={item.variant ?? 'quiet'} size={size} glyph={item.glyph} disabled={item.disabled} data-attention={item.attention ? '' : undefined} onClick={item.onAction}>
       {item.label}
     </Button>
   );
@@ -367,7 +379,7 @@ function TopBarMenu({ rows, label, start, variant, ground, close }: { rows: read
               if (!it.disabled && document.activeElement !== el) el.focus();
             }}
           >
-            {it.icon !== undefined && <span data-slot="icon" aria-hidden="true">{it.icon}</span>}
+            {(it.icon !== undefined || it.glyph) && <span data-slot="icon" aria-hidden="true">{it.icon ?? <Glyph shape={it.glyph!} />}</span>}
             <span data-slot="label">{it.label}</span>
           </div>
         ),
@@ -438,7 +450,7 @@ export function MenuButton({ items, label = 'More', glyph, size = 'md', menuVari
   );
 }
 
-export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: given = [], moreLabel = 'More', moreGlyph, size = 'md', zoom = 'menu', zoomLabel = 'Text size', menuVariant = 'flat', menuGround, shadow = false, inset = false, below, ...rest }: TopBarProps) {
+export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, media, items: given = [], moreLabel = 'More', moreGlyph, size = 'md', zoom = 'menu', zoomLabel = 'Text size', menuVariant = 'flat', menuGround, shadow = false, inset = false, below, ...rest }: TopBarProps) {
   const items: readonly TopBarItem[] = zoom === false
     ? given
     : [...given, { id: 'zoom', label: zoomLabel, priority: ZOOM_PRIORITY, place: zoom, widget: <ZoomControls size="sm" label={zoomLabel} /> }];
@@ -515,6 +527,7 @@ export function TopBar({ title, tabs, titleAs = 'h1', subtitle, leading, items: 
   const bar = (
     <header ref={ref} {...(stacked ? {} : rest)} {...topBar({ shadow: shadow && !stacked, inset })}>
       {leading !== undefined && <div ref={leadRef} data-slot="leading">{leading}</div>}
+      {media !== undefined && <div data-slot="media">{media}</div>}
       <div data-slot="heading">
         {tabs ? <TabList {...tabs} /> : h(Title, { 'data-slot': 'title' }, title)}
         {subtitle !== undefined && <p data-slot="subtitle">{subtitle}</p>}

@@ -138,20 +138,39 @@ export type DropdownMenuProps = {
 
 const ITEMS = '[data-boogy="menu-item"]:not([data-disabled])';
 
+/** A menu in place has one tab stop among its items: `to`, else the selected
+ *  item, else the first. */
+function rove(menu: HTMLElement, to: HTMLElement | null) {
+  const items = Array.from(menu.querySelectorAll<HTMLElement>(ITEMS));
+  const stop = to ?? items.find((i) => i.getAttribute('aria-checked') === 'true') ?? items[0];
+  for (const i of items) i.tabIndex = i === stop ? 0 : -1;
+}
+
 function DropdownMenu({
   onAction, selectionMode = 'none', selectedKeys, defaultSelectedKeys, onSelectionChange,
   disallowEmptySelection, disabledKeys, shouldCloseOnSelect, shouldFocusWrap = false, children, ...rest
 }: DropdownMenuProps) {
-  const s = useDropdown('Dropdown.Menu');
+  // Null outside a Dropdown: the menu is in place on the page (`Menu`), not in
+  // a popover. Nothing closes it, it takes no focus on its own, Tab leaves it,
+  // and one of its items is the page's tab stop.
+  const s = useContext(DropdownCtx);
   const ref = useRef<HTMLDivElement>(null);
-  const [own, setOwn] = useState(() => s.kept.current ?? new Set(defaultSelectedKeys ?? []));
+  const [own, setOwn] = useState(() => s?.kept.current ?? new Set(defaultSelectedKeys ?? []));
   const selected = selectedKeys ? new Set(selectedKeys) : own;
   const typed = useTypeahead();
+
+  // In place: one tab stop, the focused item, else the selected, else the
+  // first; kept after every render (a selection moves it).
+  useLayoutEffect(() => {
+    const menu = ref.current;
+    if (s || !menu || menu.contains(document.activeElement)) return;
+    rove(menu, null);
+  });
 
   // On open: the key that opened it chose the item; a press focuses the menu.
   useLayoutEffect(() => {
     const menu = ref.current;
-    if (!menu) return;
+    if (!menu || !s) return;
     const items = Array.from(menu.querySelectorAll<HTMLElement>(ITEMS));
     const target = s.focus.current === 'first' ? items[0] : s.focus.current === 'last' ? items[items.length - 1] : menu;
     (target ?? menu).focus();
@@ -168,12 +187,12 @@ function DropdownMenu({
         if (selectionMode === 'single') next.clear();
         next.add(id);
       }
-      if (!selectedKeys) { setOwn(next); s.kept.current = next; }
+      if (!selectedKeys) { setOwn(next); if (s) s.kept.current = next; }
       onSelectionChange?.(next);
     }
     itemAction?.();
     onAction?.(id);
-    if (shouldCloseOnSelect ?? selectionMode !== 'multiple') s.setOpen(false);
+    if (s && (shouldCloseOnSelect ?? selectionMode !== 'multiple')) s.setOpen(false);
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -182,7 +201,8 @@ function DropdownMenu({
     const index = items.indexOf(document.activeElement as HTMLElement);
     const to = moveFocus(e.key, index, items.length, shouldFocusWrap);
     if (to !== null) { e.preventDefault(); items[to].focus(); return; }
-    if (e.key === 'Tab') { e.preventDefault(); s.setOpen(false); return; }
+    // In a popover Tab closes it; in place it moves on, as on any control.
+    if (e.key === 'Tab') { if (s) { e.preventDefault(); s.setOpen(false); } return; }
     const search = typed(e, () => items.map(menuItemText), index);
     if (search) {
       e.preventDefault();
@@ -199,9 +219,14 @@ function DropdownMenu({
         ref={ref}
         data-boogy="menu"
         role="menu"
-        aria-labelledby={s.triggerId}
+        // In a Dropdown its trigger names it; in place, whatever names it.
+        aria-labelledby={s ? s.triggerId : rest['aria-labelledby']}
         tabIndex={-1}
         onKeyDown={onKeyDown}
+        onFocusIn={s ? undefined : (e: FocusEvent) => {
+          const item = (e.target as HTMLElement).closest<HTMLElement>(ITEMS);
+          if (item) rove(ref.current!, item);
+        }}
       >
         {children}
       </div>
@@ -279,3 +304,11 @@ Dropdown.Item = DropdownItem;
 Dropdown.ItemIndicator = DropdownItemIndicator;
 Dropdown.Section = DropdownSection;
 Dropdown.Separator = DropdownSeparator;
+
+/** A menu in place on the page rather than in a popover: the same rows, keys
+ *  and selection as `Dropdown.Menu` (whose props it takes), a compact list of
+ *  choices that stays shown. Give it an `aria-label`. */
+export const Menu = Object.assign(
+  (props: DropdownMenuProps) => <DropdownMenu {...props} />,
+  { Item: DropdownItem, ItemIndicator: DropdownItemIndicator, Section: DropdownSection, Separator: DropdownSeparator },
+);

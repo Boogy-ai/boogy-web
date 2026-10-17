@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { card, cardGrid } from './card';
-import { COMPONENTS_CSS } from './components-css';
-
-const CODE = COMPONENTS_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
-const rule = (sel: string) => { const at = CODE.indexOf(`${sel} {`); return at < 0 ? null : CODE.slice(at, CODE.indexOf('}', at)); };
+import { ruleFor as rule } from '../../test-support/rule-for';
 
 describe('card and card grid', () => {
   it('name their parts', () => {
@@ -56,7 +53,7 @@ describe('card and card grid', () => {
   it('spaced-square: the spaced grid, with square corners on the card and its cover', () => {
     expect(cardGrid({ variant: 'spaced-square' })['data-variant']).toBe('spaced-square');
     // No override of the grid itself, so it keeps the base gap.
-    expect(rule('[data-boogy="card-grid"][data-variant="spaced-square"]')).toBeNull();
+    expect(rule('[data-boogy="card-grid"][data-variant="spaced-square"]')).toBe('');
     expect(rule('[data-boogy="card-grid"][data-variant="spaced-square"] [data-boogy="card"]')).toMatch(/border-radius:\s*0/);
     expect(rule('[data-boogy="card-grid"]:is([data-variant="flush"], [data-variant="spaced-square"]) [data-boogy="card"] > [data-slot="cover"]'))
       .toMatch(/border-radius:\s*0/);

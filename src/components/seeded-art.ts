@@ -77,3 +77,19 @@ export function seededArt(seed: string): SeededArtData {
     blobs,
   };
 }
+
+/** The flat colours: eight hues 40° or more apart (pink, orange, yellow,
+ *  green, teal, blue, violet, magenta), each bright at the lightness that
+ *  suits it (yellow is only yellow when light), with its ink: a deep shade of
+ *  the same hue, which reads on it. A seed takes one of them whole, so two
+ *  seeds' colours are the same or plainly different, never two near blues. */
+export const SEEDED_FLAT_COLOURS: readonly { fill: string; ink: string }[] = (
+  [[0.72, 0.16, 10], [0.77, 0.15, 55], [0.86, 0.15, 95], [0.77, 0.16, 145], [0.77, 0.12, 190], [0.71, 0.14, 245], [0.71, 0.15, 290], [0.73, 0.16, 335]] as const
+).map(([l, c, h]) => ({ fill: oklch(l, c, h), ink: oklch(0.26, 0.06, h) }));
+
+/** One flat colour for `seed`, from SEEDED_FLAT_COLOURS: for a place or a
+ *  group (a room, a channel), set apart from a person's darker art. */
+export function seededFlat(seed: string): { fill: string; ink: string } {
+  return SEEDED_FLAT_COLOURS[hashSeed(seed) % SEEDED_FLAT_COLOURS.length];
+}
+

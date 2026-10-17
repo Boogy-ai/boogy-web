@@ -26,6 +26,9 @@
 const ACCENT_DERIVED = `
     --accent-hover: oklch(from var(--accent) calc(l + 0.06) c h);
     --accent-soft: oklch(from var(--accent) l c h / 0.16);
+    /* A chat bubble's ground for yours (Bubble): a notch over the soft accent,
+       so it holds over a busy background. */
+    --bubble-ground-end: oklch(from var(--accent) l c h / 0.2);
     /* The focus ring. On a dark ground the full accent outshone the control it
        rings; at 0.6 it still stands over 3:1 against the dark grounds, the
        contrast a focus indicator needs. A light ground keeps the full accent,
@@ -88,6 +91,9 @@ export const FOUNDATION_CSS = `
        white at the page's 85% in light; black at 60% in dark, over a page that
        is black at 40%. */
     --ground-well: light-dark(oklch(calc(1 - var(--_step)) 0 0 / 0.85), oklch(0 0 0 / 0.6));
+    /* A composer's bar (a composer in a sheet's foot): the well at half its
+       strength, frosted where it is used, so what is behind it shows blurred. */
+    --composer-ground: color-mix(in oklch, var(--ground-well) 50%, transparent);
 
     /* text */
     --text-1: light-dark(oklch(0.22 var(--tint) var(--hue)), oklch(0.93 var(--tint) var(--hue)));
@@ -116,6 +122,9 @@ ${ACCENT_DERIVED}
 
     /* fills */
     --fill-hover: color-mix(in oklch, var(--text-1) 6%, transparent);
+    /* A chat bubble's ground for theirs (Bubble): a notch over the hover fill,
+       so it holds over a busy background. Yours is \`--bubble-ground-end\`. */
+    --bubble-ground-start: color-mix(in oklch, var(--text-1) 8%, transparent);
     --fill-selected: color-mix(in oklch, var(--text-1) 12%, transparent);
     --fill-strong: color-mix(in oklch, var(--text-1) 18%, transparent);
     /* A checkerboard to show transparency over: under a see-through colour,
@@ -137,6 +146,8 @@ ${ACCENT_DERIVED}
     --avatar-shadow: 0 2px 2px 0 light-dark(rgb(24 24 27 / 0.08), rgb(0 0 0 / 0.25)), 0 4px 6px 0 light-dark(rgb(24 24 27 / 0.07), rgb(0 0 0 / 0.2));
     /* A frosted menu's shadow (the flat popover): small, kept in dark. */
     --menu-shadow: 0 1px 2px 0 light-dark(rgb(24 24 27 / 0.08), rgb(0 0 0 / 0.3)), 0 3px 8px 0 light-dark(rgb(24 24 27 / 0.10), rgb(0 0 0 / 0.35));
+    /* A chat bubble's shadow (Thread's \`shadow\`): close, soft and faint, kept in dark. */
+    --bubble-shadow: 0 1px 2px 0 light-dark(rgb(24 24 27 / 0.08), rgb(0 0 0 / 0.22)), 0 2px 6px 0 light-dark(rgb(24 24 27 / 0.06), rgb(0 0 0 / 0.18));
     /* A bar's shadow (TopBar's \`shadow\`): below it only, never to the sides. */
     --bar-shadow: 0 1px 2px 0 light-dark(rgb(24 24 27 / 0.08), rgb(0 0 0 / 0.4)), 0 4px 10px -4px light-dark(rgb(24 24 27 / 0.12), rgb(0 0 0 / 0.45));
     --field-shadow: 0 2px 4px 0 light-dark(rgb(0 0 0 / 0.04), transparent), 0 1px 2px 0 light-dark(rgb(0 0 0 / 0.06), transparent), 0 0 1px 0 light-dark(rgb(0 0 0 / 0.06), transparent);
@@ -184,6 +195,7 @@ ${ACCENT_DERIVED}
   /* Sizes: re-derived wherever --u is set (see the header). */
   :root,
   [data-u-policy] {
+    --fs-micro: calc(var(--u) * 0.6875);
     --fs-caption: calc(var(--u) * 0.8125);
     --fs-detail: calc(var(--u) * 0.875);
     --fs-body: calc(var(--u) * 1);
@@ -213,20 +225,28 @@ ${ACCENT_DERIVED}
     --icon-md: calc(var(--u) * 1.25);
     --mark-md: calc(var(--u) * 1.75);
     --mark-lg: calc(var(--u) * 2.25);
+    --thumb-xs: calc(var(--u) * 1.5);
     --thumb-sm: calc(var(--u) * 2.5);
     --thumb-md: calc(var(--u) * 3.5);
     --thumb-lg: calc(var(--u) * 6);
+    /* The tallest a picture in a card (a link's preview) stands. */
+    --media-md: calc(var(--u) * 12);
     --tile-min: calc(var(--u) * 6.5);
     --slider-track: calc(var(--u) * 1);
     /* The size controls' slider: wide enough to read its steps apart. */
     --slider-length: calc(var(--u) * 6);
     --chip-md: calc(var(--u) * 1.25);
+    --count-block: calc(var(--u) * 1.125);
+    --aside-width: calc(var(--u) * 22.5);
+    --select-height: calc(var(--u) * 20);
     /* A SampleGrid tile's height. */
     --sample-md: calc(var(--u) * 3);
     --card-min: calc(var(--u) * 15);
     --card-divider: var(--edge);
     --ring: calc(var(--u) * 0.125);
     --underline: calc(var(--u) * 0.25);
+    /* A rail's pip: the mark at a strip's edge beside an unread or open item. */
+    --pip: calc(var(--u) * 0.1875);
     --radius-1: calc(var(--u) * 0.25);
     --radius-2: calc(var(--u) * 0.5);
     --radius-3: calc(var(--u) * 1);
@@ -238,6 +258,9 @@ ${ACCENT_DERIVED}
     /* How much of its ground a frosted surface (a flat popover) keeps: the rest
        shows the blur of what is behind it. */
     --popover-frost: 70%;
+    /* How much of its ground a frosted panel keeps (a drawer over the board's
+       background): enough for its text to read over a busy board. */
+    --panel-frost: 70%;
   }
 
   /* Scrollbars in the theme: thin, no track (the surface shows through), a

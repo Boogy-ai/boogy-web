@@ -10,11 +10,16 @@ export type ThumbnailSize = (typeof THUMBNAIL_SIZES)[number];
 /** How many placeholder tones the stylesheet defines (`data-tone` 0..7). */
 export const THUMBNAIL_TONES = 8;
 
+/** What an image sits on: the fill (edge to edge, the default), the fill
+ *  with padding round the whole image (a logo), or nothing (edge to edge). */
+export type ThumbnailGround = 'fill' | 'padded' | 'none';
+
 export interface ThumbnailAttrs {
   'data-boogy': 'thumbnail';
   'data-size': ThumbnailSize;
   'data-tone': string;
   'data-image': 'true' | 'false';
+  'data-ground'?: 'padded' | 'none';
 }
 
 /** A stable tone for `label`: its seed hash, mod the palette. */
@@ -28,7 +33,7 @@ export function initialsOf(label: string): string {
   return labelWords(label).slice(0, 2).map((w) => Array.from(w)[0] ?? '').join('').toUpperCase();
 }
 
-export function thumbnail(opts: { label: string; size?: ThumbnailSize; image: boolean }): ThumbnailAttrs {
+export function thumbnail(opts: { label: string; size?: ThumbnailSize; image: boolean; ground?: ThumbnailGround }): ThumbnailAttrs {
   const size = opts.size ?? 'md';
   if (!THUMBNAIL_SIZES.includes(size)) {
     throw new Error(`thumbnail(): size must be one of ${THUMBNAIL_SIZES.join(', ')}, got "${size}"`);
@@ -38,5 +43,6 @@ export function thumbnail(opts: { label: string; size?: ThumbnailSize; image: bo
     'data-size': size,
     'data-tone': String(toneOf(opts.label)),
     'data-image': opts.image ? 'true' : 'false',
+    ...(opts.ground && opts.ground !== 'fill' ? { 'data-ground': opts.ground } : {}),
   };
 }

@@ -39,6 +39,27 @@ describe('openStream', () => {
     expect(f.emits[0].payload).toEqual({ kind: 'service', owner: 'tester', service_id: 'squad', channel: 'live', grant: 'g1' });
   });
 
+  it("a per-person channel's ticket carries its principal, and the subscribe sends it", async () => {
+    const f = fakeIo();
+    openStream({ io: f.io, mint: async () => ({ ...ticket(), channel: 'feed', principal: 'm42' }), onEvent: () => {} });
+    f.fire('connect');
+    await flush();
+    expect(f.emits[0].payload).toEqual({ kind: 'service', owner: 'tester', service_id: 'squad', channel: 'feed', principal: 'm42', grant: 'g1' });
+  });
+
+  it('a ticket without a principal sends none, and a principal that is not a non-empty string is no ticket', async () => {
+    const f = fakeIo();
+    openStream({ io: f.io, mint: async () => ticket(), onEvent: () => {} });
+    f.fire('connect');
+    await flush();
+    expect('principal' in f.emits[0].payload).toBe(false);
+    const g = fakeIo();
+    openStream({ io: g.io, mint: async () => ({ ...ticket(), principal: '' }) as StreamTicket, onEvent: () => {} });
+    g.fire('connect');
+    await flush();
+    expect(g.emits).toHaveLength(0);
+  });
+
   it('reports live once the subscribe is acknowledged, and offline on disconnect', async () => {
     const f = fakeIo();
     const statuses: string[] = [];

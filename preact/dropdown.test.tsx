@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
-import { Dropdown, Button } from './index';
+import { Dropdown, Button, Menu } from './index';
 
 afterEach(() => { document.body.replaceChildren(); });
 
@@ -243,5 +243,58 @@ describe('<Dropdown.Menu> selection', () => {
     expect(item('paste').getAttribute('aria-disabled')).toBe('true');
     act(() => item('paste').click());
     expect(onAction).not.toHaveBeenCalled();
+  });
+});
+
+describe('<Menu> in place, outside a Dropdown', () => {
+  function inline(over: Record<string, unknown> = {}) {
+    const onSelectionChange = vi.fn();
+    const r = document.createElement('div');
+    document.body.append(r);
+    act(() => render(
+      <>
+        <button id="before">before</button>
+        <Menu aria-label="Blend" selectionMode="single" disallowEmptySelection selectedKeys={['screen']} onSelectionChange={onSelectionChange} {...over}>
+          {['normal', 'screen', 'overlay'].map((id) => (
+            <Menu.Item key={id} id={id}><span data-slot="label">{id}</span><Menu.ItemIndicator /></Menu.Item>
+          ))}
+        </Menu>
+        <button id="after">after</button>
+      </>,
+      r,
+    ));
+    const items = () => [...r.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+    return { r, items, onSelectionChange };
+  }
+
+  it('renders where it is: a labelled menu of choices, the selected one checked, taking no focus on its own', () => {
+    const { r, items } = inline();
+    const menu = r.querySelector('[role="menu"]')!;
+    expect(menu.getAttribute('aria-label')).toBe('Blend');
+    expect(items().map((i) => i.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('keeps the name its caller gives it: aria-labelledby to a heading of its own', () => {
+    const { r } = inline({ 'aria-label': undefined, 'aria-labelledby': 'blend-heading' });
+    expect(r.querySelector('[role="menu"]')!.getAttribute('aria-labelledby')).toBe('blend-heading');
+  });
+
+  it('is one tab stop: the selected item, and it follows focus', () => {
+    const { items } = inline();
+    expect(items().map((i) => i.tabIndex)).toEqual([-1, 0, -1]);
+    act(() => { items()[1].focus(); items()[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); });
+    expect(document.activeElement).toBe(items()[2]);
+    expect(items().map((i) => i.tabIndex)).toEqual([-1, -1, 0]);
+  });
+
+  it('a click or Enter selects, and nothing closes; Tab is left to the page', () => {
+    const { items, onSelectionChange } = inline();
+    act(() => items()[2].click());
+    expect([...onSelectionChange.mock.calls[0][0]]).toEqual(['overlay']);
+    expect(items()).toHaveLength(3);
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    act(() => { items()[1].focus(); items()[1].dispatchEvent(tab); });
+    expect(tab.defaultPrevented).toBe(false);
   });
 });

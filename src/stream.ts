@@ -15,6 +15,9 @@ export interface StreamTicket {
   owner: string;
   service: string;
   channel: string;
+  /** A per-person (`principal`) channel's recipient, as the service minted the
+   *  grant for: the subscribe names it. Absent for a shared channel. */
+  principal?: string;
 }
 
 /** A typed event: `{ type, v, ts, data }`. */
@@ -70,7 +73,8 @@ function isTicket(t: unknown): t is StreamTicket {
   return (
     typeof x.grant === 'string' && x.grant !== '' &&
     typeof x.ttl_secs === 'number' && Number.isFinite(x.ttl_secs) && x.ttl_secs >= MIN_TTL_SECS &&
-    typeof x.owner === 'string' && typeof x.service === 'string' && typeof x.channel === 'string'
+    typeof x.owner === 'string' && typeof x.service === 'string' && typeof x.channel === 'string' &&
+    (x.principal === undefined || (typeof x.principal === 'string' && x.principal !== ''))
   );
 }
 /** How many sequence numbers are remembered for de-duplication. */
@@ -144,7 +148,11 @@ export function openStream(opts: StreamOptions): { close(): void } {
     if (closed) return;
     socket.emit(
       'subscribe',
-      { kind: 'service', owner: t.owner, service_id: t.service, channel: t.channel, grant: t.grant },
+      {
+        kind: 'service', owner: t.owner, service_id: t.service, channel: t.channel,
+        ...(t.principal !== undefined ? { principal: t.principal } : {}),
+        grant: t.grant,
+      },
       (ack) => status(ack?.ok ? 'live' : 'offline'),
     );
     later(t.ttl_secs * REMINT_AT);

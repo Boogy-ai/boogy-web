@@ -12,7 +12,22 @@ export function bubble(opts: { side?: BubbleSide } = {}): BubbleAttrs {
   return { 'data-boogy': 'bubble', 'data-side': side };
 }
 
-export interface ThreadAttrs { 'data-boogy': 'thread' }
-export function thread(): ThreadAttrs {
-  return { 'data-boogy': 'thread' };
+export interface ThreadAttrs {
+  'data-boogy': 'thread';
+  /** Every bubble in it casts a subtle shadow, lifting it off a busy background. */
+  'data-shadow'?: '';
+}
+export function thread({ shadow = false }: { shadow?: boolean } = {}): ThreadAttrs {
+  const attrs: ThreadAttrs = { 'data-boogy': 'thread' };
+  if (shadow) attrs['data-shadow'] = '';
+  return attrs;
+}
+
+/** The scroller around a thread read a page at a time (ThreadView): it scrolls
+ *  up and down only, and keeps the reader's place itself. */
+export interface ThreadViewAttrs {
+  'data-boogy': 'thread-view';
+}
+export function threadView(): ThreadViewAttrs {
+  return { 'data-boogy': 'thread-view' };
 }

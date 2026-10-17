@@ -1,6 +1,6 @@
 {
   "name": "@boogy/web",
-  "version": "0.3.60",
+  "version": "0.3.78",
   "description": "Browser SDK for Boogy \u2014 sign-in, app connection, and credentialed fetch.",
   "license": "MIT",
   "type": "module",
@@ -27,7 +27,8 @@
     "dist-dev",
     "tsconfig.base.json",
     "dist-preact",
-    "fonts"
+    "fonts",
+    "vendor"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p dev/tsconfig.json && tsc -p preact/tsconfig.json && node scripts/minify-dist-css.mjs",

@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { tile, tileGrid } from './tile';
 import { list, listItem } from './list';
-import { COMPONENTS_CSS } from './components-css';
+import { ruleFor as rule } from '../../test-support/rule-for';
 
-const CODE = COMPONENTS_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
-const rule = (sel: string) => { const at = CODE.indexOf(`${sel} {`); return at < 0 ? null : CODE.slice(at, CODE.indexOf('}', at)); };
 
 describe('tile and list attrs', () => {
   it('name their parts', () => {

@@ -51,3 +51,49 @@ describe('a multi-line field in a real layout', () => {
     });
   }
 });
+
+/** A composer's markup (a textarea and a send button in a field group), as
+ *  `variant`, holding `text`: the textarea's and the button's boxes, and one
+ *  control's height. */
+function composerWith(variant: 'framed' | 'bar', text: string) {
+  return page.evaluate((variant, text) => {
+    document.body.innerHTML = `<form data-boogy="field" ${variant === 'bar' ? 'data-variant="bar"' : ''} style="width:400px">
+      <div data-slot="group">
+        <textarea id="t" data-slot="control" rows="1" placeholder="Message carol"></textarea>
+        <span data-slot="suffix"><button data-boogy="button" data-variant="solid" data-shape="icon" data-size="sm" data-rounded="true">↑</button></span>
+      </div>
+    </form>`;
+    const area = document.getElementById('t') as HTMLTextAreaElement;
+    area.value = text;
+    const button = document.querySelector('button')!;
+    const box = (e: Element) => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, mid: r.top + r.height / 2, height: r.height }; };
+    const probe = document.createElement('div');
+    probe.style.height = 'var(--control-md)';
+    document.body.append(probe);
+    const control = probe.getBoundingClientRect().height;
+    return { area: box(area), button: box(button), control };
+  }, variant, text);
+}
+
+describe('a composer: its text and its send button line up', () => {
+  for (const variant of ['framed', 'bar'] as const) {
+    it(`${variant}: one line is one control tall, centred on the send button`, async () => {
+      const { area, button, control } = await composerWith(variant, '');
+      expect(Math.abs(area.height - control)).toBeLessThanOrEqual(1);
+      expect(Math.abs(area.mid - button.mid)).toBeLessThanOrEqual(1);
+    });
+    it(`${variant}: eight lines show whole before it scrolls`, async () => {
+      await composerWith(variant, 'one\ntwo\nthree\nfour\nfive\nsix\nseven\neight');
+      const fits = await page.evaluate(() => {
+        const t = document.getElementById('t') as HTMLTextAreaElement;
+        return t.scrollHeight - t.clientHeight;
+      });
+      expect(fits).toBeLessThanOrEqual(1);
+    });
+    it(`${variant}: as the text grows, the send button stays by its last line`, async () => {
+      const { area, button, control } = await composerWith(variant, 'one\ntwo\nthree');
+      expect(area.height).toBeGreaterThan(1.5 * control);
+      expect(Math.abs(button.mid - (area.bottom - control / 2))).toBeLessThanOrEqual(1);
+    });
+  }
+});

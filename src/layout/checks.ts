@@ -7,10 +7,11 @@ export interface LayoutViolation {
 /**
  * `fluid` has no ceiling, so it is legal only on an element that owns its own
  * box — made checkable as "is a sizing container". Anything sharing a line or
- * row with other content must be `clamped` or `fixed`.
+ * row with other content must be `clamped` or `fixed`. The page's root owns the
+ * viewport, so it is one (the page scale is fluid by default).
  */
 export function findLayoutViolations(root: ParentNode): LayoutViolation[] {
-  return Array.from(root.querySelectorAll('[data-u-policy="fluid"]:not([data-surface])')).map((element) => {
+  return Array.from(root.querySelectorAll('[data-u-policy="fluid"]:not([data-surface]):not(:root)')).map((element) => {
     const name = element.getAttribute('data-component') ?? `<${element.tagName.toLowerCase()}>`;
     return {
       element,

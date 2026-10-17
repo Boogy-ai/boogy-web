@@ -12,6 +12,10 @@ import { installFoundation, oklchToHex, zoomState, type PopoverVariant } from '.
 import { setHostZoom } from '../../src/layout/zoom';
 import { BackButton, Button, ColorPicker, Glyph, TopBar, ZoomControls, type TopBarItem } from '../../preact/index';
 
+/** The scale this fixture's sizes were tuned at (the SDK's former default,
+ *  clamped at 17px): it tests the component, not the page scale. */
+const FIXTURE_SCALE = { policy: 'clamped', factor: 4, floor: '0.625rem', cap: '1.0625rem' } as const;
+
 const noop = () => {};
 const ITEMS: TopBarItem[] = [
   { id: 'edit', label: 'Edit', priority: 1, onAction: noop },
@@ -25,7 +29,7 @@ const host = () => document.getElementById('host')!;
 
 (window as unknown as Record<string, unknown>).topBarFixture = {
   mount(width: number) {
-    installFoundation();
+    installFoundation({ scale: FIXTURE_SCALE });
     document.body.innerHTML = `<div id="host" style="width:${width}px"></div>`;
     render(<TopBar title="A title long enough to need its room" items={ITEMS} />, host());
   },
@@ -91,7 +95,7 @@ const rect = (el: Element | null) => {
 
 (window as unknown as Record<string, unknown>).topBarMenuFixture = {
   mountMenu(o: { width: number; variant: PopoverVariant }) {
-    installFoundation();
+    installFoundation({ scale: FIXTURE_SCALE });
     document.body.style.cssText = 'margin:0;background:var(--ground-sunken);color:var(--text-1);font-family:var(--font-body)';
     document.body.innerHTML = `<div id="host" style="width:${o.width}px;padding:8px 16px;box-sizing:border-box"></div>`;
     render(<TopBar title="A page" items={MENU_ITEMS} zoom={false} menuVariant={o.variant} />, host());
@@ -132,7 +136,7 @@ const rect = (el: Element | null) => {
 
 (window as unknown as Record<string, unknown>).topBarAttentionFixture = {
   mount(width: number) {
-    installFoundation();
+    installFoundation({ scale: FIXTURE_SCALE });
     document.body.innerHTML = `<div id="host" style="width:${width}px"></div>`;
     render(
       <TopBar title="T" zoom={false} items={[{ id: 'update', label: 'Update', priority: 1, attention: true, onAction: noop }]} />,
@@ -177,7 +181,7 @@ const EDGE_ITEMS: TopBarItem[] = [
 
 (window as unknown as Record<string, unknown>).topBarEdgeFixture = {
   mount(width: number, size: 'sm' | 'md') {
-    installFoundation();
+    installFoundation({ scale: FIXTURE_SCALE });
     document.body.innerHTML = `<div id="host" style="width:${width}px"></div>`;
     render(
       <>

@@ -5,6 +5,7 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useId, useRef } from 'preact/hooks';
 import { field } from '@boogy/web';
+import { charCount, describedBy, FieldMessage, overLimit } from './field-message';
 
 export type TextFieldProps = {
   label: string;
@@ -16,9 +17,11 @@ export type TextFieldProps = {
   autoFocus?: boolean;
   /** `lg`: the field that is the main thing on its surface. */
   size?: 'md' | 'lg';
-} & Omit<JSX.InputHTMLAttributes<HTMLInputElement>, 'label' | 'value' | 'onInput' | 'autoFocus' | 'size'>;
+  /** The most characters it takes: counted under it ("6 / 60"). */
+  maxLength?: number;
+} & Omit<JSX.InputHTMLAttributes<HTMLInputElement>, 'label' | 'value' | 'onInput' | 'autoFocus' | 'size' | 'maxLength'>;
 
-export function TextField({ label, value, onValueChange, message, invalid, autoFocus, size, ...rest }: TextFieldProps) {
+export function TextField({ label, value, onValueChange, message, invalid, autoFocus, size, maxLength, ...rest }: TextFieldProps) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   // Focused ON MOUNT, by an effect: the `autofocus` attribute is honoured once
@@ -26,7 +29,7 @@ export function TextField({ label, value, onValueChange, message, invalid, autoF
   useEffect(() => { if (autoFocus) input.current?.focus(); }, []);
   const messageId = `${id}-message`;
   return (
-    <div {...field({ invalid, size })}>
+    <div {...field({ invalid: invalid || overLimit(value, maxLength), size })}>
       <label data-slot="label" for={id}>{label}</label>
       <input
         type="text"
@@ -35,11 +38,11 @@ export function TextField({ label, value, onValueChange, message, invalid, autoF
         id={id}
         data-slot="control"
         value={value}
-        aria-invalid={invalid ? 'true' : undefined}
-        aria-describedby={message ? messageId : undefined}
+        aria-invalid={invalid || overLimit(value, maxLength) ? 'true' : undefined}
+        aria-describedby={describedBy(messageId, message, maxLength)}
         onInput={(e: JSX.TargetedEvent<HTMLInputElement>) => onValueChange(e.currentTarget.value)}
       />
-      <span data-slot="message" id={messageId}>{message}</span>
+      <FieldMessage id={messageId} message={message} length={charCount(value)} maxLength={maxLength} />
     </div>
   );
 }

@@ -81,6 +81,18 @@ describe('docked (container at or above the breakpoint, md = 48rem)', () => {
     expect(await css('#B', 'display')).toBe('none');
   });
 
+  it('keeps its width beside main content far wider than the layout, expanded and collapsed', async () => {
+    // A long message or a wide table makes the main area's preferred width
+    // huge. The drawer is a fixed column: the main area gives way, never it.
+    for (const expanded of ['true', 'false']) {
+      await layout(1000, { 'data-expanded': expanded });
+      const want = (await rect('#D')).w;
+      await page.$eval('#M', (m) => { m.textContent = 'supercalifragilistic '.repeat(400) + 'x'.repeat(2000); });
+      expect((await rect('#D')).w, `expanded=${expanded}`).toBeCloseTo(want, 0);
+      expect((await rect('#M')).x, `expanded=${expanded}`).toBeCloseTo(want, 0);
+    }
+  });
+
   it('mirrors for side="end"', async () => {
     await layout(1000, { 'data-expanded': 'true', 'data-side': 'end' });
     expect((await rect('#D')).x).toBeCloseTo(760, 0);
@@ -171,5 +183,165 @@ describe('the layout never scrolls', () => {
     await page.focus('#far');
     expect(await page.$eval('#far', (el) => el === document.activeElement)).toBe(true);
     expect(await page.$eval('#L', (el) => [el.scrollTop, el.scrollLeft])).toEqual([0, 0]);
+  });
+});
+
+describe('a list and a section on the collapsed strip', () => {
+  /** A members-style drawer: a section with a glyph and a meta, an action and
+   *  a description, over a list of people with avatars; and a plain section. */
+  async function people(): Promise<void> {
+    await page.evaluate(() => {
+      const person = (name: string) => `<li><div data-boogy="list-item"><span data-slot="media"><span class="av" data-boogy="avatar" data-size="sm" role="img" aria-label="${name}"></span></span><span data-slot="text"><span data-slot="title">${name}</span></span><span data-slot="end"><button>x</button></span></div></li>`;
+      document.body.innerHTML = `
+        <div data-boogy="drawer-layout" data-collapse-at="md" data-expanded="false" style="width:1000px;height:600px">
+          <div id="D" data-boogy="drawer">
+            <section id="S" data-boogy="section">
+              <div id="SH" data-slot="head">
+                <h3 data-slot="header"><svg id="G" data-boogy="glyph" data-size="md" data-slot="glyph" viewBox="0 0 24 24"></svg><span id="ST" data-slot="title">Members</span><span id="SM" data-slot="meta"><span data-slot="separator" aria-hidden="true"> · </span>3</span></h3>
+                <button id="SA">All</button>
+                <p id="SD" data-slot="description">Who is here</p>
+              </div>
+              <ul data-boogy="list">${['tess', 'carol', 'dave'].map(person).join('')}</ul>
+            </section>
+            <section data-boogy="section"><div id="PH" data-slot="head"><h3 data-slot="header"><span data-slot="title">Plain</span></h3></div><p>body</p></section>
+          </div>
+          <main data-boogy="drawer-main">main</main>
+        </div>`;
+    });
+  }
+  const box = (sel: string) => page.$eval(sel, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, b: r.bottom }; });
+
+  it('fits: nothing overflows the strip, and each avatar is an entry-sized mark centred in it', async () => {
+    await people();
+    const d = await page.$eval('#D', (el) => ({ client: el.clientWidth, scroll: el.scrollWidth, x: el.getBoundingClientRect().x, w: el.clientWidth }));
+    expect(d.scroll).toBeLessThanOrEqual(d.client);
+    const avatars = await page.$$eval('.av', (els) => els.map((el) => { const r = el.getBoundingClientRect(); return { x: r.x, w: r.width, h: r.height }; }));
+    expect(avatars).toHaveLength(3);
+    for (const a of avatars) {
+      expect(a.w).toBeCloseTo(36, 0); // --mark-lg at --u 16px
+      expect(a.h).toBeCloseTo(36, 0);
+      expect(a.x + a.w / 2).toBeCloseTo(d.x + d.w / 2, 0);
+    }
+    expect(await css('[data-slot="end"]', 'display')).toBe('none');
+    expect((await box('[data-boogy="list-item"] > [data-slot="text"]')).w).toBeLessThanOrEqual(1);
+  });
+
+  it("a section's head is its glyph over its meta, then a rule with the same space above and below it", async () => {
+    await people();
+    const glyph = await box('#G');
+    const meta = await box('#SM');
+    const head = await box('#SH');
+    const first = await box('.av');
+    expect(glyph.w).toBeGreaterThan(0);
+    expect(meta.y).toBeGreaterThan(glyph.b);
+    expect((await box('#ST')).w).toBeLessThanOrEqual(1);
+    expect(await css('#SA', 'display')).toBe('none');
+    expect(await css('#SD', 'display')).toBe('none');
+    expect(await css('#SH', 'border-bottom-width')).toBe('1px');
+    // From the digits' baseline, where their ink ends: a zero-height marker
+    // set on it. The meta's own box is no measure — untrimmed, it grows by its
+    // leading, and the space below the letters with it.
+    const baseline = await page.$eval('#SM', (el) => {
+      const mark = document.createElement('span');
+      mark.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+      el.append(mark);
+      const y = mark.getBoundingClientRect().y;
+      mark.remove();
+      return y;
+    });
+    const above = head.b - 1 - baseline;
+    const below = first.y - head.b;
+    expect(above).toBeGreaterThan(0);
+    expect(below).toBeCloseTo(above, 0);
+  });
+
+  it('a section with neither a glyph nor a meta has no head on the strip, and keeps it expanded', async () => {
+    await people();
+    expect(await css('#PH', 'display')).toBe('none');
+    expect(await css('#SH', 'display')).toBe('flex');
+    await page.$eval('[data-boogy="drawer-layout"]', (el) => el.setAttribute('data-expanded', 'true'));
+    expect(await css('#PH', 'display')).toBe('grid');
+    expect(await css('#G', 'display')).toBe('none');
+  });
+});
+
+describe("a drawer's foot and its one-state toggles", () => {
+  /** A members drawer on the end side: a section whose action is the
+   *  expanded-only toggle, `people` list items, and a foot holding a button
+   *  and the collapsed-only toggle. */
+  async function members(expanded: boolean, people: number): Promise<void> {
+    await page.evaluate(({ expanded, people }) => {
+      const person = (i: number) => `<li><div data-boogy="list-item"><span data-slot="media"><span data-boogy="avatar" data-size="sm"></span></span><span data-slot="text"><span data-slot="title">p${i}</span></span></div></li>`;
+      document.body.innerHTML = `
+        <div data-boogy="drawer-layout" data-collapse-at="md" data-side="end" data-expanded="${expanded}" style="width:1000px;height:400px">
+          <div id="D" data-boogy="drawer">
+            <div data-slot="body"><section data-boogy="section">
+              <div data-slot="head"><h3 data-slot="header"><span data-slot="title">Members</span></h3><button id="HT" data-boogy="button" data-role="drawer-toggle" data-shown="expanded">x</button></div>
+              <ul data-boogy="list">${Array.from({ length: people }, (_, i) => person(i)).join('')}</ul>
+            </section></div>
+            <div id="F" data-slot="foot"><button id="INV" data-boogy="button">Invite people</button><button id="FT" data-boogy="button" data-role="drawer-toggle" data-shown="collapsed">x</button></div>
+          </div>
+          <main data-boogy="drawer-main">main</main>
+        </div>`;
+    }, { expanded, people });
+  }
+  const bottom = (sel: string) => page.$eval(sel, (el) => el.getBoundingClientRect().bottom);
+
+  it("sits flush on the drawer's bottom edge, short list or long, on the drawer's ground, and a long list scrolls up to it", async () => {
+    await members(true, 2);
+    expect(await bottom('#F')).toBeCloseTo(await bottom('#D'), 0);
+    expect(await css('#F', 'background-color')).toBe('rgba(0, 0, 0, 0)');
+    await members(true, 40);
+    expect(await bottom('#F')).toBeCloseTo(await bottom('#D'), 0);
+    const body = await page.$eval('#D > [data-slot="body"]', (el) => ({ client: el.clientHeight, scroll: el.scrollHeight, bottom: el.getBoundingClientRect().bottom }));
+    expect(body.scroll).toBeGreaterThan(body.client);
+    // Nothing paints below the body: the list stops at the foot's rule.
+    expect(body.bottom).toBeLessThanOrEqual((await page.$eval('#F', (el) => el.getBoundingClientRect().top)) + 0.5);
+    expect(await page.$eval('#D', (el) => el.scrollHeight <= el.clientHeight)).toBe(true);
+  });
+
+  it('expanded: the header toggle and the foot button show, the foot toggle does not; on the strip the reverse', async () => {
+    await members(true, 3);
+    expect(await css('#HT', 'display')).not.toBe('none');
+    expect(await css('#INV', 'display')).not.toBe('none');
+    expect(await css('#FT', 'display')).toBe('none');
+    await members(false, 3);
+    expect(await css('#HT', 'display')).toBe('none');
+    expect(await css('#INV', 'display')).toBe('none');
+    expect(await css('#FT', 'display')).not.toBe('none');
+    expect(await bottom('#F')).toBeCloseTo(await bottom('#D'), 0);
+  });
+
+  it('overlaid (below the breakpoint), it is open, so the collapsed-only toggle hides', async () => {
+    await members(false, 3);
+    await page.$eval('[data-boogy="drawer-layout"]', (el) => { el.setAttribute('style', 'width:600px;height:400px'); el.setAttribute('data-open', 'true'); });
+    expect(await css('#FT', 'display')).toBe('none');
+    expect(await css('#HT', 'display')).not.toBe('none');
+  });
+});
+
+describe("a drawer's head", () => {
+  it('stays put while the body under it scrolls', async () => {
+    await page.evaluate(() => {
+      const rows = Array.from({ length: 40 }, (_, i) => `<li><div data-boogy="list-item"><span data-slot="text"><span data-slot="title">p${i}</span></span></div></li>`).join('');
+      document.body.innerHTML = `
+        <div data-boogy="drawer-layout" data-collapse-at="md" data-side="end" data-expanded="true" style="width:1000px;height:400px">
+          <div id="D" data-boogy="drawer">
+            <div id="H" data-slot="head"><section data-boogy="section"><div data-slot="head"><h3 data-slot="header"><span data-slot="title">Members</span></h3></div></section></div>
+            <div id="B" data-slot="body"><ul data-boogy="list">${rows}</ul></div>
+          </div>
+          <main data-boogy="drawer-main">main</main>
+        </div>`;
+    });
+    const top = () => page.$eval('#H', (el) => el.getBoundingClientRect().top);
+    const before = await top();
+    const scrolled = await page.$eval('#B', (el) => { el.scrollTop = 500; return el.scrollTop; });
+    expect(scrolled).toBeGreaterThan(0);
+    expect(await top()).toBeCloseTo(before, 0);
+    expect(await page.$eval('#D', (el) => el.scrollTop)).toBe(0);
+    // The list starts below the head: nothing scrolls over it.
+    const headBottom = await page.$eval('#H', (el) => el.getBoundingClientRect().bottom);
+    const bodyTop = await page.$eval('#B', (el) => el.getBoundingClientRect().top);
+    expect(bodyTop).toBeGreaterThanOrEqual(headBottom);
   });
 });

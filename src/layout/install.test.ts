@@ -70,9 +70,11 @@ describe('installFoundation scale', () => {
   it('a Scale overrides the default per field', async () => {
     reset();
     const { installFoundation } = await import('./install');
-    installFoundation({ scale: { cap: '1.25rem' } });
+    installFoundation({ scale: { policy: 'clamped', cap: '1.25rem' } });
     expect(root().style.getPropertyValue('--u-cap')).toBe('1.25rem');
     expect(root().getAttribute('data-u-policy')).toBe('clamped');
+    // A field not overridden keeps the default's.
+    expect(root().getAttribute('data-u-axis')).toBe('min');
     reset();
   });
 });

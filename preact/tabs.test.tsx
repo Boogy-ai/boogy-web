@@ -26,6 +26,17 @@ const tabsOf = (r: HTMLElement) => [...r.querySelectorAll<HTMLElement>('[role="t
 const key = (el: Element, k: string) =>
   act(() => { el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })); });
 
+describe('<TabList> counts', () => {
+  it('a tab may carry a count: a badge after its label, part of its name', () => {
+    const root = mount(<TabList label="Members and invites" panel="p" selected="a" onSelect={() => {}}
+      items={[{ id: 'a', label: 'Members', count: 10003 }, { id: 'b', label: 'Invites', count: 6 }, { id: 'c', label: 'Removed' }]} />);
+    const [a, b, c] = tabsOf(root);
+    expect(a.querySelector(':scope > [data-boogy="count"]')?.getAttribute('title')).toBe(new Intl.NumberFormat().format(10003));
+    expect(b.textContent).toBe('Invites6');
+    expect(c.querySelector('[data-boogy="count"]')).toBeNull();
+  });
+});
+
 describe('<Tabs>', () => {
   it('a named tablist; the selected tab is the one tab stop; the panel is labelled by it', () => {
     const r = mount(<Harness />);

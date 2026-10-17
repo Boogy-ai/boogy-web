@@ -19,11 +19,15 @@ export interface Scale {
   component?: string;
 }
 
+/** A page's scale unless it says otherwise: it follows the frame's shorter
+ *  side both ways, with a floor and no ceiling, so type and controls grow with
+ *  the pane on a wall screen as they shrink on a phone. About 17px at 1080p,
+ *  double that at 2160p. (`cap` is used only by a `clamped` override.) */
 export const DEFAULT_SCALE: Required<Omit<Scale, 'component'>> = {
   axis: 'min',
-  policy: 'clamped',
-  factor: 4,
-  floor: '0.625rem',
+  policy: 'fluid',
+  factor: 1.6,
+  floor: '0.875rem',
   cap: '1.0625rem',
 };
 

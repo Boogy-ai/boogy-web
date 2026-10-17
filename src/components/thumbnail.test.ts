@@ -44,3 +44,16 @@ describe('initialsOf', () => {
     expect(initialsOf('   ')).toBe('');
   });
 });
+
+describe('thumbnail ground', () => {
+  it('an image sits on a fill by default; padded on it, or on nothing, when asked', async () => {
+    const { COMPONENTS_CSS } = await import('./components-css');
+    expect(thumbnail({ label: 'Harbor', image: true })['data-ground']).toBeUndefined();
+    expect(thumbnail({ label: 'Harbor', image: true, ground: 'padded' })['data-ground']).toBe('padded');
+    expect(thumbnail({ label: 'Harbor', image: true, ground: 'none' })['data-ground']).toBe('none');
+    expect(COMPONENTS_CSS).toMatch(/\[data-boogy="thumbnail"\]\[data-ground="padded"\][^{]*\{[^}]*padding:/);
+    expect(COMPONENTS_CSS).toMatch(/\[data-ground="padded"\] > img \{[^}]*object-fit: contain/);
+    expect(COMPONENTS_CSS).toMatch(/\[data-boogy="thumbnail"\]\[data-ground="none"\][^{]*\{[^}]*background: transparent/);
+  });
+});
+

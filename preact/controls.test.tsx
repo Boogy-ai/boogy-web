@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
-import { ChoiceGroup, Meter, Switch } from './index';
+import { ChoiceGroup, Count, Meter, Switch } from './index';
 
 afterEach(() => { document.body.replaceChildren(); });
 function mount(node: preact.ComponentChild): HTMLElement {
@@ -121,5 +121,52 @@ describe('<ChoiceGroup>', () => {
     expect(fs.textContent).toContain('Nobody sees results until then.');
     act(() => radios[1].click());
     expect(onChange).toHaveBeenCalledWith('always');
+  });
+});
+
+describe('<Count>', () => {
+  it('shows the number compact, as a badge of its own, with the exact value as its title', () => {
+    const root = mount(<Count value={10003} locale="en-US" />);
+    const el = root.querySelector('[data-boogy="count"]')!;
+    expect(el.tagName).toBe('DATA');
+    expect(el.textContent).toBe('10K');
+    expect(el.getAttribute('title')).toBe('10,003');
+    expect(el.getAttribute('value')).toBe('10003');
+  });
+});
+
+describe('<ChoiceGroup variant="segmented">', () => {
+  const CHOICES = [{ value: 'active', label: 'Active' }, { value: 'removed', label: 'Removed', count: 1, description: 'Not shown here' }];
+  it('native radios in one track; a count sits inside its label; no description is drawn', () => {
+    const root = mount(<ChoiceGroup variant="segmented" label="Show" name="f" value="active" onValueChange={() => {}} choices={CHOICES} />);
+    const group = root.querySelector('[data-boogy="choice-group"]')!;
+    expect(group.getAttribute('data-variant')).toBe('segmented');
+    const track = group.querySelector(':scope > [data-slot="choices"]')!;
+    expect(track.querySelectorAll('input[type="radio"]').length).toBe(2);
+    const removed = track.querySelectorAll('label[data-slot="choice-label"]')[1];
+    expect(removed.querySelector('[data-boogy="count"]')?.textContent).toBe('1');
+    expect(root.querySelector('[data-slot="choice-description"]')).toBeNull();
+  });
+  it('choosing a segment reports its value', () => {
+    const onChange = vi.fn();
+    const root = mount(<ChoiceGroup variant="segmented" label="Show" name="f" value="active" onValueChange={onChange} choices={CHOICES} />);
+    act(() => root.querySelectorAll<HTMLLabelElement>('label[data-slot="choice-label"]')[1].click());
+    expect(onChange).toHaveBeenCalledWith('removed');
+  });
+  it('hideLabel: the group is still named by its legend, which is not drawn', () => {
+    const root = mount(<ChoiceGroup variant="segmented" hideLabel label="Show" name="f" value="active" onValueChange={() => {}} choices={CHOICES} />);
+    const legend = root.querySelector('[data-boogy="choice-group"] > legend')!;
+    expect(legend.textContent).toBe('Show');
+    expect(legend.hasAttribute('data-visually-hidden')).toBe(true);
+    const shown = mount(<ChoiceGroup label="Lasts" name="d" value="a" onValueChange={() => {}} choices={[{ value: 'a', label: 'A' }]} />);
+    expect(shown.querySelector('legend')!.hasAttribute('data-visually-hidden')).toBe(false);
+  });
+  it('fill: the segments share the width', () => {
+    const root = mount(<ChoiceGroup variant="segmented" fill label="Lasts" name="d" value="7" onValueChange={() => {}} choices={[{ value: '1', label: '1 day' }, { value: '7', label: '7 days' }]} />);
+    expect(root.querySelector('[data-boogy="choice-group"]')!.getAttribute('data-fill')).toBe('true');
+  });
+  it('the plain list keeps its choices in the same slot, with their descriptions', () => {
+    const root = mount(<ChoiceGroup label="L" name="n" value="a" onValueChange={() => {}} choices={[{ value: 'a', label: 'A', description: 'About A' }]} />);
+    expect(root.querySelector('[data-slot="choices"] > [data-slot="choice"] > [data-slot="choice-description"]')).not.toBeNull();
   });
 });

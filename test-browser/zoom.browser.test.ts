@@ -28,7 +28,9 @@ afterAll(async () => { await browser?.close(); });
 /** At `zoom`: the root's --u, a scaled region's --u (in a w×h surface), and a
  *  `--icon-md` box's and a token-sized image's rendered sizes, in px. */
 async function at(zoom: number, box: { w: number; h: number }) {
-  const s = scale();
+  // A clamped region (the policy whose cap the zoom must pass), as the SDK's
+  // former default: axis min, factor 4, the 17px cap.
+  const s = scale({ policy: 'clamped', factor: 4, floor: '0.625rem', cap: '1.0625rem' });
   return page.evaluate(
     (zoom, box, attrs, style) => {
       const root = document.documentElement;

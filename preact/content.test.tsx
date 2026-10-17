@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, type JSX } from 'preact';
 import { act } from 'preact/test-utils';
-import { Section, Notice, InfoList, DetailHeader, SearchField } from './index';
+import { Section, Notice, InfoList, DetailHeader, SearchField, List, ListItem, Avatar, Thumbnail } from './index';
 import { COMPONENTS_CSS_PARTS } from '../src/components/components-css';
 
 afterEach(() => { document.body.innerHTML = ''; });
@@ -33,11 +33,36 @@ describe('<Section>', () => {
     const r = mount(<Section title="Yours"><p /></Section>);
     expect(r.querySelector('[data-slot="description"]')).toBeNull();
   });
+  it('a short value may go with its title, as "title · meta", read as one heading', () => {
+    const r = mount(<Section title="Members" meta={3}><p /></Section>);
+    const header = r.querySelector('[data-slot="header"]')!;
+    expect(header.textContent).toBe('Members · 3');
+    expect(header.querySelector('[data-slot="title"]')!.textContent).toBe('Members');
+    expect(header.querySelector('[data-slot="meta"]')!.textContent).toBe(' · 3');
+    expect(header.querySelector('[data-slot="separator"]')!.getAttribute('aria-hidden')).toBe('true');
+    expect(mount(<Section title="Yours"><p /></Section>).querySelector('[data-slot="meta"]')).toBeNull();
+  });
+  it('a glyph rides in the header, shown only where the heading has no room for its title', () => {
+    const r = mount(<Section title="Members" glyph="users"><p /></Section>);
+    const glyph = r.querySelector('[data-slot="header"] > [data-slot="glyph"]')!;
+    expect(glyph.getAttribute('data-boogy')).toBe('glyph');
+    expect(glyph.getAttribute('aria-hidden')).toBe('true');
+    expect(COMPONENTS_CSS_PARTS.SECTION_CSS).toMatch(/\[data-boogy="section"\] \[data-slot="header"\] > \[data-slot="glyph"\] \{ display: none; \}/);
+  });
   it('captions a group, with an optional action', () => {
     const r = mount(<Section title="Yours" action={<button id="all">See all</button>}><p id="kid" /></Section>);
     expect(r.querySelector('[data-boogy="section"] [data-slot="header"]')!.textContent).toBe('Yours');
     expect(r.querySelector('[data-slot="head"] #all')).not.toBeNull();
     expect(r.querySelector('#kid')).not.toBeNull();
+  });
+});
+
+describe('<Notice> with an action', () => {
+  it('its one action sits at the end of its line; a notice without one is plain text', () => {
+    const r = mount(<Notice action={<button id="undo">Unarchive</button>}>Archived.</Notice>);
+    expect(r.querySelector('[data-boogy="notice"] > [data-slot="action"] > #undo')).not.toBeNull();
+    expect(mount(<Notice>Plain.</Notice>).querySelector('[data-slot="action"]')).toBeNull();
+    expect(COMPONENTS_CSS_PARTS.NOTICE_CSS).toMatch(/\[data-boogy="notice"\]:has\(> \[data-slot="action"\]\) \{[^}]*display:\s*flex[^}]*justify-content:\s*space-between/);
   });
 });
 
@@ -130,6 +155,31 @@ const selectorsIn = (css: string) =>
   [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}@]+)\{/g)].flatMap((m) => m[1].split(',').map((s) => s.trim()));
 
 describe('markup meets its stylesheet', () => {
+  it("every rule a drawer's strip has for a section or a list matches the markup they render", () => {
+    const r = mount(
+      <div data-boogy="drawer-layout" data-collapse-at="md" data-expanded="false">
+        <div data-boogy="drawer">
+          <Section title="Members" glyph="users" meta={3} description="Who is here" action={<button>All</button>}>
+            <List>
+              <ListItem media={<Avatar name="tess" size="sm" />} title="tess" end={<button>x</button>} />
+              <ListItem media={<Avatar name="ana" size="sm" />} title="ana" unread />
+              <ListItem media={<Avatar name="bo" size="sm" />} title="bo" current />
+              <ListItem media={<Thumbnail label="Home" />} title="Home" />
+            </List>
+          </Section>
+          <Section title="Plain"><p /></Section>
+        </div>
+      </div>,
+    );
+    // The head-less rule (`:not(:has(> …))`) is left to the browser test
+    // (test-browser/drawer.browser.test.ts): this DOM evaluates a complex
+    // selector inside `:not(:has())` wrongly, where a browser does not.
+    const strip = selectorsIn(COMPONENTS_CSS_PARTS.DRAWER_CSS)
+      .filter((s) => s.startsWith('[data-collapse-at="md"][data-expanded="false"]') && /section|list-item/.test(s) && !s.includes(':has('));
+    expect(strip.length).toBeGreaterThanOrEqual(8);
+    // A pseudo-element is its element's: the element must be in the markup.
+    for (const s of strip) expect(r.querySelector(s.replace(/::(before|after)$/, '')), s).not.toBeNull();
+  });
   it("a Section's header is styled by a rule that matches it", () => {
     const r = mount(<Section title="Yours" action={<button>All</button>}><p /></Section>);
     const header = r.querySelector('[data-slot="header"]')!;

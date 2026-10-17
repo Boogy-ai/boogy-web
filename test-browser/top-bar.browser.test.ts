@@ -318,6 +318,19 @@ describe("an edge-to-edge TopBar's end buttons", () => {
       expect(r.more.box.right).toBeGreaterThan(r.content.right + 1);
     });
   }
+
+  it("stay where they are while More's menu is open: opening it moves nothing in the bar", async () => {
+    type F = { topBarEdgeFixture: { report(): EdgeReport } };
+    const closed = await edgeBar(page, 600, 'sm');
+    await page.click('[data-boogy="top-bar"] [data-slot="actions"] > [data-slot="more"]');
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    expect(await page.$eval('[data-boogy="popover"]', (el) => el.matches(':popover-open'))).toBe(true);
+    const open = await page.evaluate(() => (window as unknown as F).topBarEdgeFixture.report());
+    expect(open.more.box).toEqual(closed.more.box);
+    expect(open.edit.box).toEqual(closed.edit.box);
+    expect(open.back.box).toEqual(closed.back.box);
+    await page.keyboard.press('Escape');
+  });
 });
 
 describe('TopBar on a touch screen', () => {

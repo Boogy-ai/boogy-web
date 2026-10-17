@@ -24,13 +24,19 @@ export interface FieldOptions {
   /** `lg`: a taller frame with larger, medium-weight text — a field that is
    *  the main thing on its surface (a search at the top of a picker, say). */
   size?: 'md' | 'lg';
+  /** `bar`: the field is the bar that ends a page (a composer under a
+   *  conversation), its frame dissolved into a light, frosted well with a rule
+   *  on top: the bar a composer in a sheet's foot is, for a page that is not
+   *  a sheet. */
+  variant?: 'bar';
 }
-export interface FieldAttrs { 'data-boogy': 'field'; 'data-invalid'?: 'true'; 'data-rounded'?: 'true'; 'data-size'?: 'lg' }
+export interface FieldAttrs { 'data-boogy': 'field'; 'data-invalid'?: 'true'; 'data-rounded'?: 'true'; 'data-size'?: 'lg'; 'data-variant'?: 'bar' }
 export function field(opts: FieldOptions = {}): FieldAttrs {
   const attrs: FieldAttrs = { 'data-boogy': 'field' };
   if (opts.invalid) attrs['data-invalid'] = 'true';
   if (opts.rounded) attrs['data-rounded'] = 'true';
   if (opts.size === 'lg') attrs['data-size'] = 'lg';
+  if (opts.variant === 'bar') attrs['data-variant'] = 'bar';
   return attrs;
 }
 

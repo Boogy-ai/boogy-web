@@ -13,10 +13,11 @@ export interface InstallOptions {
   dev?: boolean;
   /**
    * Scale the whole page with its viewport: the root size unit, and with it
-   * every component, size token and plain text, follows the viewport between a
-   * floor and a cap. `true` takes the SDK's default scale; a `Scale` overrides
-   * it per field. On by default: the page follows its viewport, which in a
-   * board is the pane. `false` keeps the fixed base size.
+   * every component, size token and plain text, follows the viewport's shorter
+   * side both ways, above a floor and with no ceiling (`DEFAULT_SCALE`). `true`
+   * takes that default; a `Scale` overrides it per field. On by default: the
+   * page follows its viewport, which in a board is the pane. `false` keeps the
+   * fixed base size.
    */
   scale?: boolean | Scale;
 }

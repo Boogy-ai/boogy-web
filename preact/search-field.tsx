@@ -20,9 +20,12 @@ export type SearchFieldProps = {
   /** Sees a paste first; `preventDefault()` takes it over — e.g. to keep a
    *  multi-line paste's line breaks, which a one-line input strips. */
   onPaste?: (e: ClipboardEvent) => void;
+  /** The search drives a list (a combobox): the list's id, and the option the
+   *  arrow keys are on. */
+  combobox?: { controls: string; activeDescendant?: string };
 };
 
-export function SearchField({ label, value, onValueChange, placeholder, rounded, size, autoFocus, onKeyDown, onPaste }: SearchFieldProps) {
+export function SearchField({ label, value, onValueChange, placeholder, rounded, size, autoFocus, onKeyDown, onPaste, combobox }: SearchFieldProps) {
   const input = useRef<HTMLInputElement>(null);
   const clear = () => { onValueChange(''); input.current?.focus(); };
   // Focused ON MOUNT, by an effect: the `autofocus` attribute is honoured once
@@ -46,6 +49,11 @@ export function SearchField({ label, value, onValueChange, placeholder, rounded,
           value={value}
           autocomplete="off"
           spellcheck={false}
+          role={combobox ? 'combobox' : undefined}
+          aria-controls={combobox?.controls}
+          aria-expanded={combobox ? 'true' : undefined}
+          aria-autocomplete={combobox ? 'list' : undefined}
+          aria-activedescendant={combobox?.activeDescendant}
           onInput={(e: JSX.TargetedEvent<HTMLInputElement>) => onValueChange(e.currentTarget.value)}
           onPaste={onPaste}
           onKeyDown={(e: KeyboardEvent) => {

@@ -1,24 +1,35 @@
 import { describe, it, expect } from 'vitest';
-import { avatar, AVATAR_SIZES, AVATAR_VARIANTS } from './avatar';
+import { avatar, AVATAR_ARTS, AVATAR_SIZES, AVATAR_VARIANTS } from './avatar';
 import { ruleFor } from '../../test-support/rule-for';
+import { FOUNDATION_CSS } from '../layout/foundation-css';
 
 
 describe('avatar', () => {
   it('a medium circle by default', () => {
     expect(avatar({ image: false })).toEqual({ 'data-boogy': 'avatar', 'data-size': 'md', 'data-variant': 'circle', 'data-image': 'false' });
   });
-  it('two variants, a circle and a rounded square; three sizes', () => {
+  it('two variants, a circle and a rounded square; four sizes, xs for a compact row', () => {
     expect(AVATAR_VARIANTS).toEqual(['circle', 'rounded']);
-    expect(AVATAR_SIZES).toEqual(['sm', 'md', 'lg']);
+    expect(AVATAR_SIZES).toEqual(['xs', 'sm', 'md', 'lg']);
+    expect(FOUNDATION_CSS).toMatch(/--thumb-xs: calc\(var\(--u\) \* 1\.5\);/);
     expect(avatar({ image: true, size: 'lg', variant: 'rounded' })).toEqual({ 'data-boogy': 'avatar', 'data-size': 'lg', 'data-variant': 'rounded', 'data-image': 'true' });
+  });
+  it('its art is the seeded gradient by default (a person), or one flat bright colour (a place, a group)', () => {
+    expect(AVATAR_ARTS).toEqual(['gradient', 'flat']);
+    expect(avatar({ image: false, art: 'flat' })).toEqual({ 'data-boogy': 'avatar', 'data-size': 'md', 'data-variant': 'circle', 'data-image': 'false', 'data-art': 'flat' });
+    expect(() => avatar({ image: false, art: 'neon' as never })).toThrow(/art/);
+    const flat = ruleFor('[data-boogy="avatar"][data-art="flat"]');
+    expect(flat).toContain('background: var(--avatar-fill)');
+    expect(flat).toContain('color: var(--avatar-ink)');
   });
   it('refuses a size or variant it does not have', () => {
     expect(() => avatar({ image: false, size: 'xl' as never })).toThrow(/size/);
     expect(() => avatar({ image: false, variant: 'square' as never })).toThrow(/variant/);
   });
-  it('circle is fully round; rounded is a softened square', () => {
+  it("circle is fully round; rounded is only softened, as a thumbnail's corners are: radius-1, radius-2 at lg", () => {
     expect(ruleFor('[data-boogy="avatar"][data-variant="circle"]')).toContain('border-radius: var(--radius-full)');
-    expect(ruleFor('[data-boogy="avatar"][data-variant="rounded"]')).toContain('border-radius: var(--radius-2)');
+    expect(ruleFor('[data-boogy="avatar"][data-variant="rounded"]')).toContain('border-radius: var(--radius-1)');
+    expect(ruleFor('[data-boogy="avatar"][data-variant="rounded"][data-size="lg"]')).toContain('border-radius: var(--radius-2)');
   });
   it("sizes are the thumbnail's, so an avatar and a thumbnail line up", () => {
     for (const s of AVATAR_SIZES) {

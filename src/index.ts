@@ -45,7 +45,7 @@ export { tabPager, tabPage, pagerPosition, connectTabPager } from './components/
 export type { TabPagerAttrs, TabPageAttrs, TabPagerOptions, TabPagerController } from './components/tab-pager';
 export { COMPONENTS_CSS } from './components/components-css';
 export { drawerLayout, drawerItem, drawerMode, monogram, DRAWER_ITEM_VARIANTS } from './components/drawer';
-export type { DrawerBreakpoint, DrawerSide, DrawerLayoutOptions, DrawerLayoutAttrs, DrawerItemVariant, DrawerItemAttrs } from './components/drawer';
+export type { DrawerBreakpoint, DrawerSide, DrawerVariant, DrawerLayoutOptions, DrawerLayoutAttrs, DrawerItemVariant, DrawerItemAttrs } from './components/drawer';
 export { DRAWER_BREAKPOINTS } from './components/components-css';
 export { button, BUTTON_VARIANTS, BUTTON_SHAPES, BUTTON_SIZES } from './components/button';
 export type { ButtonVariant, ButtonShape, ButtonSize, ButtonOptions, ButtonAttrs } from './components/button';
@@ -97,11 +97,11 @@ export { divider } from './components/divider';
 export type { DividerAttrs, DividerOptions, DividerOrientation } from './components/divider';
 export type { SidePanelAttrs, SidePanelOptions } from './components/side-panel';
 export { emptyState } from './components/empty-state';
-export { bubble, thread, BUBBLE_SIDES } from './components/bubble';
+export { bubble, thread, threadView, BUBBLE_SIDES } from './components/bubble';
 export type { BubbleAttrs, BubbleSide, ThreadAttrs } from './components/bubble';
-export { avatar, AVATAR_SIZES, AVATAR_VARIANTS } from './components/avatar';
-export type { AvatarAttrs, AvatarSize, AvatarVariant } from './components/avatar';
-export { seededArt, SEEDED_ART_W, SEEDED_ART_H } from './components/seeded-art';
+export { avatar, AVATAR_ARTS, AVATAR_SIZES, AVATAR_VARIANTS } from './components/avatar';
+export type { AvatarArt, AvatarAttrs, AvatarSize, AvatarVariant } from './components/avatar';
+export { seededArt, seededFlat, SEEDED_FLAT_COLOURS, SEEDED_ART_W, SEEDED_ART_H } from './components/seeded-art';
 export type { SeededArtData, SeededArtBlob } from './components/seeded-art';
 export type { EmptyStateAttrs } from './components/empty-state';
 export { initialsOf, thumbnail, toneOf, THUMBNAIL_SIZES, THUMBNAIL_TONES } from './components/thumbnail';
@@ -112,11 +112,11 @@ export type { CarouselAttrs } from './components/carousel';
 export type { CardAttrs, CardGridAttrs, CardGridVariant } from './components/card';
 export { metaLine } from './components/meta';
 export type { StackAttrs, StackDirection, StackGap } from './components/stack';
-export type { ThumbnailSize, ThumbnailAttrs } from './components/thumbnail';
+export type { ThumbnailGround, ThumbnailSize, ThumbnailAttrs } from './components/thumbnail';
 export { tile, tileGrid } from './components/tile';
 export type { TileAttrs, TileGridAttrs } from './components/tile';
-export { list, listItem } from './components/list';
-export type { ListAttrs, ListItemAttrs } from './components/list';
+export { list, listItem, LIST_VARIANTS } from './components/list';
+export type { ListAttrs, ListDensity, ListVariant, ListItemAttrs } from './components/list';
 export { notice, NOTICE_TONES } from './components/notice';
 export type { NoticeTone, NoticeAttrs } from './components/notice';
 export { infoList } from './components/info-list';
@@ -151,13 +151,56 @@ export type { ColorSlidersAttrs, ColorSliderValues, LightnessRange } from './com
 export type { SliderAttrs, SliderRange } from './components/slider';
 export { switchControl } from './components/switch';
 export type { SwitchAttrs } from './components/switch';
-export { choiceGroup } from './components/choice-group';
-export type { ChoiceGroupAttrs } from './components/choice-group';
+export { choiceGroup, CHOICE_GROUP_VARIANTS } from './components/choice-group';
+export type { ChoiceGroupAttrs, ChoiceGroupOptions, ChoiceGroupVariant } from './components/choice-group';
+export {
+  codeBlock, fencedText, highlightHtml, languageName, lineCount, loadedHighlighter, loadHighlighter, splitFences, HIGHLIGHTER_PATH,
+} from './components/code-block';
+export type { CodeBlockAttrs, FencedTextAttrs, Highlighter, TextSegment } from './components/code-block';
+export {
+  isMarkdown, loadedMarkdown, loadMarkdown, markdown, markdownRenderer, DOMPURIFY_PATH, MARKDOWN_LANGUAGES, MARKED_PATH,
+} from './components/markdown';
+export type { HtmlSanitiser, MarkdownAttrs, MarkdownParser, MarkdownRenderer } from './components/markdown';
+export { importVendor, vendorLoader } from './components/vendor-loader';
+export {
+  linkPreview, loadedLinkFinder, loadLinkFinder, mayHaveLinks, previewable, previewImageLayout, readPreview, splitLinks, LINKIFY_PATH, PREVIEW_PATH,
+  PREVIEWS_REMEMBERED, PreviewNotNow,
+} from './components/link-preview';
+export type { LinkCard, LinkFinder, LinkPreviewAttrs, LinkSegment, PreviewLayout } from './components/link-preview';
+export { actionButton, ACTION_KINDS, ACTIONS } from './components/action-button';
+export type { ActionButtonAttrs, ActionKind, ActionRole, ActionSpec } from './components/action-button';
+export { form } from './components/form';
+export { uploadFile } from './upload';
+export type { UploadTicket } from './upload';
+export type { FormAttrs } from './components/form';
+export type { VendorLoader } from './components/vendor-loader';
+export { count } from './components/count';
+export type { CountAttrs } from './components/count';
+export { panel } from './components/panel';
+export type { PanelAttrs, PanelOptions } from './components/panel';
+export { searchSelect, searchSelectStep, SEARCH_DELAY_MS } from './components/search-select';
+export type { SearchSelectAttrs } from './components/search-select';
+export { splitView } from './components/split-view';
+export type { SplitBreakpoint, SplitViewAttrs, SplitViewOptions } from './components/split-view';
 export { withRenewal, sessionOrRenewed } from './renewal';
 export { dataTable, sortState, visibleColumns } from './components/data-table';
 export type { DataTableAttrs, ColumnFit } from './components/data-table';
 export { stat } from './components/stat';
 export type { StatAttrs } from './components/stat';
+export { formatNumber, numericValue, NUMERIC_VARIANTS } from './components/numeric-value';
+export { confirmAction } from './components/confirm-action';
+export type { ConfirmActionAttrs } from './components/confirm-action';
+export { pagedListEnd } from './components/paged-list-end';
+export type { PagedListEndAttrs } from './components/paged-list-end';
+export { pagedList } from './paged-list';
+export type { CursorPageOf, PagedList, PagedListOptions, PagedListState } from './paged-list';
+export {
+  threadAdd, threadKeep, threadLoaded, threadMeasure, threadNewest, threadOlder, threadRemove, threadRestore, threadStart,
+} from './thread-pages';
+export type { ThreadOrder, ThreadPage, ThreadState } from './thread-pages';
+export { coalesce, throttle } from './timing';
+export type { Coalesced } from './timing';
+export type { NumberFormatOptions, NumericValueAttrs, NumericVariant } from './components/numeric-value';
 export { topBar, topBarStack, fitTopBar, menuRows, moveInRows } from './components/top-bar';
 export type { TopBarAttrs, TopBarStackAttrs, TopBarPlace, BarItemFit, RowMove } from './components/top-bar';
 export { columnChart, columnHeights, columnTable } from './components/column-chart';

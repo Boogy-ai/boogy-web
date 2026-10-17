@@ -2,6 +2,15 @@
 // every app rule: an app's own CSS always wins without needing specificity.
 // Every size is a multiple of the local --u and every colour a role token.
 
+// The first and the last of an element's children, not counting a popover. A
+// popover is mounted beside its trigger only while it is open, so a plain
+// `:first-child`/`:last-child` would change what it matches the moment a menu
+// opens, and whatever it styles (an edge's margin, a group's corner) would move.
+const FIRST = ':nth-child(1 of :not([data-boogy="popover"]))';
+const LAST = ':nth-last-child(1 of :not([data-boogy="popover"]))';
+/** The ink on an accent fill: a deep shade of the accent's own hue. */
+const ACCENT_INK = 'oklch(from var(--accent) 0.2 calc(c * 0.3) h)';
+
 const PILL_CSS = `
   [data-boogy="pill"] {
     display: inline-flex;
@@ -102,7 +111,7 @@ const BUTTON_CSS = `
   /* solid */
   [data-boogy="button"][data-variant="solid"] {
     background: var(--accent);
-    color: oklch(from var(--accent) 0.2 calc(c * 0.3) h);
+    color: ${ACCENT_INK};
     font-weight: 600;
   }
   [data-boogy="button"][data-variant="solid"]:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-hover); }
@@ -160,15 +169,15 @@ const BUTTON_GROUP_CSS = `
   [data-boogy="button-group"] { --_r: var(--radius-1); display: inline-flex; align-items: stretch; }
   [data-boogy="button-group"][data-rounded="true"] { --_r: var(--radius-full); }
   [data-boogy="button-group"] > [data-boogy="button"] { border-radius: 0; }
-  [data-boogy="button-group"] > [data-boogy="button"]:first-child {
+  [data-boogy="button-group"] > [data-boogy="button"]${FIRST} {
     border-start-start-radius: var(--_r);
     border-end-start-radius: var(--_r);
   }
-  [data-boogy="button-group"] > [data-boogy="button"]:last-child {
+  [data-boogy="button-group"] > [data-boogy="button"]${LAST} {
     border-start-end-radius: var(--_r);
     border-end-end-radius: var(--_r);
   }
-  [data-boogy="button-group"] > [data-boogy="button"] + [data-boogy="button"] {
+  [data-boogy="button-group"] > [data-boogy="button"]:not(${FIRST}) {
     border-inline-start: var(--hairline) solid var(--edge-faint);
   }
   [data-boogy="button-group"] > [data-boogy="button"]:focus-visible { position: relative; z-index: 1; }
@@ -186,6 +195,9 @@ const DRAWER_DOCKED = (at: string) => `
       inset: auto;
       z-index: auto;
       width: var(--drawer-width);
+      /* A fixed column: the main area gives way, never the drawer, however wide
+         the main area's content would like to be (a long line, a wide table). */
+      flex: none;
       translate: none;
       visibility: visible;
       box-shadow: none;
@@ -200,6 +212,14 @@ const DRAWER_DOCKED = (at: string) => `
     [data-collapse-at="${at}"][data-side="end"] > [data-boogy="drawer"] {
       border-inline-end: none;
       border-inline-start: 1px var(--drawer-edge-style, solid) var(--drawer-edge);
+    }
+    /* plain: docked, it sits on the page's own ground, its edge between them
+       (a list beside the main one: a conversation's members). Over the main
+       area, as an overlay, it keeps its ground, or the main area would show
+       through it. */
+    [data-boogy="drawer-layout"][data-collapse-at="${at}"] > [data-boogy="drawer"][data-variant="plain"] {
+      background: transparent;
+      backdrop-filter: none;
     }
     [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] { width: var(--drawer-strip-width); }
     /* On the strip the ENTRY is the tile — filled at rest, the size of its
@@ -221,6 +241,113 @@ const DRAWER_DOCKED = (at: string) => `
     [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="drawer-item"][data-variant="title"] {
       display: none;
     }
+    /* Unless the head's toggle shows only while expanded (the strip unfolds
+       from its foot): then nothing takes the title's place, and it keeps its
+       logo at the strip's head, a link as before, its name hidden. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] > [data-slot="head"]:has(> [data-role="drawer-toggle"][data-shown="expanded"]) > [data-boogy="drawer-item"][data-variant="title"] {
+      display: flex;
+      min-height: 0;
+      padding-block: 0;
+      background: transparent;
+    }
+    /* A rule under it, as under a section's glyph and count there: --space-3
+       either side (below, the drawer's --space-1 gap and --space-2 more). */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] > [data-slot="head"]:has(> [data-role="drawer-toggle"][data-shown="expanded"]):has(> [data-boogy="drawer-item"][data-variant="title"]) {
+      padding-block-end: var(--space-3);
+      margin-block-end: var(--space-2);
+      border-block-end: var(--rule);
+    }
+    /* A list on the strip (people, say): each item is its media alone, centred
+       and no larger than an entry's mark, spaced by the list rather than by
+       its own padding; an avatar or a thumbnail is exactly the mark's size,
+       however small it is open (a compact list's xs). Its end (actions) has
+       no room there. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list"] { gap: var(--space-2); }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"] { justify-content: center; padding: 0; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"] > [data-slot="media"] > * {
+      max-width: var(--mark-lg);
+      max-height: var(--mark-lg);
+    }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"] > [data-slot="media"] > [data-boogy="avatar"],
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"] > [data-slot="media"] > [data-boogy="thumbnail"] {
+      width: var(--mark-lg);
+      height: var(--mark-lg);
+    }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"] > [data-slot="end"] { display: none; }
+    /* On the rail: an unread item a pip at the drawer's edge, the open one a
+       taller pip, each standing out past the row across the drawer's padding
+       (--space-2), so it is at the edge and clear of the media. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"] { position: relative; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"][data-unread]::before,
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"][aria-current="page"]::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: calc(-1 * var(--space-2));
+      top: 50%;
+      translate: 0 -50%;
+      width: var(--pip);
+      height: var(--space-2);
+      border-start-end-radius: var(--radius-full);
+      border-end-end-radius: var(--radius-full);
+      background: var(--text-1);
+    }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"][aria-current="page"]::before { height: var(--space-5); }
+    /* The open one is also the only one whole: in a list that has one, every
+       other item's media is dimmed, and comes up under the pointer. No fill,
+       no ring, no outline round it. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"][aria-current="page"] { background: transparent; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list"]:has([aria-current="page"]) [data-boogy="list-item"]:not([aria-current="page"]) > [data-slot="media"] {
+      opacity: 0.5;
+      transition: opacity var(--dur-base) ease-out;
+    }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list"]:has([aria-current="page"]) :is(button, a)[data-boogy="list-item"]:not([aria-current="page"]):hover > [data-slot="media"] { opacity: 1; }
+    /* A section on the strip: its glyph over its meta, then a rule. The meta is
+       trimmed to its letters, so the space above the rule is the head's padding
+       and the space below it the section's own gap, the same token. Its action
+       and description have no room there, and a section with neither a glyph
+       nor a meta has no head there at all. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="section"] > [data-slot="head"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-block-end: var(--space-3);
+      border-block-end: var(--rule);
+    }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="section"] > [data-slot="head"]:not(:has(> [data-slot="header"] > [data-slot="glyph"])):not(:has(> [data-slot="header"] > [data-slot="meta"])) { display: none; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="section"] > [data-slot="head"] > :not([data-slot="header"]) { display: none; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="section"] > [data-slot="head"] > [data-slot="header"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="section"] [data-slot="header"] > [data-slot="glyph"] { display: block; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="section"] [data-slot="header"] > [data-slot="meta"] { text-box: trim-both cap alphabetic; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="section"] [data-slot="separator"] { display: none; }
+    /* The foot on the strip holds only what fits there, centred: toggles and
+       entries. A toggle shown only collapsed shows here; one shown only
+       expanded does not. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] > [data-slot="foot"] { align-items: center; }
+    /* A scrollbar would take the width the strip's marks need. It scrolls
+       still, by wheel, touch and keyboard. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] > [data-slot="body"] { scrollbar-width: none; }
+    /* The body clips what it scrolls; on the strip it reaches across the
+       drawer's padding to its edge, where an item's pip is drawn. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] > [data-slot="body"] {
+      margin-inline: calc(-1 * var(--space-2));
+      padding-inline: var(--space-2);
+    }
+    /* A field in its head (a search) has no room on the strip. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] > [data-slot="head"] [data-boogy="field"] { display: none; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] > [data-slot="foot"] > :not([data-role="drawer-toggle"], [data-boogy="drawer-item"]) { display: none; }
+    /* The toggles in this layout's own drawer only: a layout nested in its
+       main area (members beside a conversation, inside rooms) keeps its own. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-role="drawer-toggle"][data-shown="collapsed"] { display: inline-flex; }
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-role="drawer-toggle"][data-shown="expanded"] { display: none; }
+    /* The words with no room on the strip stay for assistive tech: an entry's
+       label, a list item's text, a section's title. */
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="list-item"] > [data-slot="text"],
+    [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-boogy="section"] [data-slot="header"] > [data-slot="title"],
     [data-collapse-at="${at}"][data-expanded="false"] > [data-boogy="drawer"] [data-slot="label"] {
       position: absolute;
       width: 1px;
@@ -267,6 +394,9 @@ const DRAWER_CSS = `
   }
   [data-boogy="drawer-layout"][data-side="end"] { flex-direction: row-reverse; }
   [data-boogy="drawer-main"] { flex: 1 1 auto; min-width: 0; min-height: 0; }
+  /* A layout nested in another's main area (members beside a conversation,
+     inside rooms) fills it. */
+  [data-boogy="drawer-main"] > [data-boogy="drawer-layout"] { block-size: 100%; }
 
   [data-boogy="drawer"] {
     /* Its overlay width and collapsed strip, in its OWN unit: a drawer that
@@ -287,7 +417,7 @@ const DRAWER_CSS = `
     padding: var(--space-2);
     overflow-x: hidden;
     overflow-y: auto;
-    background: var(--ground-raised);
+    background: var(--drawer-ground, var(--ground-raised));
     /* Its edge, as when docked: over a page of its own ground (a dark one,
        where no shadow shows), the edge is what tells the two apart. */
     border-inline-end: 1px var(--drawer-edge-style, solid) var(--drawer-edge);
@@ -296,6 +426,53 @@ const DRAWER_CSS = `
     visibility: hidden;
     transition: translate var(--dur-base) ease-out, visibility 0s linear var(--dur-base);
   }
+  /* Over the board's background a drawer is a frosted panel: its ground, partly
+     see-through, over a blur of the board, so the board shows through without
+     costing its text. Elsewhere it is solid. */
+  :root[data-board-background] [data-boogy="drawer"] {
+    background: color-mix(in oklch, var(--drawer-ground, var(--ground-raised)) var(--panel-frost), transparent);
+    backdrop-filter: blur(var(--blur-md));
+  }
+  /* With a head or a foot (Drawer's \`head\`, \`foot\`), the drawer's body
+     scrolls and the drawer does not: the head stays at the top and the foot
+     at the bottom edge, on the drawer's own ground, and what scrolls stops at
+     them rather than passing under. The body lays its content out as the
+     drawer would. With a foot the drawer gives up its bottom padding, so the
+     foot sits flush with the edge; the head keeps the section's gap below it
+     (its padding and the drawer's own gap together). */
+  [data-boogy="drawer"]:has(> [data-slot="body"]) { overflow-y: hidden; }
+  [data-boogy="drawer"]:has(> [data-slot="foot"]) { padding-block-end: 0; }
+  [data-boogy="drawer"] > [data-slot="head"] { flex: none; padding-block-end: var(--space-2); }
+  /* A head that holds the drawer's title entry lays it and what follows (its
+     own toggle) in one row: the title takes the room, the toggle sits beside
+     it, never inside the title's link. */
+  [data-boogy="drawer"] > [data-slot="head"]:has(> [data-boogy="drawer-item"][data-variant="title"]) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  [data-boogy="drawer"] > [data-slot="head"] > [data-boogy="drawer-item"][data-variant="title"] { flex: 1 1 auto; min-width: 0; }
+  [data-boogy="drawer"] > [data-slot="body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  [data-boogy="drawer"] > [data-slot="foot"] {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+    border-block-start: var(--rule);
+  }
+  /* A toggle shown in one state (DrawerToggle's \`shown\`): a collapsed-only
+     one shows only on the docked strip (below), so it is hidden here, which
+     covers an open overlay and an expanded drawer. */
+  [data-boogy="drawer-layout"] [data-role="drawer-toggle"][data-shown="collapsed"] { display: none; }
   [data-boogy="drawer-layout"][data-side="end"] > [data-boogy="drawer"] {
     inset-inline-start: auto;
     inset-inline-end: 0;
@@ -370,6 +547,10 @@ const DRAWER_CSS = `
      for descenders). Trimmed to cap height, the box the mark centres is the
      letters themselves. */
   [data-boogy="drawer-item"] > [data-slot="mark"] > [data-slot="initials"] { text-box: trim-both cap alphabetic; }
+  /* A picture as the mark (a logo, an avatar) fills it, whatever size it was
+     made at. */
+  [data-boogy="drawer-item"] > [data-slot="mark"] > [data-boogy="thumbnail"],
+  [data-boogy="drawer-item"] > [data-slot="mark"] > [data-boogy="avatar"] { width: 100%; height: 100%; }
   /* framed: the mark is a small panel (ground + edge, themeable) and is the
      entry's ONLY box — the row draws no hover or current surface around it.
      Hover brightens the letters (the base :hover colour) and the edge;
@@ -410,8 +591,10 @@ const DRAWER_CSS = `
     flex: none;
   }
   [data-role="drawer-toggle"][aria-expanded="false"] > [data-slot="chevron"] { scale: -1 1; }
-  [data-side="end"] [data-role="drawer-toggle"] > [data-slot="chevron"] { scale: -1 1; }
-  [data-side="end"] [data-role="drawer-toggle"][aria-expanded="false"] > [data-slot="chevron"] { scale: 1 1; }
+  /* The side is the toggle's own drawer's, not an ancestor's: a toggle for
+     the rooms can sit inside a members layout on the end side. */
+  [data-role="drawer-toggle"][data-side="end"] > [data-slot="chevron"] { scale: -1 1; }
+  [data-role="drawer-toggle"][data-side="end"][aria-expanded="false"] > [data-slot="chevron"] { scale: 1 1; }
   [data-boogy="drawer-item"] > [data-slot="label"] {
     min-width: 0;
     overflow: hidden;
@@ -711,11 +894,11 @@ const SHEET_CSS = `
      padding by the space around its glyph, rather than drawing that space
      inside it. */
   :is([data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"], [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar-stack"] > [data-boogy="top-bar"], [data-boogy="top-bar"][data-inset])
-    > [data-slot="leading"] > [data-boogy="button"][data-shape="icon"]:first-child {
+    > [data-slot="leading"] > [data-boogy="button"][data-shape="icon"]${FIRST} {
     margin-inline-start: calc((var(--_glyph, var(--icon-md)) - var(--_h)) / 2);
   }
   :is([data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar"], [data-boogy="sheet"] > [data-slot="head"] > [data-boogy="top-bar-stack"] > [data-boogy="top-bar"], [data-boogy="top-bar"][data-inset])
-    > [data-slot="actions"] > [data-boogy="button"][data-shape="icon"]:last-child {
+    > [data-slot="actions"] > [data-boogy="button"][data-shape="icon"]${LAST} {
     margin-inline-end: calc((var(--_glyph, var(--icon-md)) - var(--_h)) / 2);
   }
   [data-boogy="sheet"] > [data-slot="body"] {
@@ -736,19 +919,48 @@ const SHEET_CSS = `
     padding: var(--space-3) var(--space-4);
     border-top: var(--rule);
   }
+  /* A destructive action (Delete, Remove) goes first, apart from the rest at
+     the end, in a sheet's foot and a form's. */
+  :is([data-boogy="sheet"] > [data-slot="foot"], [data-boogy="form"] [data-slot="actions"]) > [data-role="destructive"] {
+    order: -1;
+    margin-inline-end: auto;
+  }
   /* A field in the foot (a composer) takes the foot's width — and IS the bar:
-     the foot becomes a darker translucent well, the field's own frame dissolves
-     into it, and with no frame left the foot's top edge shows focus. */
+     the foot becomes a light, frosted well (--composer-ground), the field's own
+     frame dissolves into it, and with no frame left the foot's top edge shows
+     focus. A field of the \`bar\` variant is the same bar on a page that is not
+     a sheet: it is its own foot (below), and shares every rule here. */
   [data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] { flex: 1 1 auto; min-width: 0; }
-  [data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"]) { background: var(--ground-well); }
+  [data-boogy="field"][data-variant="bar"],
+  [data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"]) {
+    background: var(--composer-ground);
+    backdrop-filter: blur(var(--blur-md));
+  }
+  [data-boogy="field"][data-variant="bar"]:focus-within,
   [data-boogy="sheet"] > [data-slot="foot"]:has(> [data-boogy="field"]):focus-within { border-top-color: var(--accent); }
+  [data-boogy="field"][data-variant="bar"] > [data-slot="group"],
   [data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] > [data-slot="group"] {
     border: none;
     background: transparent;
     border-radius: 0;
     box-shadow: none;
   }
+  [data-boogy="field"][data-variant="bar"] > [data-slot="group"]:focus-within,
   [data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"] > [data-slot="group"]:focus-within { outline: none; }
+  /* The bar variant is its own foot: the sheet foot's padding and top rule,
+     and its own height whatever is above it. */
+  [data-boogy="field"][data-variant="bar"] {
+    flex: none;
+    padding: var(--space-3) var(--space-4);
+    border-top: var(--rule);
+  }
+  /* Put in a sheet's foot, which is already the bar, it is not a second one. */
+  [data-boogy="sheet"] > [data-slot="foot"] > [data-boogy="field"][data-variant="bar"] {
+    background: none;
+    backdrop-filter: none;
+    padding: 0;
+    border-top: none;
+  }
 `;
 
 // --- EmptyState (see empty-state.ts) ---
@@ -869,7 +1081,8 @@ const FIELD_CSS = `
     padding-inline: var(--space-2) var(--space-2);
     color: var(--text-3);
   }
-  [data-boogy="field"] > [data-slot="group"] > [data-slot="suffix"] { display: flex; flex: none; }
+  /* What ends the field (a unit, a send button) keeps off its frame. */
+  [data-boogy="field"] > [data-slot="group"] > [data-slot="suffix"] { display: flex; flex: none; padding-inline-end: var(--space-1); }
   /* LG: the field that is the main thing on its surface — taller, with larger
      medium-weight text and more room around its icon. */
   [data-boogy="field"][data-size="lg"] > [data-slot="group"],
@@ -897,12 +1110,18 @@ const FIELD_CSS = `
     align-items: center;
     block-size: var(--control-md);
   }
+  /* Its padding centres one line in a control's height, its border box
+     included, so a one-line composer is exactly as tall as the send button's
+     row and its text sits level with the button. */
   [data-boogy="field"] > [data-slot="group"] > textarea[data-slot="control"] {
     align-self: stretch;
-    padding-block: var(--space-1);
+    box-sizing: border-box;
+    padding-block: calc((var(--control-md) - 1lh) / 2);
     resize: none;
     field-sizing: content;
-    max-height: 8lh;
+    /* Eight lines, whole: seven lines and the one a control's height holds
+       with its padding (the box is border-box). */
+    max-height: calc(7lh + var(--control-md));
   }
   /* Nothing before the control (no icon or prefix): it pads its own start. */
   [data-boogy="field"] > [data-slot="group"] > [data-slot="control"]:first-child { padding-inline-start: var(--space-2); }
@@ -913,12 +1132,21 @@ const FIELD_CSS = `
   [data-boogy="field"][data-rounded="true"] > [data-slot="control"] { padding-inline: var(--space-3); }
   [data-boogy="field"][data-rounded="true"] > [data-slot="group"] > :is([data-slot="icon"], [data-slot="prefix"]) { padding-inline-start: var(--space-3); }
   [data-boogy="field"][data-rounded="true"] > [data-slot="group"] > [data-slot="control"] { padding-inline-end: var(--space-3); }
-  [data-boogy="field"][data-rounded="true"] > [data-slot="group"] > [data-slot="suffix"] { padding-inline-end: var(--space-1); }
   [data-boogy="field"] > [data-slot="message"] {
     color: var(--text-3);
     font-size: var(--fs-caption);
   }
   [data-boogy="field"] > [data-slot="message"]:empty { display: none; }
+  /* An image field: the image, then its buttons, wrapping under it when narrow. */
+  [data-boogy="field"] > [data-slot="picker"] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+  [data-boogy="field"] > [data-slot="picker"] > [data-slot="buttons"] { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  /* A limit's count sits at the end of the line, after any hint. */
+  [data-boogy="field"] > [data-slot="message"]:has(> [data-slot="count"]) { display: flex; gap: var(--space-2); }
+  [data-boogy="field"] > [data-slot="message"] > [data-slot="count"] {
+    flex: none;
+    margin-inline-start: auto;
+    font-variant-numeric: tabular-nums;
+  }
   [data-boogy="field"][data-invalid="true"] > [data-slot="message"] { color: var(--danger); }
   [data-boogy="field"][data-invalid="true"] > [data-slot="control"] { border-color: var(--danger); }
 `;
@@ -943,6 +1171,9 @@ const SECTION_CSS = `
     font-size: var(--fs-caption);
     text-box: trim-both cap alphabetic;
   }
+  /* A section's glyph shows only where its heading has no room for its title
+     (a drawer folded to its strip: the drawer rules above). */
+  [data-boogy="section"] [data-slot="header"] > [data-slot="glyph"] { display: none; }
   [data-boogy="section"] > [data-slot="header"],
   [data-boogy="section"] > [data-slot="head"] > [data-slot="header"] {
     margin: 0;
@@ -977,6 +1208,15 @@ const THUMBNAIL_CSS = `
   [data-boogy="thumbnail"][data-size="lg"] { width: var(--thumb-lg); height: var(--thumb-lg); font-size: var(--fs-display); border-radius: var(--radius-2); }
   [data-boogy="thumbnail"][data-image="true"] { background: var(--fill-hover); }
   [data-boogy="thumbnail"] > img { width: 100%; height: 100%; object-fit: cover; }
+  /* Padded: the whole image, on the fill, clear of the edges (a logo). None:
+     the image edge to edge on nothing (its own transparency shows through). */
+  /* An eighth or so of each size (a padding in % is a share of the PARENT's
+     width, so it is a token per size). */
+  [data-boogy="thumbnail"][data-ground="padded"] { box-sizing: border-box; padding: var(--space-2); }
+  [data-boogy="thumbnail"][data-ground="padded"][data-size="sm"] { padding: var(--space-1); }
+  [data-boogy="thumbnail"][data-ground="padded"][data-size="lg"] { padding: var(--space-3); }
+  [data-boogy="thumbnail"][data-ground="padded"] > img { object-fit: contain; }
+  [data-boogy="thumbnail"][data-ground="none"] { background: transparent; }
   [data-boogy="thumbnail"][data-tone="0"] { --thumb-hue: 25; }
   [data-boogy="thumbnail"][data-tone="1"] { --thumb-hue: 70; }
   [data-boogy="thumbnail"][data-tone="2"] { --thumb-hue: 130; }
@@ -1008,9 +1248,14 @@ const AVATAR_CSS = `
     /* Its own container, so the initials can be a share of its size. */
     container-type: size;
   }
+  /* Flat art: the seed's one bright colour (set on the element), initials in
+     its ink. */
+  [data-boogy="avatar"][data-art="flat"] { background: var(--avatar-fill); color: var(--avatar-ink); }
   [data-boogy="avatar"][data-variant="circle"] { border-radius: var(--radius-full); }
-  [data-boogy="avatar"][data-variant="rounded"] { border-radius: var(--radius-2); }
-  [data-boogy="avatar"][data-variant="rounded"][data-size="lg"] { border-radius: var(--radius-3); }
+  /* Rounded is only softened, as a thumbnail's corners are. */
+  [data-boogy="avatar"][data-variant="rounded"] { border-radius: var(--radius-1); }
+  [data-boogy="avatar"][data-variant="rounded"][data-size="lg"] { border-radius: var(--radius-2); }
+  [data-boogy="avatar"][data-size="xs"] { width: var(--thumb-xs); height: var(--thumb-xs); }
   [data-boogy="avatar"][data-size="sm"] { width: var(--thumb-sm); height: var(--thumb-sm); }
   [data-boogy="avatar"][data-size="md"] { width: var(--thumb-md); height: var(--thumb-md); }
   [data-boogy="avatar"][data-size="lg"] { width: var(--thumb-lg); height: var(--thumb-lg); }
@@ -1021,12 +1266,16 @@ const AVATAR_CSS = `
 
 // Thread and Bubble (see bubble.ts): a column of messages, each on its side.
 // The other person's on a faint fill with a faint edge, yours on the soft
-// accent — both in the ink, so either reads on any ground behind.
+// accent — both in the ink, so either reads on any ground behind. Each ground
+// is a notch more solid than the shared fill it echoes, so a bubble holds
+// over a busy background. The foot corner on the sender's side is nearly
+// square, pointing at whose it is. A thread asked for a shadow
+// (\`data-shadow\`) lifts every bubble in it off what it lies on.
 const BUBBLE_CSS = `
   [data-boogy="thread"] {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--thread-gap, var(--space-2));
   }
   [data-boogy="bubble"] {
     display: flex;
@@ -1041,12 +1290,35 @@ const BUBBLE_CSS = `
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--edge);
     border-radius: var(--radius-3);
-    background: var(--fill-hover);
+    background: var(--bubble-ground-start);
     color: var(--text-1);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  [data-boogy="bubble"][data-side="end"] > [data-slot="body"] { border-color: transparent; background: var(--accent-soft); }
+  [data-boogy="bubble"][data-side="start"] > [data-slot="body"] { border-end-start-radius: var(--radius-1); }
+  [data-boogy="bubble"][data-side="end"] > [data-slot="body"] {
+    border-color: transparent;
+    border-end-end-radius: var(--radius-1);
+    background: var(--bubble-ground-end);
+  }
+  [data-boogy="thread"][data-shadow] [data-boogy="bubble"] > [data-slot="body"] { box-shadow: var(--bubble-shadow); }
+  /* ThreadView: the scroller around a thread read a page at a time. Only up
+     and down, never sideways; the browser's own scroll anchoring off, since
+     the view keeps the reader's place by the message they are reading. A
+     page, and each item in it, is a column as the thread is, so a bubble
+     sits at its side; a page let go is a spacer of its height. */
+  [data-boogy="thread-view"] {
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overflow-anchor: none;
+    overscroll-behavior: contain;
+    padding: var(--space-3) var(--space-4);
+  }
+  [data-boogy="thread"] > [data-slot="page"] { display: flex; flex-direction: column; gap: var(--thread-gap, var(--space-2)); }
+  [data-boogy="thread"] > [data-slot="page"] > [data-slot="item"] { display: flex; flex-direction: column; min-inline-size: 0; }
   [data-boogy="bubble"] > [data-slot="meta"] {
     display: inline-flex;
     align-items: center;
@@ -1054,6 +1326,14 @@ const BUBBLE_CSS = `
     padding-inline: var(--space-1);
     color: var(--text-3);
     font-size: var(--fs-caption);
+  }
+  /* A message's actions (Bubble's \`actions\`), at the end of its meta line:
+     on touch, always there; where a mouse can hover, shown on hover or when
+     something in the bubble has focus (a keyboard reaches them too). */
+  [data-boogy="bubble"] [data-slot="actions"] { display: inline-flex; align-items: center; gap: var(--space-1); }
+  @media (hover: hover) and (pointer: fine) {
+    [data-boogy="bubble"] [data-slot="actions"] { opacity: 0; transition: opacity var(--dur-fast) ease-out; }
+    [data-boogy="bubble"]:is(:hover, :focus-within) [data-slot="actions"] { opacity: 1; }
   }
   /* Delivery: one check sent, two delivered, two in the accent seen. */
   [data-boogy="delivery-mark"] { display: inline-flex; color: var(--text-3); }
@@ -1145,6 +1425,29 @@ const TILE_CSS = `
  * inside the other. ONE definition for every item that offers it (list rows,
  * cards); each host puts its action above with `position: relative`.
  */
+/** A title that carries media before its words (an avatar by a name, a
+ *  glyph before a room's): one row, centred on the line, the media its own
+ *  size and the words truncating as a plain title's do. Not clipped, so the
+ *  media's shadow shows; the words truncate themselves. A glyph reads with
+ *  the words, so it sits closer than a picture does. */
+function titleWithMedia(title: string, gap: string): string {
+  const has = `${title}:has(> :is([data-boogy="avatar"], [data-boogy="thumbnail"], [data-boogy="glyph"]))`;
+  return `
+  ${has} {
+    display: flex;
+    align-items: center;
+    gap: ${gap};
+    overflow: visible;
+  }
+  ${has} > [data-boogy] { flex: none; }
+  ${has} > :not([data-boogy]) {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  ${title}:has(> [data-boogy="glyph"]) { gap: var(--space-1); }`;
+}
+
 function titleControlCovers(host: string): string {
   return `
   ${host}:has([data-slot="title"] > :is(button, a)) { position: relative; }
@@ -1200,6 +1503,30 @@ const LIST_CSS = `
   [data-boogy="list-item"] [data-slot="heading"] > [data-slot="title"] { flex: 1 0 auto; max-width: 100%; min-width: 0; }
   /* Squeezed, the meta gives up its width first and ellipsizes: the title is
      the row, the meta a detail. */
+  /* Unread: a bolder title, and an accent dot before its meta. */
+  [data-boogy="list-item"][data-unread] [data-slot="title"] { font-weight: 600; color: var(--text-1); }
+  /* The one open now: selected, its title full strength. */
+  [data-boogy="list-item"][aria-current="page"] { background: var(--fill-selected); }
+  [data-boogy="list-item"][aria-current="page"] [data-slot="title"] { font-weight: 600; color: var(--text-1); }
+  /* nav: the place open now is filled with the accent, everything on it in the
+     accent's ink (the solid button's). */
+  [data-boogy="list"][data-variant="nav"] [data-boogy="list-item"][aria-current="page"] {
+    background: var(--accent);
+    color: ${ACCENT_INK};
+  }
+  [data-boogy="list"][data-variant="nav"] [data-boogy="list-item"][aria-current="page"] :is([data-slot="title"], [data-slot="meta"], [data-slot="subtitle"]) { color: inherit; }
+  [data-boogy="list"][data-variant="nav"] :is(button, a)[data-boogy="list-item"][aria-current="page"]:hover { background: var(--accent-hover); }
+  /* Compact: one line per item, closer together (a sidebar's list). */
+  [data-boogy="list"][data-density="compact"] [data-boogy="list-item"] { padding: var(--space-1) var(--space-2); }
+  [data-boogy="list"][data-density="compact"] [data-boogy="list-item"] [data-slot="title"] { font-size: var(--fs-detail); }
+  [data-boogy="list-item"] [data-slot="unread"] {
+    flex: none;
+    align-self: center;
+    width: var(--space-2);
+    height: var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--accent);
+  }
   [data-boogy="list-item"] [data-slot="meta"] {
     flex: 0 999 auto;
     min-width: 0;
@@ -1212,6 +1539,7 @@ const LIST_CSS = `
   }
   [data-boogy="list-item"] > [data-slot="end"] { flex: none; position: relative; }
 ${titleControlCovers('[data-boogy="list-item"]')}
+${titleWithMedia('[data-boogy="list-item"] [data-slot="title"]', 'var(--space-1)')}
 `;
 
 // Notice: a quiet one-line explanation; the warning tone is for something the
@@ -1228,6 +1556,9 @@ const NOTICE_CSS = `
     border-inline-start: var(--space-1) solid var(--warn);
   }
   [data-boogy="notice"][data-tone="danger"] { color: var(--danger); }
+  /* With an action: the words, and the action at the end of the line. */
+  [data-boogy="notice"]:has(> [data-slot="action"]) { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+  [data-boogy="notice"] > [data-slot="action"] { flex: none; }
 `;
 
 // Info list: labels in one column, values in the other; a long value ends in
@@ -2133,6 +2464,467 @@ const SWITCH_CSS = `
   }
 `;
 
+// --- Panel (see panel.ts) ---
+// A framed region: its head and foot stay put and only its body scrolls, up
+// and down, never sideways. Frosted, so a board shows through it, blurred.
+// The body pads by a list item's inset, so its rows line up with the head;
+// anything else in it is inset to a list item's text.
+const PANEL_CSS = `
+  [data-boogy="panel"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
+    min-inline-size: 0;
+    overflow: hidden;
+    border: var(--hairline) solid var(--edge);
+    border-radius: var(--radius-2);
+    background: color-mix(in oklch, var(--panel-ground, var(--ground-raised)) var(--panel-frost), transparent);
+    backdrop-filter: blur(var(--blur-md));
+  }
+  [data-boogy="panel"][data-grow="true"] { flex: 1 1 auto; }
+  [data-boogy="panel"] > :is([data-slot="head"], [data-slot="foot"]) {
+    flex: none;
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+  [data-boogy="panel"] > [data-slot="head"] { border-block-end: var(--hairline) solid var(--edge-faint); }
+  [data-boogy="panel"] > [data-slot="foot"] { border-block-start: var(--hairline) solid var(--edge-faint); }
+  [data-boogy="panel"] > [data-slot="body"] {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding: var(--space-2);
+  }
+  [data-boogy="panel"] > [data-slot="body"] > :not([data-boogy="list"], [data-boogy="paged-list-end"]) { margin-inline: var(--space-2); }
+`;
+
+// --- SplitView (see split-view.ts) ---
+// Narrow (the default): its tabs, then the selected region alone. Wide, at or
+// above its breakpoint by its OWN width: no tabs, every region side by side,
+// an aside at its own width. It fills the height it is given.
+const SPLIT_VIEW_WIDE = (at: string) => `
+  @container boogy-split (min-width: ${DRAWER_BREAKPOINTS[at as keyof typeof DRAWER_BREAKPOINTS]}) {
+    [data-boogy="split-view"][data-collapse-at="${at}"] > [data-slot="tabs"] { display: none; }
+    [data-boogy="split-view"][data-collapse-at="${at}"] > [data-slot="regions"] > [data-slot="region"] { display: flex; }
+    [data-boogy="split-view"][data-collapse-at="${at}"] > [data-slot="regions"] > [data-slot="region"][data-aside] { flex: none; inline-size: var(--aside-width); }
+    [data-boogy="split-view"][data-collapse-at="${at}"] > [data-slot="regions"] { padding-block-start: 0; }
+  }
+`;
+const SPLIT_VIEW_CSS = `
+  [data-boogy="split-view"] {
+    container: boogy-split / inline-size;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+  [data-boogy="split-view"] > [data-slot="tabs"] { flex: none; padding-inline: var(--space-4); }
+  [data-boogy="split-view"] > [data-slot="regions"] {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+  [data-boogy="split-view"] > [data-slot="regions"] > [data-slot="region"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    flex: 1 1 0;
+    min-inline-size: 0;
+    min-block-size: 0;
+  }
+  [data-boogy="split-view"] > [data-slot="regions"] > [data-slot="region"]:not([data-selected]) { display: none; }
+  ${Object.keys(DRAWER_BREAKPOINTS).map(SPLIT_VIEW_WIDE).join('')}
+`;
+
+// --- SearchSelect (see search-select.ts) ---
+// Its trigger is a field's control: the choice, cut short with an ellipsis,
+// then a chevron at the end. Open, its search stays at the top and only its
+// results scroll, up to --select-height (the whole page, where the popover is
+// a page). The results are a menu's rows; the one the arrow keys are on is lit
+// as a focused menu row is. Its sections pad themselves, as anything in a
+// popover does.
+const SEARCH_SELECT_CSS = `
+  [data-boogy="field"] > button[data-slot="control"] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    inline-size: 100%;
+    text-align: start;
+    cursor: pointer;
+  }
+  [data-boogy="field"] > button[data-slot="control"] > [data-slot="value"] {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  [data-boogy="field"] > button[data-slot="control"] > [data-slot="chevron"] { flex: none; margin-inline-start: auto; color: var(--text-3); }
+  [data-boogy="search-select"] {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: max(var(--trigger-width, 0px), var(--menu-min-width, 0px));
+    max-block-size: var(--select-height);
+  }
+  [data-boogy="popover"][data-mode="page"] [data-boogy="search-select"] { max-block-size: none; block-size: 100%; }
+  [data-boogy="search-select"] > [data-slot="search"] {
+    flex: none;
+    padding: var(--space-3);
+    border-block-end: var(--rule);
+  }
+  [data-boogy="search-select"] > [data-slot="results"] {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  [data-boogy="search-select"] [role="option"][data-active="true"] { background: var(--fill-hover); }
+  [data-boogy="search-select"] [role="option"] > [data-slot="label"] { display: flex; align-items: center; gap: var(--space-1); }
+  [data-boogy="search-select"] > [data-slot="results"] > [data-slot="empty"] {
+    margin: 0;
+    padding: var(--space-3);
+    color: var(--text-3);
+    font-size: var(--fs-detail);
+  }
+`;
+
+// --- CodeBlock and FencedText (see code-block.ts) ---
+// A well of code under its language's name and Copy. Only the code scrolls
+// sideways, never the page. Collapsed, it is as tall as its first lines, the
+// last faded under its footer. Its colours are highlight.js's classes, scoped
+// here, each derived from the accent: its lightness (so it reads on either
+// scheme), a fixed turn of its hue, and at least a floor of colour, so a grey
+// accent (a grey board) still gives colours, each its own; mixed toward the
+// ink. A board's accent recolours them all; comments are the quiet ink. A grid of one minmax(0, 1fr) column, so a line too long
+// to fit adds nothing to the block's narrowest width: whatever holds it (a
+// bubble) is never pushed wider, and the code scrolls inside instead.
+const CODE_TURNS = { keyword: 0, string: 130, number: 60, title: 250, type: 190, attr: 310 } as const;
+const CODE_COLOURS = (colour: (turn: number) => string) =>
+  Object.entries(CODE_TURNS).map(([name, turn]) => `--code-${name}: ${colour(turn)};`).join('\n    ');
+const CODE_HUE = (turn: number) => `color-mix(in oklch, oklch(from var(--accent) l max(c, 0.14) calc(h + ${turn})) 78%, var(--text-1))`;
+// Where the browser has no relative colours: fixed hues, mixed toward the ink.
+const CODE_FIXED_HUE = (turn: number) => `color-mix(in oklch, oklch(0.7 0.14 ${(turn + 350) % 360}) 78%, var(--text-1))`;
+const CODE_BLOCK_CSS = `
+  [data-boogy="code-block"] {
+    ${CODE_COLOURS(CODE_FIXED_HUE)}
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    box-sizing: border-box;
+    margin: 0;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    overflow: hidden;
+    border: var(--hairline) solid var(--edge);
+    border-radius: var(--radius-2);
+    background: var(--code-ground, var(--fill-hover));
+    white-space: normal;
+  }
+  [data-boogy="code-block"] > [data-slot="head"] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-0) var(--space-1) var(--space-0) var(--space-3);
+    border-block-end: var(--hairline) solid var(--edge-faint);
+    color: var(--text-2);
+    font-size: var(--fs-caption);
+  }
+  [data-boogy="code-block"] > [data-slot="head"] > [data-slot="language"] {
+    min-inline-size: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  [data-boogy="code-block"] > [data-slot="head"] > [data-boogy="button"] { flex: none; margin-inline-start: auto; }
+  [data-boogy="code-block"] > [data-slot="code"] {
+    /* Its lines are its content box: the collapse counts on it, whatever an
+       app sets for box-sizing everywhere else. */
+    box-sizing: content-box;
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 4;
+    color: var(--text-1);
+    font-family: var(--font-mono);
+    font-size: var(--fs-detail);
+    line-height: 1.5;
+    /* The characters as written: no => drawn as one arrow. */
+    font-variant-ligatures: none;
+  }
+  /* The browser's own monospace for <code> has other metrics: its lines would
+     not be the block's line height, and a collapse would cut one short. */
+  [data-boogy="code-block"] > [data-slot="code"] > code { font: inherit; }
+  [data-boogy="code-block"][data-collapsed="true"] > [data-slot="code"] {
+    max-block-size: calc(var(--code-lines) * 1lh);
+    overflow-y: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 2lh), transparent);
+    mask-image: linear-gradient(to bottom, black calc(100% - 2lh), transparent);
+  }
+  /* A markdown block: its tabs in the head, its preview the body. */
+  [data-boogy="code-block"] > [data-slot="head"] > [data-boogy="tab-list"] { flex: 0 1 auto; min-inline-size: 0; }
+  [data-boogy="code-block"] > [data-slot="head"] > [data-boogy="tab-list"] > [data-slot="tab"] { padding-block: var(--space-1); }
+  [data-boogy="code-block"] > [data-slot="preview"] {
+    min-inline-size: 0;
+    padding: var(--space-2) var(--space-3);
+    line-height: 1.5;
+  }
+  [data-boogy="code-block"][data-collapsed="true"] > [data-slot="preview"] {
+    max-block-size: calc(var(--code-lines) * 1lh);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 2lh), transparent);
+    mask-image: linear-gradient(to bottom, black calc(100% - 2lh), transparent);
+  }
+  /* The view not shown: laid out for its width, at no height, unseen. After
+     both views' own rules, so its no-padding wins. */
+  [data-boogy="code-block"] > [data-inactive] { block-size: 0; padding-block: 0; overflow: hidden; visibility: hidden; }
+  [data-boogy="code-block"] > [data-slot="foot"] {
+    display: flex;
+    justify-content: center;
+    border-block-start: var(--hairline) solid var(--edge-faint);
+  }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag) { color: var(--code-keyword); }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-string, .hljs-regexp, .hljs-addition, .hljs-template-tag) { color: var(--code-string); }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-number, .hljs-symbol, .hljs-bullet, .hljs-link) { color: var(--code-number); }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-title, .hljs-section, .hljs-name, .hljs-selector-id, .hljs-selector-class) { color: var(--code-title); }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-type, .hljs-built_in, .hljs-title.class_) { color: var(--code-type); }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-attr, .hljs-attribute, .hljs-property, .hljs-variable, .hljs-template-variable, .hljs-params, .hljs-meta, .hljs-tag) { color: var(--code-attr); }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) :is(.hljs-comment, .hljs-quote) { color: var(--text-3); font-style: italic; }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) .hljs-deletion { color: var(--danger); }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) .hljs-emphasis { font-style: italic; }
+  :is([data-boogy="code-block"], [data-boogy="markdown"]) .hljs-strong { font-weight: 600; }
+  /* Markdown, rendered: prose. Its blocks a gap apart, a heading a little
+     more above it; code and a wide table scroll sideways inside, never the
+     page. A grid of one minmax(0, 1fr) column, so nothing in it (a wide
+     table, a long line of code) widens what holds it, as a CodeBlock. */
+  [data-boogy="markdown"] {
+    ${CODE_COLOURS(CODE_FIXED_HUE)}
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-2);
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
+  [data-boogy="markdown"] > * { margin-block: 0; }
+  [data-boogy="markdown"] > :is(h1, h2, h3, h4, h5, h6):not(:first-child) { margin-block-start: var(--space-2); }
+  [data-boogy="markdown"] :is(li, blockquote) > :is(p, ul, ol, pre) { margin-block: var(--space-1); }
+  [data-boogy="markdown"] :is(h1, h2, h3, h4, h5, h6) { line-height: 1.25; font-weight: 600; }
+  [data-boogy="markdown"] h1 { font-size: var(--fs-title); }
+  [data-boogy="markdown"] h2 { font-size: var(--fs-body); }
+  [data-boogy="markdown"] :is(h3, h4, h5, h6) { font-size: var(--fs-detail); }
+  [data-boogy="markdown"] :is(ul, ol) { padding-inline-start: var(--space-5); }
+  [data-boogy="markdown"] li + li { margin-block-start: var(--space-1); }
+  [data-boogy="markdown"] li:has(> input[type="checkbox"]) { list-style: none; margin-inline-start: calc(-1 * var(--space-4)); }
+  [data-boogy="markdown"] input[type="checkbox"] { margin: 0 var(--space-1) 0 0; vertical-align: middle; accent-color: var(--accent); }
+  [data-boogy="markdown"] blockquote { margin-inline: 0; padding-inline-start: var(--space-3); border-inline-start: var(--underline) solid var(--edge); color: var(--text-2); }
+  [data-boogy="markdown"] a { color: var(--accent); text-decoration: underline; }
+  [data-boogy="markdown"] :not(pre) > code {
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-1);
+    background: var(--fill-selected);
+    font-family: var(--font-mono);
+    font-size: var(--fs-detail);
+  }
+  [data-boogy="markdown"] pre {
+    overflow-x: auto;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-2);
+    background: var(--fill-hover);
+    font-family: var(--font-mono);
+    font-size: var(--fs-detail);
+    line-height: 1.5;
+    white-space: pre;
+    font-variant-ligatures: none;
+  }
+  [data-boogy="markdown"] pre > code { font: inherit; }
+  [data-boogy="markdown"] table { display: block; max-inline-size: 100%; overflow-x: auto; border-collapse: collapse; }
+  [data-boogy="markdown"] :is(th, td) { padding: var(--space-1) var(--space-2); border: var(--hairline) solid var(--edge); text-align: start; }
+  /* A heading never breaks mid-label: a table with more columns than fit
+     scrolls, and long text in its cells still wraps. */
+  [data-boogy="markdown"] th { font-weight: 600; background: var(--fill-hover); white-space: nowrap; }
+  [data-boogy="markdown"] hr { border: none; border-block-start: var(--hairline) solid var(--edge); }
+  [data-boogy="markdown"] img { max-inline-size: 100%; block-size: auto; }
+  [data-boogy="markdown"] > [data-slot="plain"] { white-space: pre-wrap; }
+  [data-boogy="fenced-text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  [data-boogy="fenced-text"] > [data-slot="text"] { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  /* Last, so it wins over the fixed hues where the browser has relative
+     colours; a preview's code takes the same colours as a block's. */
+  @supports (color: oklch(from red l c h)) {
+    :is([data-boogy="code-block"], [data-boogy="markdown"]) {
+    ${CODE_COLOURS(CODE_HUE)}
+    }
+  }
+`;
+
+// --- Form (see form.ts) ---
+// A form for a screen: the fields scroll in the body, as wide as it is (they
+// grow with the pane, as everything does); the foot is a sheet's foot (a rule
+// above, the actions at the end) that never scrolls, so Save sits at the
+// fields' edge. A failed submit's notice takes the foot's first line.
+const FORM_CSS = `
+  [data-boogy="form"] {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-block-size: 0;
+    min-inline-size: 0;
+    margin: 0;
+  }
+  [data-boogy="form"] > [data-slot="body"] {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow: auto;
+    padding: var(--space-4);
+  }
+  [data-boogy="form"] [data-slot="fields"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  [data-boogy="form"] > [data-slot="foot"] {
+    flex: none;
+    padding: var(--space-3) var(--space-4);
+    border-top: var(--rule);
+  }
+  [data-boogy="form"] [data-slot="actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  [data-boogy="form"] [data-slot="actions"] > [data-boogy="notice"] { flex: 1 1 100%; order: -2; }
+`;
+
+// --- Link preview (see link-preview.ts) ---
+// A link in a message's text, and a linked page's card under it: a bar of the
+// accent down its start, the site's name, the title (two lines at most) and the
+// description (three), the image across it under the text (a wide one) or
+// beside it (any other). The whole card is one link. A message's cards sit in
+// a row where there is room for each at a card's least width, and wrap one
+// under the other where there is not.
+const LINK_PREVIEW_CSS = `
+  [data-boogy="fenced-text"] > [data-slot="previews"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    min-inline-size: 0;
+  }
+  [data-boogy="fenced-text"] > [data-slot="previews"] > [data-boogy="link-preview"] { flex: 1 1 var(--card-min); }
+  [data-boogy="fenced-text"] [data-slot="link"] {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-thickness: var(--hairline);
+  }
+  [data-boogy="fenced-text"] [data-slot="link"]:focus-visible { outline: var(--ring) solid var(--ring-color); }
+  [data-boogy="link-preview"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+    box-sizing: border-box;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    padding: var(--space-2) var(--space-3);
+    border-inline-start: var(--space-1) solid var(--accent);
+    border-radius: var(--radius-2);
+    background: var(--fill-hover);
+    color: inherit;
+    text-decoration: none;
+    white-space: normal;
+  }
+  [data-boogy="link-preview"]:hover { background: var(--fill-selected); }
+  [data-boogy="link-preview"]:focus-visible { outline: var(--ring) solid var(--ring-color); outline-offset: var(--ring); }
+  [data-boogy="link-preview"][data-layout="side"] { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+  [data-boogy="link-preview"] > [data-slot="body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-inline-size: 0;
+  }
+  [data-boogy="link-preview"] [data-slot="site"] {
+    overflow: hidden;
+    font-size: var(--fs-caption);
+    color: var(--text-3);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-boogy="link-preview"] :is([data-slot="title"], [data-slot="description"]) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  [data-boogy="link-preview"] [data-slot="title"] {
+    -webkit-line-clamp: 2;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1.25;
+  }
+  [data-boogy="link-preview"] [data-slot="description"] {
+    -webkit-line-clamp: 3;
+    font-size: var(--fs-detail);
+    color: var(--text-2);
+  }
+  [data-boogy="link-preview"] > [data-slot="image"] {
+    display: block;
+    border-radius: var(--radius-1);
+    object-fit: cover;
+  }
+  [data-boogy="link-preview"][data-layout="wide"] > [data-slot="image"] {
+    inline-size: 100%;
+    max-block-size: var(--media-md);
+  }
+  [data-boogy="link-preview"][data-layout="side"] > [data-slot="image"] {
+    inline-size: var(--thumb-lg);
+    block-size: var(--thumb-lg);
+  }
+`;
+
+// --- Count (see count.ts) ---
+// A badge of its own beside a label: its own wash and a full radius, a gap
+// before it, figures of one width so a changing count does not shift its
+// neighbours. In a selected tab or a chosen segment it takes the accent.
+const COUNT_CSS = `
+  [data-boogy="count"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-inline-size: var(--count-block);
+    block-size: var(--count-block);
+    padding-inline: var(--space-1);
+    margin-inline-start: var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--fill-selected);
+    color: var(--text-2);
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    vertical-align: middle;
+  }
+  :is([data-boogy="tab-list"] > [data-slot="tab"][aria-selected="true"], [data-boogy="choice-group"] [data-slot="choice"] > input:checked + [data-slot="choice-label"]) > [data-boogy="count"] {
+    background: color-mix(in oklch, var(--accent) 28%, transparent);
+    color: var(--text-1);
+  }
+`;
+
 // --- ChoiceGroup (see choice-group.ts) ---
 const CHOICE_GROUP_CSS = `
   [data-boogy="choice-group"] {
@@ -2143,6 +2935,7 @@ const CHOICE_GROUP_CSS = `
     border: none;
   }
   [data-boogy="choice-group"] > legend { padding: 0; margin-block-end: var(--space-2); }
+  [data-boogy="choice-group"] > [data-slot="choices"] { display: grid; gap: var(--space-2); }
   [data-boogy="choice-group"] [data-slot="choice"] {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -2165,6 +2958,60 @@ const CHOICE_GROUP_CSS = `
   }
   [data-boogy="choice-group"] [data-slot="choice-label"] { grid-column: 2; }
   [data-boogy="choice-group"] [data-slot="choice-description"] { grid-column: 2; color: var(--text-3); font-size: var(--fs-caption); }
+
+  /* segmented: one track of segments. The radio stays in the page, focusable
+     and keyboard-driven, but is not drawn; its label is the segment. Only the
+     chosen segment is filled. The track is as wide as its labels, or with
+     fill takes the width and shares it evenly. */
+  [data-boogy="choice-group"][data-variant="segmented"] > [data-slot="choices"] {
+    display: inline-flex;
+    justify-self: start;
+    gap: var(--space-0);
+    padding: var(--space-0);
+    max-inline-size: 100%;
+    box-sizing: border-box;
+    border: var(--hairline) solid var(--edge-faint);
+    border-radius: var(--radius-2);
+    background: var(--fill-hover);
+  }
+  [data-boogy="choice-group"][data-variant="segmented"][data-fill="true"] > [data-slot="choices"] { display: flex; justify-self: stretch; }
+  [data-boogy="choice-group"][data-variant="segmented"] [data-slot="choice"] {
+    position: relative;
+    display: flex;
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+  [data-boogy="choice-group"][data-variant="segmented"] [data-slot="choice"] > input {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  [data-boogy="choice-group"][data-variant="segmented"] [data-slot="choice-label"] {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: var(--control-sm);
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-1);
+    color: var(--text-2);
+    font-size: var(--fs-detail);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  [data-boogy="choice-group"][data-variant="segmented"] [data-slot="choice-label"]:hover { color: var(--text-1); }
+  [data-boogy="choice-group"][data-variant="segmented"] [data-slot="choice"] > input:checked + [data-slot="choice-label"] {
+    background: var(--fill-strong);
+    color: var(--text-1);
+  }
+  [data-boogy="choice-group"][data-variant="segmented"] [data-slot="choice"] > input:focus-visible + [data-slot="choice-label"] {
+    outline: var(--ring) solid var(--ring-color);
+    outline-offset: calc(-1 * var(--ring));
+  }
 `;
 
 // --- Visually hidden: present for assistive technology, never drawn ---
@@ -2243,6 +3090,53 @@ ${titleControlCovers('[data-boogy="data-table"] tbody tr')}
 // the stat's width is the one it fits. Its rows
 // pack to the top, so a stat with no caption, stretched beside one that has
 // one, keeps its label under its value.
+// ConfirmAction (see confirm-action.ts): the question and its two answers
+// where the action was, never past what holds it. Asking, the question wraps
+// and the answers stay together, beside it while they fit and under it when
+// they do not. In a list row it takes a line of its own under the row's text,
+// which keeps its width, and the row's other actions step aside until it is
+// answered.
+const ASKING = '[data-boogy="confirm-action"][data-asking]';
+const CONFIRM_ACTION_CSS = `
+  [data-boogy="confirm-action"] { display: inline-flex; align-items: center; gap: var(--space-1); }
+  ${ASKING} {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    column-gap: var(--space-2);
+    row-gap: var(--space-1);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  [data-boogy="confirm-action"] > [data-slot="question"] {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    color: var(--text-2);
+    font-size: var(--fs-caption);
+    overflow-wrap: anywhere;
+  }
+  [data-boogy="confirm-action"] > [data-slot="answers"] { display: inline-flex; flex: none; gap: var(--space-1); }
+  [data-boogy="list-item"]:has(> [data-slot="end"] ${ASKING}) { flex-wrap: wrap; }
+  [data-boogy="list-item"] > [data-slot="end"]:has(${ASKING}) {
+    flex: 1 1 100%;
+    min-inline-size: 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  [data-boogy="list-item"] > [data-slot="end"]:has(${ASKING}) [data-boogy="button"]:not(${ASKING} *) { display: none; }
+`;
+
+// PagedListEnd (see paged-list-end.ts): its button centred under the list.
+const PAGED_LIST_END_CSS = `
+  [data-boogy="paged-list-end"] { display: flex; justify-content: center; padding-block: var(--space-2); }
+`;
+
+// NumericValue (see numeric-value.ts): its digits at one width, so a count
+// that changes does not jitter what is beside it.
+const NUMERIC_VALUE_CSS = `
+  [data-boogy="numeric-value"] { font-variant-numeric: tabular-nums; }
+`;
+
 const STAT_CSS = `
   [data-boogy="stat"] { display: grid; align-content: start; gap: var(--space-1); min-inline-size: 0; }
   [data-boogy="stat"] > [data-slot="value"] { margin: 0; min-inline-size: 0; line-height: normal; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -2326,6 +3220,8 @@ const TOP_BAR_CSS = `
   [data-boogy="top-bar-stack"] > [data-slot="below"] { display: flex; min-inline-size: 0; }
   [data-boogy="top-bar-stack"] > [data-slot="below"] > * { flex: 1 1 auto; min-inline-size: 0; }
   [data-boogy="top-bar"] > [data-slot="leading"] { display: flex; flex: none; align-items: center; }
+  /* A mark beside the title and its subtitle (a logo). */
+  [data-boogy="top-bar"] > [data-slot="media"] { display: flex; flex: none; align-items: center; }
   [data-boogy="top-bar"] > [data-slot="heading"] { display: grid; flex: 1 1 0; min-inline-size: var(--top-bar-title-min); }
   [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"] {
     margin: 0;
@@ -2337,21 +3233,8 @@ const TOP_BAR_CSS = `
     line-height: 1.25;
   }
   /* A title may carry media beside its text (an avatar by a name), as a
-     Sheet's may: a row, the media its own size, the text beside it truncating
-     as a plain title does. */
-  [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]:has(> :is([data-boogy="avatar"], [data-boogy="thumbnail"], [data-boogy="glyph"])) {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    /* Not clipped, so the media's shadow shows; the text truncates itself. */
-    overflow: visible;
-  }
-  [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]:has(> :is([data-boogy="avatar"], [data-boogy="thumbnail"], [data-boogy="glyph"])) > [data-boogy] { flex: none; }
-  [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]:has(> :is([data-boogy="avatar"], [data-boogy="thumbnail"], [data-boogy="glyph"])) > :not([data-boogy]) {
-    min-inline-size: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+     Sheet's may. */
+${titleWithMedia('[data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="title"]', 'var(--space-2)')}
   [data-boogy="top-bar"] > [data-slot="heading"] > [data-slot="subtitle"] {
     margin: 0;
     overflow: hidden;
@@ -2524,7 +3407,7 @@ const DIVIDER_CSS = `
   }
 `;
 
-export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, BUTTON_GROUP_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, SIDE_PANEL_CSS, DIVIDER_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, COLOR_PICKER_CSS, TABS_CSS, TAB_PAGER_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
+export const COMPONENTS_CSS_PARTS = { PILL_CSS, BUTTON_CSS, BUTTON_GROUP_CSS, DRAWER_CSS, POPOVER_CSS, MENU_CSS, SHEET_CSS, SIDE_PANEL_CSS, DIVIDER_CSS, EMPTY_STATE_CSS, FIELD_CSS, AVATAR_CSS, SEEDED_ART_CSS, BUBBLE_CSS, INLINE_EDIT_CSS, SWATCH_CSS, COLOR_PICKER_CSS, TABS_CSS, TAB_PAGER_CSS, SECTION_CSS, THUMBNAIL_CSS, TILE_CSS, LIST_CSS, NOTICE_CSS, INFO_LIST_CSS, DETAIL_HEADER_CSS, STACK_CSS, CARD_CSS, CAROUSEL_CSS, FIT_TEXT_CSS, FILL_GRID_CSS, SEGMENT_CSS, METER_CSS, SWITCH_CSS, PANEL_CSS, SPLIT_VIEW_CSS, SEARCH_SELECT_CSS, CODE_BLOCK_CSS, LINK_PREVIEW_CSS, FORM_CSS, COUNT_CSS, CHOICE_GROUP_CSS, VISUALLY_HIDDEN_CSS, DATA_TABLE_CSS, STAT_CSS, NUMERIC_VALUE_CSS, CONFIRM_ACTION_CSS, PAGED_LIST_END_CSS, COLUMN_CHART_CSS, TOP_BAR_CSS };
 
 export const COMPONENTS_CSS = `${FILL_GRID_PROPERTIES}
 @layer boogy.components {
@@ -2562,10 +3445,20 @@ ${FILL_GRID_CSS}
 ${SEGMENT_CSS}
 ${METER_CSS}
 ${SWITCH_CSS}
+${PANEL_CSS}
+${SPLIT_VIEW_CSS}
+${SEARCH_SELECT_CSS}
+${CODE_BLOCK_CSS}
+${LINK_PREVIEW_CSS}
+${FORM_CSS}
+${COUNT_CSS}
 ${CHOICE_GROUP_CSS}
 ${VISUALLY_HIDDEN_CSS}
 ${DATA_TABLE_CSS}
 ${STAT_CSS}
+${NUMERIC_VALUE_CSS}
+${CONFIRM_ACTION_CSS}
+${PAGED_LIST_END_CSS}
 ${COLUMN_CHART_CSS}
 ${TOP_BAR_CSS}
 }

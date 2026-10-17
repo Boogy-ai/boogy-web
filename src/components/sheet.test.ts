@@ -59,6 +59,7 @@ describe('field', () => {
   });
   it('can be fully rounded, a pill whether it is a bare control or a group', () => {
     expect(field({ rounded: true })).toEqual({ 'data-boogy': 'field', 'data-rounded': 'true' });
+    expect(field({ variant: 'bar' })).toEqual({ 'data-boogy': 'field', 'data-variant': 'bar' });
     expect(ruleFor('[data-boogy="field"][data-rounded="true"] > :is([data-slot="control"], [data-slot="group"])')).toMatch(/border-radius:\s*var\(--radius-full\)/);
   });
   it('a leading icon is centred on the frame by flex, with room before the text', () => {

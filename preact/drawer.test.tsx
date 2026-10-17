@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
-import { DrawerLayout, Drawer, DrawerMain, DrawerItem, DrawerToggle } from './index';
+import { DrawerLayout, Drawer, DrawerMain, DrawerItem, DrawerToggle, useDrawerMode } from './index';
 
 function setup(props: { expanded?: boolean; open?: boolean; mode: 'docked' | 'overlay' }) {
   const onExpandedChange = vi.fn();
@@ -88,6 +88,52 @@ describe('DrawerLayout and friends', () => {
     const root = document.createElement('div');
     act(() => render(<DrawerLayout animate={false}><Drawer label="x" /></DrawerLayout>, root));
     expect((root.firstElementChild as HTMLElement).dataset.animate).toBe('false');
+  });
+
+  it('a foot is the drawer\'s last part, after a body that scrolls; with no foot, neither is drawn', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    act(() => render(
+      <DrawerLayout><Drawer label="Members" foot={<button id="invite">Invite</button>}><p id="list" /></Drawer><DrawerMain /></DrawerLayout>,
+      root,
+    ));
+    const drawer = root.querySelector('[data-boogy="drawer"]')!;
+    expect([...drawer.children].map((c) => c.getAttribute('data-slot'))).toEqual(['body', 'foot']);
+    expect(drawer.querySelector('[data-slot="body"] > #list')).not.toBeNull();
+    expect(drawer.querySelector('[data-slot="foot"] > #invite')).not.toBeNull();
+    const { q } = setup({ expanded: true, mode: 'docked' });
+    expect(q('[data-boogy="drawer"] > [data-slot="foot"]')).toBeNull();
+    expect(q('[data-boogy="drawer"] > [data-slot="body"]')).toBeNull();
+  });
+
+  it('a head stays above the body that scrolls; with a head and no foot, there is still a body', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    act(() => render(
+      <DrawerLayout><Drawer label="Members" head={<h3 id="title">Members</h3>}><p id="list" /></Drawer><DrawerMain /></DrawerLayout>,
+      root,
+    ));
+    const drawer = root.querySelector('[data-boogy="drawer"]')!;
+    expect([...drawer.children].map((c) => c.getAttribute('data-slot'))).toEqual(['head', 'body']);
+    expect(drawer.querySelector('[data-slot="head"] > #title')).not.toBeNull();
+    expect(drawer.querySelector('[data-slot="body"] > #list')).not.toBeNull();
+  });
+
+  it('a toggle may show in one state only, and may name what it shows and hides', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    act(() => render(
+      <DrawerLayout expanded>
+        <Drawer label="Members" style="--boogy-drawer-mode: docked" foot={<DrawerToggle shown="collapsed" label={{ show: 'Show members', hide: 'Hide members' }} />} />
+        <DrawerMain><DrawerToggle /></DrawerMain>
+      </DrawerLayout>,
+      root,
+    ));
+    const [inFoot, inMain] = [...root.querySelectorAll('[data-role="drawer-toggle"]')];
+    expect(inFoot.getAttribute('data-shown')).toBe('collapsed');
+    expect(inFoot.getAttribute('aria-label')).toBe('Hide members');
+    expect(inMain.hasAttribute('data-shown')).toBe(false);
+    expect(inMain.getAttribute('aria-label')).toBe('Hide navigation');
   });
 
   it('docked: the toggle expands and collapses', () => {
@@ -228,3 +274,30 @@ describe('DrawerLayout resizable', () => {
     expect(onWidthChange).toHaveBeenLastCalledWith(190);
   });
 });
+
+describe('Drawer variant', () => {
+  it('is a panel by default, marking nothing; plain is marked for its look', () => {
+    const root = document.createElement('div');
+    act(() => render(<DrawerLayout><Drawer label="A" /><Drawer label="B" variant="plain" /></DrawerLayout>, root));
+    const [a, b] = [...root.querySelectorAll('[data-boogy="drawer"]')] as HTMLElement[];
+    expect(a.hasAttribute('data-variant')).toBe(false);
+    expect(b.dataset.variant).toBe('plain');
+  });
+});
+
+describe('useDrawerMode', () => {
+  it("is the mode the stylesheet gives the drawer: docked or laid over the page", () => {
+    for (const mode of ['docked', 'overlay'] as const) {
+      const root = document.createElement('div');
+      document.body.append(root);
+      const Probe = () => <span id="probe">{useDrawerMode() ?? 'unknown'}</span>;
+      act(() => render(
+        <DrawerLayout><Drawer label="Rooms" style={`--boogy-drawer-mode: ${mode}`} /><DrawerMain><Probe /></DrawerMain></DrawerLayout>,
+        root,
+      ));
+      expect(root.querySelector('#probe')!.textContent, mode).toBe(mode);
+      root.remove();
+    }
+  });
+});
+

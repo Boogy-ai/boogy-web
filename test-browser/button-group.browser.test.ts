@@ -79,6 +79,29 @@ describe('ButtonGroup in a real layout engine', () => {
     expect(g.seamColor).not.toBe('rgba(0, 0, 0, 0)');
     expect(g.overflow).toBe('visible');
   });
+  it("a menu open beside one of its buttons changes none of the group's corners or seams", async () => {
+    const looks = await page.evaluate(() => {
+      const group = document.querySelector('[aria-label="Back"]')!.parentElement!;
+      const [a, b] = [...group.querySelectorAll(':scope > [data-boogy="button"]')];
+      const look = () => [a, b].map((el) => {
+        const cs = getComputedStyle(el);
+        return [cs.borderStartStartRadius, cs.borderEndStartRadius, cs.borderStartEndRadius, cs.borderEndEndRadius, cs.borderInlineStartWidth].join(' ');
+      }).join(' | ');
+      const menu = document.createElement('div');
+      menu.setAttribute('data-boogy', 'popover');
+      menu.setAttribute('popover', 'manual');
+      const closed = look();
+      b.after(menu);
+      menu.showPopover();
+      const afterLast = look();
+      a.after(menu);
+      const between = look();
+      menu.remove();
+      return { closed, afterLast, between };
+    });
+    expect(looks.afterLast).toBe(looks.closed);
+    expect(looks.between).toBe(looks.closed);
+  });
 });
 
 describe('ZoomControls', () => {
