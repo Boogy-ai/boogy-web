@@ -19,7 +19,7 @@ export interface ActionSpec {
   variant: ButtonVariant;
   role: ActionRole;
   /** An SDK glyph beside the words. */
-  glyph?: 'plus' | 'send' | 'trash' | 'upload' | 'archive';
+  glyph?: 'plus' | 'send' | 'trash' | 'upload' | 'archive' | 'check' | 'close';
 }
 
 const primary = (label: string, busyLabel: string, glyph?: ActionSpec['glyph']): ActionSpec => ({ label, busyLabel, variant: 'solid', role: 'primary', glyph });
@@ -30,14 +30,15 @@ export const ACTIONS: Readonly<Record<ActionKind, ActionSpec>> = {
   create: primary('Create', 'Creating…'),
   add: primary('Add', 'Adding…', 'plus'),
   send: primary('Send', 'Sending…', 'send'),
-  accept: primary('Accept', 'Accepting…'),
+  accept: primary('Accept', 'Accepting…', 'check'),
   confirm: primary('Confirm', 'Confirming…'),
   done: primary('Done', 'Finishing…'),
   // Picks a file and sends it: a soft fill, beside the thing it changes.
   upload: { label: 'Upload', busyLabel: 'Uploading…', variant: 'soft', role: 'secondary', glyph: 'upload' },
   cancel: secondary('Cancel'),
   close: secondary('Close'),
-  decline: secondary('Decline'),
+  // A cross, so it reads alone beside Accept's check in a short row.
+  decline: { ...secondary('Decline'), glyph: 'close' },
   // Destroys what it names: red, and first in a foot, apart from the rest.
   delete: { label: 'Delete', busyLabel: 'Deleting…', variant: 'danger', role: 'destructive', glyph: 'trash' },
   // Takes something off (an image, a member) that can be put back: quiet.

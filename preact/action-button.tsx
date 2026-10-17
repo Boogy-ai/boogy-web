@@ -20,30 +20,39 @@ export type ActionButtonProps = {
   size?: ButtonSize;
   /** Take the whole width of its container. */
   fill?: boolean;
+  /** The kind's glyph alone, its words as its name (a short row, a strip).
+   *  Only a kind that has a glyph. */
+  iconOnly?: boolean;
 } & Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 'size' | 'children'>;
 
-function ActionButtonImpl({ kind, busy, children, size, fill, disabled, type, ...rest }: ActionButtonProps, ref: Ref<HTMLElement>) {
+function ActionButtonImpl({ kind, busy, children, size, fill, iconOnly = false, disabled, type, ...rest }: ActionButtonProps, ref: Ref<HTMLElement>) {
   const spec = ACTIONS[kind];
+  if (iconOnly && !spec.glyph) throw new Error(`ActionButton: "${kind}" has no glyph to show alone; drop iconOnly`);
+  if (iconOnly && children != null && typeof children !== 'string') {
+    throw new Error('ActionButton: an iconOnly button is named by plain words; give it a string, or no children for its kind\'s words');
+  }
   const form = useFormState();
   const primary = spec.role === 'primary';
   const running = !!busy || (primary && form.submitting);
   const held = form.submitting || (primary && form.holds > 0);
-  return (
-    <Button
-      ref={ref}
-      {...(rest as object)}
-      {...actionButton(kind)}
-      type={type ?? (spec.role === 'primary' ? 'submit' : 'button')}
-      variant={spec.variant}
-      size={size}
-      fill={fill}
-      glyph={spec.glyph}
-      disabled={!!disabled || running || held}
-      aria-busy={running ? 'true' : undefined}
-    >
-      {running ? spec.busyLabel : children ?? spec.label}
-    </Button>
-  );
+  const common = {
+    ref,
+    ...(rest as object),
+    ...actionButton(kind),
+    type: type ?? (spec.role === 'primary' ? 'submit' : 'button'),
+    variant: spec.variant,
+    size,
+    fill,
+    glyph: spec.glyph,
+    disabled: !!disabled || running || held,
+    'aria-busy': running ? ('true' as const) : undefined,
+  };
+  if (iconOnly) {
+    // Its words, or its busy words, are its name.
+    const name = running ? spec.busyLabel : typeof children === 'string' ? children : spec.label;
+    return <Button {...common} shape="icon" label={name} />;
+  }
+  return <Button {...common}>{running ? spec.busyLabel : children ?? spec.label}</Button>;
 }
 
 export const ActionButton = forwardRef(ActionButtonImpl) as unknown as (props: ActionButtonProps & { ref?: Ref<HTMLElement> }) => JSX.Element;

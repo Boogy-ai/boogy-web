@@ -28,6 +28,11 @@ describe('actions', () => {
     expect(ACTIONS.upload).toMatchObject({ label: 'Upload', busyLabel: 'Uploading…', glyph: 'upload', role: 'secondary' });
   });
 
+  it('accept and decline carry a check and a cross, so either reads as a glyph alone', () => {
+    expect(ACTIONS.accept).toMatchObject({ label: 'Accept', glyph: 'check' });
+    expect(ACTIONS.decline).toMatchObject({ label: 'Decline', glyph: 'close' });
+  });
+
   it('archive sets a thing aside and unarchive brings it back: both quiet, archive first in a foot', () => {
     expect(ACTIONS.archive).toMatchObject({ label: 'Archive', busyLabel: 'Archiving…', variant: 'quiet', role: 'destructive', glyph: 'archive' });
     expect(ACTIONS.unarchive).toMatchObject({ label: 'Unarchive', busyLabel: 'Unarchiving…', variant: 'quiet', role: 'secondary', glyph: 'archive' });

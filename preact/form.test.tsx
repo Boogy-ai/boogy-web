@@ -29,6 +29,21 @@ describe('<ActionButton>', () => {
     expect(del.querySelector('svg')).not.toBeNull();
   });
 
+  it("iconOnly: the kind's glyph alone, named by its words (its busy words while it runs)", () => {
+    const root = mount(<><ActionButton kind="accept" iconOnly /><ActionButton kind="decline" iconOnly busy /></>);
+    const [accept, decline] = [...root.querySelectorAll('button')];
+    expect(accept.dataset.shape).toBe('icon');
+    expect(accept.getAttribute('aria-label')).toBe('Accept');
+    expect(accept.textContent).toBe('');
+    expect(accept.querySelector('svg')).not.toBeNull();
+    expect(decline.getAttribute('aria-label')).toBe('Decline');
+    expect(decline.disabled).toBe(true);
+    expect(() => mount(<ActionButton kind="cancel" iconOnly />)).toThrow(/glyph/);
+    // Its own name, as plain words; markup cannot be a name, so it is refused.
+    expect(mount(<ActionButton kind="accept" iconOnly>Let in</ActionButton>).querySelector('button')!.getAttribute('aria-label')).toBe('Let in');
+    expect(() => mount(<ActionButton kind="accept" iconOnly>Let <b>in</b></ActionButton>)).toThrow(/words/);
+  });
+
   it('busy, it says so and cannot be pressed again', () => {
     const root = mount(<ActionButton kind="save" busy />);
     const b = root.querySelector('button')!;
